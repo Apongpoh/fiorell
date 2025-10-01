@@ -42,14 +42,19 @@ export default function LoginPage() {
       setError(null);
       await login(data);
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Try to extract error from API response
-      if (error?.response?.error) {
-        setError(error.response.error);
-      } else if (error?.error) {
-        setError(error.error);
-      } else if (error?.message) {
-        setError(error.message);
+      if (typeof error === 'object' && error !== null) {
+        const errObj = error as { response?: { error?: string }; error?: string; message?: string };
+        if (errObj.response?.error) {
+          setError(errObj.response.error);
+        } else if (errObj.error) {
+          setError(errObj.error);
+        } else if (errObj.message) {
+          setError(errObj.message);
+        } else {
+          setError('Login failed. Please try again.');
+        }
       } else {
         setError('Login failed. Please try again.');
       }

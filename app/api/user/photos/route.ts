@@ -4,7 +4,7 @@ import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
 import { deleteFileFromS3 } from '@/lib/aws';
 import { uploadFileToS3 } from '@/lib/aws';
-import { Formidable, Fields, Files } from 'formidable';
+// import { Formidable, Fields, Files } from 'formidable';
 
 export const config = {
   api: {
@@ -64,10 +64,18 @@ export async function POST(request: NextRequest) {
     }
 
     const uploadedPhotos = [];
+    const MAX_SIZE_MB = 5;
+    const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (!file.type.startsWith('image/')) {
         continue; // skip non-image files
+      }
+      if (file.size > MAX_SIZE_BYTES) {
+        return NextResponse.json(
+          { error: `File size exceeds ${MAX_SIZE_MB}MB limit.` },
+          { status: 400 }
+        );
       }
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -91,23 +99,22 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
 
-  } catch (error: any) {
-    console.error('Upload photo error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as { message?: string };
+      if (errObj.message === 'Authentication token is required' || errObj.message === 'Invalid or expired token') {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+      if (errObj.message && (errObj.message.includes('file type') || errObj.message.includes('file size'))) {
+        return NextResponse.json(
+          { error: errObj.message },
+          { status: 400 }
+        );
+      }
     }
-
-    if (error.message.includes('file type') || error.message.includes('file size')) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
-    }
-
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -155,7 +162,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Find photo
-    const photoIndex = user.photos.findIndex((photo: any) => photo._id?.toString() === photoId);
+  const photoIndex = user.photos.findIndex((photo: { _id?: unknown }) => String(photo._id) === photoId);
     if (photoIndex === -1) {
       return NextResponse.json(
         { error: 'Photo not found' },
@@ -188,16 +195,17 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delete photo error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as { message?: string };
+      if (errObj.message === 'Authentication token is required' || errObj.message === 'Invalid or expired token') {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
     }
-
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -233,7 +241,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Find photo
-    const photo = user.photos.find((p: any) => p._id?.toString() === photoId);
+  const photo = user.photos.find((p: { _id?: unknown }) => String(p._id) === photoId);
     if (!photo) {
       return NextResponse.json(
         { error: 'Photo not found' },
@@ -242,8 +250,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update main photo
-    user.photos.forEach((p: any) => {
-      p.isMain = p._id?.toString() === photoId;
+    user.photos.forEach((p: { _id?: unknown; isMain?: boolean }) => {
+      p.isMain = String(p._id) === photoId;
     });
 
     await user.save();
@@ -253,16 +261,17 @@ export async function PUT(request: NextRequest) {
       { status: 200 }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Set main photo error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as { message?: string };
+      if (errObj.message === 'Authentication token is required' || errObj.message === 'Invalid or expired token') {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
     }
-
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
