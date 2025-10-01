@@ -1,102 +1,136 @@
-import Image from "next/image";
+"use client";
+
+import { motion } from "framer-motion";
+import { Heart, Users, MessageCircle, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
+      {/* Header */}
+      <header className="relative px-6 py-4">
+        <nav className="flex items-center justify-between max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center space-x-2"
+          >
+            <Heart className="h-8 w-8 text-pink-500" />
+            <span className="text-2xl font-bold text-gray-900">Fiorell</span>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center space-x-4"
+          >
+            <Link 
+              href="/login" 
+              className="px-4 py-2 text-gray-700 hover:text-pink-600 transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/signup"
+              className="px-6 py-2 bg-pink-500 text-white rounded-full hover:bg-pink-600 transition-colors"
+            >
+              Join Now
+            </Link>
+          </motion.div>
+        </nav>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      {/* Hero Section */}
+      <main className="relative px-6 py-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center">
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-5xl md:text-7xl font-bold text-gray-900 mb-6"
+            >
+              Find Your
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">
+                {" "}Perfect Match
+              </span>
+            </motion.h1>
+            
+            <motion.p
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto"
+            >
+              Connect with like-minded people, build meaningful relationships, and discover love that lasts a lifetime.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="flex flex-col sm:flex-row gap-4 justify-center"
+            >
+              <Link
+                href="/signup"
+                className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all"
+              >
+                Start Your Journey
+              </Link>
+              <Link
+                href="/about"
+                className="px-8 py-4 border-2 border-pink-500 text-pink-500 rounded-full text-lg font-semibold hover:bg-pink-500 hover:text-white transition-all"
+              >
+                Learn More
+              </Link>
+            </motion.div>
+          </div>
+
+          {/* Features */}
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="grid md:grid-cols-3 gap-8 mt-24"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <div className="text-center p-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-pink-100 rounded-full mb-6">
+                <Users className="h-8 w-8 text-pink-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Smart Matching</h3>
+              <p className="text-gray-600">
+                Our advanced algorithm connects you with compatible partners based on your interests and values.
+              </p>
+            </div>
+
+            <div className="text-center p-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-6">
+                <MessageCircle className="h-8 w-8 text-purple-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Meaningful Conversations</h3>
+              <p className="text-gray-600">
+                Break the ice with conversation starters and build deeper connections through thoughtful chats.
+              </p>
+            </div>
+
+            <div className="text-center p-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-6">
+                <Sparkles className="h-8 w-8 text-yellow-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Safe & Secure</h3>
+              <p className="text-gray-600">
+                Your privacy and safety are our top priorities with verified profiles and secure messaging.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 py-8 px-6 mt-16">
+        <div className="max-w-7xl mx-auto text-center text-gray-600">
+          <p>&copy; 2025 Fiorell. Made with ❤️ for meaningful connections.</p>
+        </div>
       </footer>
     </div>
   );
