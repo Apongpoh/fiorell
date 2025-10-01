@@ -38,44 +38,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get file from FormData
+    // Get files from FormData
     const formData = await request.formData();
-    const file = formData.get('photo') || formData.get('photos');
-    if (!file || !(file instanceof File)) {
+    const files: File[] = [];
+    for (const entry of formData.entries()) {
+      const [key, value] = entry;
+      if ((key === 'photo' || key === 'photos') && value instanceof File) {
+        files.push(value);
+      }
+    }
+
+    if (files.length === 0) {
       return NextResponse.json(
-        { error: 'No file uploaded' },
+        { error: 'No files uploaded' },
         { status: 400 }
       );
     }
 
-    // Check file type
-    if (!file.type.startsWith('image/')) {
+    // Enforce max 6 photos
+    if (user.photos.length + files.length > 6) {
       return NextResponse.json(
-        { error: 'Only image files are allowed' },
+        { error: 'Maximum 6 photos allowed' },
         { status: 400 }
       );
     }
 
-    // Convert file to buffer and upload directly to S3
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const s3Result = await uploadFileToS3(buffer, file.name, file.type);
-
-    // Add photo to user's photos array
-    const newPhoto = {
-      url: s3Result.location,
-      key: s3Result.key,
-      isMain: user.photos.length === 0,
-      createdAt: new Date()
-    };
-
-    user.photos.push(newPhoto);
+    const uploadedPhotos = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) {
+        continue; // skip non-image files
+      }
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const s3Result = await uploadFileToS3(buffer, file.name, file.type);
+      const newPhoto = {
+        url: s3Result.location,
+        key: s3Result.key,
+        isMain: user.photos.length === 0 && i === 0,
+        createdAt: new Date()
+      };
+      user.photos.push(newPhoto);
+      uploadedPhotos.push(newPhoto);
+    }
     await user.save();
 
     return NextResponse.json(
       {
-        message: 'Photo uploaded successfully',
-        photo: newPhoto
+        message: 'Photo(s) uploaded successfully',
+        photos: uploadedPhotos
       },
       { status: 201 }
     );

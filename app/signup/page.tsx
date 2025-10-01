@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ReCAPTCHA from "react-google-recaptcha";
 import { motion } from "framer-motion";
 import { Heart, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -30,6 +31,8 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const { signup, isAuthenticated } = useAuth();
   const router = useRouter();
 
@@ -48,12 +51,19 @@ export default function SignupPage() {
   }
 
   const onSubmit = async (data: SignupForm) => {
+    // reCAPTCHA logic disabled for local/dev
+    // if (!recaptchaToken) {
+    //   setError("Please complete the reCAPTCHA challenge.");
+    //   return;
+    // }
     try {
       setError(null);
-      await signup(data);
-      router.push('/login?message=Account created successfully! Please login.');
+      setSuccess(null);
+      // Send signup data with recaptchaToken
+  // await signup({ ...data, recaptchaToken });
+  await signup(data);
+      setSuccess("Account created! Please check your email to verify your account.");
     } catch (error: any) {
-      // Try to extract error from API response
       if (error?.response?.error) {
         setError(error.response.error);
       } else if (error?.message) {
@@ -100,10 +110,15 @@ export default function SignupPage() {
               </p>
             </div>
 
-            {/* Error Message */}
+            {/* Error/Success Message */}
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded">
                 {error}
+              </div>
+            )}
+            {success && (
+              <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded">
+                {success}
               </div>
             )}
 
@@ -257,6 +272,13 @@ export default function SignupPage() {
                 )}
               </div>
 
+              {/* Google reCAPTCHA (disabled for local/dev) */}
+              {/* <div className="flex justify-center mb-4">
+                <ReCAPTCHA
+                  sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "YOUR_RECAPTCHA_SITE_KEY"}
+                  onChange={(token: string | null) => setRecaptchaToken(token)}
+                />
+              </div> */}
               {/* Submit Button */}
               <button
                 type="submit"

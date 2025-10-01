@@ -85,9 +85,10 @@ const UserSchema = new Schema<IUser>({
   },
   dateOfBirth: {
     type: Date,
-    required: [true, 'Date of birth is required'],
+    required: false,
     validate: {
       validator: function(date: Date) {
+        if (!date) return true;
         const age = new Date().getFullYear() - date.getFullYear();
         return age >= 18 && age <= 100;
       },

@@ -59,7 +59,6 @@ const apiRequest = async (
 
     return await response.json();
   } catch (error) {
-    console.error('API request failed:', error);
     throw error;
   }
 };
@@ -112,6 +111,12 @@ export const authAPI = {
 
 // User API calls
 export const userAPI = {
+  // Delete user account
+  deleteAccount: async () => {
+    return await apiRequest('/user/profile', {
+      method: 'DELETE',
+    });
+  },
   // Get user profile
   getProfile: async () => {
     return await apiRequest('/user/profile');

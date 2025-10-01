@@ -76,6 +76,9 @@ export async function PUT(request: NextRequest) {
     const {
       firstName,
       lastName,
+      age,
+      gender,
+      dateOfBirth,
       bio,
       location,
       interests,
@@ -95,9 +98,12 @@ export async function PUT(request: NextRequest) {
     // Update fields if provided
     if (firstName !== undefined) user.firstName = firstName.trim();
     if (lastName !== undefined) user.lastName = lastName.trim();
+    if (age !== undefined) user.age = age;
+    if (gender !== undefined) user.gender = gender;
+  if (dateOfBirth !== undefined && dateOfBirth !== '') user.dateOfBirth = new Date(dateOfBirth);
     if (bio !== undefined) user.bio = bio.trim();
     if (location !== undefined) {
-      user.location.city = location.trim();
+      user.location.city = location.city?.trim?.() || location.city;
     }
     if (interests !== undefined && Array.isArray(interests)) {
       user.interests = interests;
@@ -181,22 +187,17 @@ export async function DELETE(request: NextRequest) {
     // Verify authentication
     const { userId } = verifyAuth(request);
 
-    // Find and deactivate user (soft delete)
-    const user = await User.findById(userId);
-    if (!user) {
+    // Find and delete user (hard delete)
+    const result = await User.findByIdAndDelete(userId);
+    if (!result) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Deactivate account instead of hard delete
-    user.isActive = false;
-    user.lastSeen = new Date();
-    await user.save();
-
     return NextResponse.json(
-      { message: 'Account deactivated successfully' },
+      { message: 'Account deleted successfully' },
       { status: 200 }
     );
 

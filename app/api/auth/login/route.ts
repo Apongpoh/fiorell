@@ -19,9 +19,28 @@ export async function OPTIONS(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
-    
+
     const body = await request.json();
-    console.log('Login request received for email:', body.email);
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+    // Rate limiting: max 5 login attempts per IP+email per 15 minutes
+    const LoginAttempt = (await import('@/models/LoginAttempt')).default;
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const recentAttempts = await LoginAttempt.countDocuments({ ip, email: body.email?.toLowerCase(), createdAt: { $gte: fifteenMinutesAgo } });
+    if (recentAttempts >= 5) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          }
+        }
+      );
+    }
+    // Log this attempt
+    await LoginAttempt.create({ ip, email: body.email?.toLowerCase() });
 
     const { email, password } = body;
 
@@ -60,7 +79,6 @@ export async function POST(request: NextRequest) {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      console.error('Login error: Incorrect password for email', email);
       return NextResponse.json(
         { error: 'Incorrect password' },
         { 
