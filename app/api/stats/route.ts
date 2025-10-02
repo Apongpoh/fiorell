@@ -42,10 +42,11 @@ export async function GET(request: NextRequest) {
       updatedAt: { $gte: thirtyDaysAgo }
     });
 
-    // Get unread messages
+    // Get unread messages (match Message schema: recipient + readStatus.isRead)
     const unreadMessages = await Message.countDocuments({
-      to: userId,
-      read: false
+      recipient: userId,
+      'readStatus.isRead': false,
+      isDeleted: false
     });
 
     // Get today's profile views from unique viewers

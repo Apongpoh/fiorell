@@ -27,6 +27,8 @@ interface ChatPreview {
     createdAt: string;
     isRead: boolean;
   };
+  unreadCount: number;
+  lastMessageAt?: string | null;
 }
 
 export default function MessagesPage() {
@@ -60,7 +62,7 @@ export default function MessagesPage() {
 
         // The current API returns matches with shape: { _id, user: {...}, lastMessage, unreadCount, ... }
         // but we also keep backward compatibility if user1/user2 are present.
-        const validChats = (response.matches as any[])
+        const validChats: ChatPreview[] = (response.matches as any[])
           .map((match) => {
             const otherUser = match.user
               ? match.user
@@ -71,7 +73,7 @@ export default function MessagesPage() {
             if (!otherUser || !otherUser._id) return null;
 
             const lastMsg = match.lastMessage;
-            return {
+            const chat: ChatPreview = {
               matchId: match._id,
               userId: otherUser._id,
               firstName: otherUser.firstName,
@@ -83,9 +85,10 @@ export default function MessagesPage() {
               } : undefined,
               unreadCount: match.unreadCount || 0,
               lastMessageAt: match.lastMessageAt || match.matchedAt || null
-            } as ChatPreview & { unreadCount: number; lastMessageAt: string | null };
+            };
+            return chat;
           })
-          .filter((chat: (ChatPreview & { unreadCount: number; lastMessageAt: string | null }) | null): chat is ChatPreview & { unreadCount: number; lastMessageAt: string | null } => chat !== null)
+          .filter((chat: ChatPreview | null): chat is ChatPreview => chat !== null)
           // Sort: most recent activity first (lastMessageAt then matchedAt)
           .sort((a, b) => {
             const tA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
@@ -136,7 +139,22 @@ export default function MessagesPage() {
       {/* Header */}
       <header className="bg-white shadow-sm px-6 py-4">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+            Messages
+            {chats.some(c => c.unreadCount > 0) && (
+              <span className="text-xs bg-pink-500 text-white px-2 py-0.5 rounded-full font-medium">
+                {chats.reduce((sum, c) => sum + c.unreadCount, 0) > 99 ? '99+' : chats.reduce((sum, c) => sum + c.unreadCount, 0)}
+              </span>
+            )}
+          </h1>
+          {chats.length > 0 && (
+            <button
+              onClick={() => setRetryCount(r => r + 1)}
+              className="text-xs text-pink-500 hover:text-pink-600 font-medium"
+            >
+              Refresh
+            </button>
+          )}
         </div>
       </header>
 
@@ -165,25 +183,29 @@ export default function MessagesPage() {
               {/* Chat Preview */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className={`text-sm truncate ${chat.unreadCount > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-900'}`}> 
                     {chat.firstName}
                   </p>
-                  {chat.lastMessage && (
+                  {(chat.lastMessageAt || chat.lastMessage) && (
                     <p className="text-xs text-gray-500">
-                      {new Date(chat.lastMessage.createdAt).toLocaleDateString()}
+                      {new Date(chat.lastMessageAt || chat.lastMessage?.createdAt || Date.now()).toLocaleDateString()}
                     </p>
                   )}
                 </div>
                 {chat.lastMessage && (
-                  <p className="text-sm text-gray-500 truncate">
+                  <p className={`text-sm truncate ${chat.unreadCount > 0 && !chat.lastMessage.isRead ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
                     {chat.lastMessage.content}
                   </p>
                 )}
               </div>
 
-              {/* Unread Indicator */}
-              {chat.lastMessage && !chat.lastMessage.isRead && (
-                <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
+              {/* Unread Count Badge */}
+              {chat.unreadCount > 0 && (
+                <div className="flex items-center">
+                  <span className="min-w-[1.5rem] px-2 py-1 bg-pink-500 text-white text-xs rounded-full text-center font-semibold">
+                    {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                  </span>
+                </div>
               )}
             </button>
           ))}

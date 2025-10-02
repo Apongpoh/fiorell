@@ -2,19 +2,25 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Heart, 
-  X, 
-  Star, 
-  MapPin, 
-  Users, 
-  MessageCircle, 
+import {
+  Heart,
+  X,
+  Star,
+  MapPin,
+  Users,
+  MessageCircle,
   Settings,
   Filter,
-  Camera
+  Camera,
 } from "lucide-react";
 import { useAuth, withAuth } from "@/contexts/AuthContext";
-import { discoveryAPI, interactionsAPI, matchesAPI, userAPI, statsAPI } from "@/lib/api";
+import {
+  discoveryAPI,
+  interactionsAPI,
+  matchesAPI,
+  userAPI,
+  statsAPI,
+} from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 interface Profile {
@@ -44,8 +50,13 @@ function DashboardPage() {
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [stats, setStats] = useState({
     today: { likes: 0, views: 0 },
-    totals: { receivedLikes: 0, receivedSuperLikes: 0, matches: 0, profileViews: 0 },
-    active: { matches: 0, unreadMessages: 0 }
+    totals: {
+      receivedLikes: 0,
+      receivedSuperLikes: 0,
+      matches: 0,
+      profileViews: 0,
+    },
+    active: { matches: 0, unreadMessages: 0 },
   });
   const [statsLoading, setStatsLoading] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -63,10 +74,10 @@ function DashboardPage() {
         setCurrentUser(response.user);
       } catch (error: any) {
         // If auth fails, redirect to login
-        if (error.message.includes('Unauthorized')) {
+        if (error.message.includes("Unauthorized")) {
           logout();
         } else {
-          setError('Failed to load user profile');
+          setError("Failed to load user profile");
         }
       } finally {
         setUserLoading(false);
@@ -84,7 +95,7 @@ function DashboardPage() {
         const response = await discoveryAPI.getMatches(10, 0);
         setProfiles(response.matches || []);
       } catch (error: any) {
-        setError(error.message || 'Failed to load matches');
+        setError(error.message || "Failed to load matches");
       } finally {
         setLoading(false);
       }
@@ -93,7 +104,7 @@ function DashboardPage() {
     loadMatches();
   }, []);
 
-    // Fetch stats from backend
+  // Fetch stats from backend
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -104,11 +115,16 @@ function DashboardPage() {
         const data = await statsAPI.getUserStats(currentUser.id);
         setStats(data);
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error("Error fetching stats:", error);
         setStats({
           today: { likes: 0, views: 0 },
-          totals: { receivedLikes: 0, receivedSuperLikes: 0, matches: 0, profileViews: 0 },
-          active: { matches: 0, unreadMessages: 0 }
+          totals: {
+            receivedLikes: 0,
+            receivedSuperLikes: 0,
+            matches: 0,
+            profileViews: 0,
+          },
+          active: { matches: 0, unreadMessages: 0 },
         });
       } finally {
         setIsLoadingStats(false);
@@ -129,21 +145,30 @@ function DashboardPage() {
 
   const advancePhoto = () => {
     if (!currentProfile || currentProfile.photos.length <= 1) return;
-    setPhotoIndex(prev => (prev + 1) % currentProfile.photos.length);
+    setPhotoIndex((prev) => (prev + 1) % currentProfile.photos.length);
   };
 
-    const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
+  const handleSwipe = async (direction: "left" | "right" | "up") => {
     if (profiles.length === 0 || !currentUser?.id) {
       return;
     }
 
     const currentProfile = profiles[currentProfileIndex];
-    const action = direction === 'left' ? 'pass' : direction === 'up' ? 'super_like' : 'like';
+    const action =
+      direction === "left"
+        ? "pass"
+        : direction === "up"
+        ? "super_like"
+        : "like";
 
     try {
       // Record the swipe interaction with real user ID
-      const response = await interactionsAPI.recordSwipe(currentUser.id, currentProfile.id, action);
-      
+      const response = await interactionsAPI.recordSwipe(
+        currentUser.id,
+        currentProfile.id,
+        action
+      );
+
       // Check if it's a match
       if (response.match) {
         setCurrentMatch(currentProfile);
@@ -151,13 +176,13 @@ function DashboardPage() {
       }
 
       // Update stats if it was a like
-      if (action === 'like' || action === 'super_like') {
-        setStats(prev => ({
+      if (action === "like" || action === "super_like") {
+        setStats((prev) => ({
           ...prev,
           today: {
             ...prev.today,
-            likes: prev.today.likes + 1
-          }
+            likes: prev.today.likes + 1,
+          },
         }));
       }
     } catch {
@@ -166,7 +191,7 @@ function DashboardPage() {
 
     // Move to next profile
     if (currentProfileIndex < profiles.length - 1) {
-      setCurrentProfileIndex(prev => prev + 1);
+      setCurrentProfileIndex((prev) => prev + 1);
       setCurrentPhotoIndex(0); // Reset photo index for new profile
     } else {
       // Load more profiles or show end message
@@ -177,15 +202,15 @@ function DashboardPage() {
   const loadMoreProfiles = async () => {
     try {
       const response = await discoveryAPI.getMatches(10, profiles.length);
-      setProfiles(prev => [...prev, ...(response.matches || [])]);
+      setProfiles((prev) => [...prev, ...(response.matches || [])]);
     } catch {
-      throw new Error('Failed to load more profiles');
+      throw new Error("Failed to load more profiles");
     }
   };
 
-  const handleLike = () => handleSwipe('right');
-  const handleSuperLike = () => handleSwipe('up');
-  const handlePass = () => handleSwipe('left');
+  const handleLike = () => handleSwipe("right");
+  const handleSuperLike = () => handleSwipe("up");
+  const handlePass = () => handleSwipe("left");
 
   if (loading) {
     return (
@@ -203,8 +228,8 @@ function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600"
           >
             Try Again
@@ -219,10 +244,14 @@ function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Heart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">No more profiles</h2>
-          <p className="text-gray-600 mb-4">Check back later for new matches!</p>
-          <button 
-            onClick={() => router.push('/matches')} 
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            No more profiles
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Check back later for new matches!
+          </p>
+          <button
+            onClick={() => router.push("/matches")}
             className="bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600"
           >
             View Your Matches
@@ -241,24 +270,26 @@ function DashboardPage() {
             <Heart className="h-8 w-8 text-pink-500" />
             <span className="text-2xl font-bold text-gray-900">Fiorell</span>
           </div>
-          
+
           <div className="flex items-center space-x-4">
             <button className="p-2 text-gray-600 hover:text-pink-600 transition-colors">
               <Filter className="h-6 w-6" />
             </button>
-            <button 
-              onClick={() => router.push('/matches')}
+            <button
+              onClick={() => router.push("/matches")}
               className="p-2 text-gray-600 hover:text-pink-600 transition-colors"
             >
               <MessageCircle className="h-6 w-6" />
             </button>
-            <button 
-              onClick={() => router.push('/profile')}
+            <button
+              onClick={() => router.push("/profile")}
               className="w-8 h-8 bg-pink-500 cursor-pointer rounded-full flex items-center justify-center hover:bg-pink-600 transition-colors"
               title="Profile"
             >
               <span className="text-white font-semibold text-sm">
-                {(currentUser?.firstName || user?.firstName)?.charAt(0)?.toUpperCase() || 'U'}
+                {(currentUser?.firstName || user?.firstName)
+                  ?.charAt(0)
+                  ?.toUpperCase() || "U"}
               </span>
             </button>
           </div>
@@ -273,19 +304,29 @@ function DashboardPage() {
               <motion.div
                 key={currentProfile.id}
                 initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ 
-                  scale: 1, 
+                animate={{
+                  scale: 1,
                   opacity: 1,
-                  x: dragDirection === 'left' ? -300 : dragDirection === 'right' ? 300 : 0,
-                  rotate: dragDirection === 'left' ? -30 : dragDirection === 'right' ? 30 : 0
+                  x:
+                    dragDirection === "left"
+                      ? -300
+                      : dragDirection === "right"
+                      ? 300
+                      : 0,
+                  rotate:
+                    dragDirection === "left"
+                      ? -30
+                      : dragDirection === "right"
+                      ? 30
+                      : 0,
                 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0 bg-white rounded-2xl shadow-xl overflow-hidden"
               >
                 {/* Profile Image */}
-                <div 
-                  className="relative h-3/4 cursor-pointer" 
+                <div
+                  className="relative h-3/4 cursor-pointer"
                   onClick={(e) => {
                     // If clicked with two fingers or right click, advance photo
                     // Otherwise navigate to profile
@@ -297,7 +338,12 @@ function DashboardPage() {
                   }}
                 >
                   <img
-                    src={currentProfile.photos[photoIndex]?.url || currentProfile.photos[0]?.url || currentProfile.defaultPhoto || "/api/placeholder/profile"}
+                    src={
+                      currentProfile.photos[photoIndex]?.url ||
+                      currentProfile.photos[0]?.url ||
+                      currentProfile.defaultPhoto ||
+                      "/api/placeholder/profile"
+                    }
                     alt={currentProfile.firstName}
                     className="w-full h-full object-cover"
                     draggable={false}
@@ -306,7 +352,7 @@ function DashboardPage() {
                       target.src = "/api/placeholder/profile";
                     }}
                   />
-                  
+
                   {/* Photo indicators */}
                   {currentProfile.photos.length > 1 && (
                     <div className="absolute top-2 left-4 right-4 flex gap-1">
@@ -314,23 +360,23 @@ function DashboardPage() {
                         <div
                           key={index}
                           className={`h-1 flex-1 rounded-full ${
-                            index === photoIndex ? 'bg-white' : 'bg-white/40'
+                            index === photoIndex ? "bg-white" : "bg-white/40"
                           }`}
                         />
                       ))}
                     </div>
                   )}
-                  
+
                   {/* Gradient Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  
+
                   {/* Verified Badge */}
                   {currentProfile.verification.isVerified && (
                     <div className="absolute top-4 right-4 bg-blue-500 rounded-full p-1">
                       <Star className="h-4 w-4 text-white fill-current" />
                     </div>
                   )}
-                  
+
                   {/* Profile Info Overlay */}
                   <div className="absolute bottom-4 left-4 right-4 text-white">
                     <h2 className="text-2xl font-bold mb-1">
@@ -381,7 +427,7 @@ function DashboardPage() {
           >
             <X className="h-6 w-6 text-gray-400 hover:text-red-500 transition-colors" />
           </motion.button>
-          
+
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
@@ -390,7 +436,7 @@ function DashboardPage() {
           >
             <Star className="h-5 w-5 text-gray-400 hover:text-blue-500 transition-colors" />
           </motion.button>
-          
+
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
@@ -405,19 +451,19 @@ function DashboardPage() {
         <div className="grid grid-cols-3 gap-4 mt-8 text-center">
           <div>
             <div className="text-2xl font-bold text-gray-900">
-              {isLoadingStats ? '...' : stats.today.likes}
+              {isLoadingStats ? "..." : stats.today.likes}
             </div>
             <div className="text-sm text-gray-600">Likes Today</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-gray-900">
-              {isLoadingStats ? '...' : stats.active.matches}
+              {isLoadingStats ? "..." : stats.active.matches}
             </div>
             <div className="text-sm text-gray-600">Active Matches</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-gray-900">
-              {isLoadingStats ? '...' : stats.active.unreadMessages}
+              {isLoadingStats ? "..." : stats.active.unreadMessages}
             </div>
             <div className="text-sm text-gray-600">Unread Messages</div>
           </div>
@@ -431,7 +477,12 @@ function DashboardPage() {
             <Star className="h-12 w-12 text-pink-500 mx-auto mb-4" />
             <h3 className="text-2xl font-semibold mb-2">It's a Match!</h3>
             <img
-              src={matchedProfile.photos.find(p => p.isMain)?.url || matchedProfile.photos[0]?.url || matchedProfile.defaultPhoto || "/api/placeholder/profile"}
+              src={
+                matchedProfile.photos.find((p) => p.isMain)?.url ||
+                matchedProfile.photos[0]?.url ||
+                matchedProfile.defaultPhoto ||
+                "/api/placeholder/profile"
+              }
               alt={matchedProfile.firstName}
               className="w-24 h-24 rounded-full object-cover mx-auto mb-3 border-4 border-pink-100"
               onError={(e) => {
@@ -440,7 +491,8 @@ function DashboardPage() {
               }}
             />
             <p className="text-sm text-gray-600 mb-6">
-              You and {matchedProfile.firstName} liked each other. Start a conversation now!
+              You and {matchedProfile.firstName} liked each other. Start a
+              conversation now!
             </p>
             <div className="flex gap-3">
               <button
@@ -452,7 +504,7 @@ function DashboardPage() {
               <button
                 onClick={() => {
                   setShowMatchModal(false);
-                  router.push('/matches');
+                  router.push("/matches");
                 }}
                 className="flex-1 px-4 py-2 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium transition-colors"
               >
@@ -466,29 +518,29 @@ function DashboardPage() {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
         <div className="flex items-center justify-around max-w-md mx-auto">
-          <button 
-            onClick={() => router.push('/dashboard')}
+          <button
+            onClick={() => router.push("/dashboard")}
             className="flex flex-col items-center space-y-1 text-pink-500"
           >
             <Users className="h-6 w-6" />
             <span className="text-xs">Discover</span>
           </button>
-          <button 
-            onClick={() => router.push('/matches')}
+          <button
+            onClick={() => router.push("/matches")}
             className="flex flex-col items-center space-y-1 text-gray-400 hover:text-pink-500 transition-colors"
           >
             <Heart className="h-6 w-6" />
             <span className="text-xs">Likes</span>
           </button>
-          <button 
-            onClick={() => router.push('/chat')}
+          <button
+            onClick={() => router.push("/chat")}
             className="flex flex-col items-center space-y-1 text-gray-400 hover:text-pink-500 transition-colors"
           >
             <MessageCircle className="h-6 w-6" />
             <span className="text-xs">Messages</span>
           </button>
-          <button 
-            onClick={() => router.push('/profile')}
+          <button
+            onClick={() => router.push("/profile")}
             className="flex flex-col items-center space-y-1 text-gray-400 hover:text-pink-500 transition-colors"
           >
             <Camera className="h-6 w-6" />
