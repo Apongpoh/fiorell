@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Heart, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -31,17 +31,27 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  // Redirect if already authenticated
+  // Redirect after first render when authenticated to avoid setState during render
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, router]);
+
+  // Prevent form flash if already authenticated; show minimal placeholder
   if (isAuthenticated) {
-    router.push('/dashboard');
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-purple-50">
+        <p className="text-gray-600">Redirecting...</p>
+      </div>
+    );
   }
 
   const onSubmit = async (data: LoginForm) => {
     try {
       setError(null);
-      await login(data);
-      router.push('/dashboard');
+  await login(data);
+  router.replace('/dashboard');
     } catch (error: unknown) {
       // Try to extract error from API response
       if (typeof error === 'object' && error !== null) {

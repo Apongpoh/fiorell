@@ -48,7 +48,7 @@ export default function MessagesPage() {
       
       try {
         setLoading(true);
-        const response = await apiRequest('/matches');
+  const response = await apiRequest('/matches');
 
         if (!response || !response.matches) {
           throw new Error('Invalid response from server');
@@ -58,45 +58,40 @@ export default function MessagesPage() {
           throw new Error('Invalid matches data');
         }
 
-        type MatchData = {
-          _id: string;
-          user1: {
-            _id: string;
-            firstName: string;
-            photos?: Array<{ url: string }>;
-          };
-          user2: {
-            _id: string;
-            firstName: string;
-            photos?: Array<{ url: string }>;
-          };
-          lastMessage?: {
-            content: string;
-            createdAt: string;
-            readStatus: { isRead: boolean };
-          };
-        };
+        // The current API returns matches with shape: { _id, user: {...}, lastMessage, unreadCount, ... }
+        // but we also keep backward compatibility if user1/user2 are present.
+        const validChats = (response.matches as any[])
+          .map((match) => {
+            const otherUser = match.user
+              ? match.user
+              : (match.user1 && match.user2
+                  ? (match.user1._id === user.id ? match.user2 : match.user1)
+                  : null);
 
-        const validChats = response.matches
-          .map((match: MatchData) => {
-            if (!match?.user1 || !match?.user2) {
-              return null;
-            }
+            if (!otherUser || !otherUser._id) return null;
 
-            const otherUser = match.user1._id === user.id ? match.user2 : match.user1;
+            const lastMsg = match.lastMessage;
             return {
               matchId: match._id,
               userId: otherUser._id,
               firstName: otherUser.firstName,
               photo: otherUser.photos?.[0]?.url || '/api/placeholder/profile',
-              lastMessage: match.lastMessage ? {
-                content: match.lastMessage.content,
-                createdAt: match.lastMessage.createdAt,
-                isRead: match.lastMessage.readStatus?.isRead || false
-              } : undefined
-            };
+              lastMessage: lastMsg && lastMsg.content ? {
+                content: lastMsg.content,
+                createdAt: lastMsg.createdAt,
+                isRead: lastMsg.readStatus?.isRead || false
+              } : undefined,
+              unreadCount: match.unreadCount || 0,
+              lastMessageAt: match.lastMessageAt || match.matchedAt || null
+            } as ChatPreview & { unreadCount: number; lastMessageAt: string | null };
           })
-          .filter((chat: ChatPreview | null): chat is ChatPreview => chat !== null);
+          .filter((chat: (ChatPreview & { unreadCount: number; lastMessageAt: string | null }) | null): chat is ChatPreview & { unreadCount: number; lastMessageAt: string | null } => chat !== null)
+          // Sort: most recent activity first (lastMessageAt then matchedAt)
+          .sort((a, b) => {
+            const tA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+            const tB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+            return tB - tA;
+          });
 
         setChats(validChats);
       } catch (error: any) {

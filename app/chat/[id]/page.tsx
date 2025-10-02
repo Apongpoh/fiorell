@@ -172,7 +172,36 @@ export default function ChatPage() {
         }),
       });
 
-      const newMsg = data.message;
+      let newMsg = data.message;
+      // Fallback: reconstruct message if missing required fields
+      if (!newMsg || !newMsg.content) {
+        newMsg = {
+          _id: Math.random().toString(36).slice(2),
+          sender: {
+            id: user?.id,
+            firstName: user?.firstName || "",
+            isCurrentUser: true,
+          },
+          recipient:
+            match?.user1._id === user?.id ? match?.user2._id : match?.user1._id,
+          match: id,
+          content: newMessage.trim(),
+          type: "text",
+          createdAt: new Date().toISOString(),
+          readStatus: { isRead: false },
+          isDeleted: false,
+        };
+      } else {
+        newMsg = {
+          ...newMsg,
+          sender: {
+            id: user?.id,
+            firstName: user?.firstName || "",
+            isCurrentUser: true,
+          },
+          content: newMessage.trim(),
+        };
+      }
       setMessages((prev) => [...prev, newMsg]);
       setNewMessage("");
       scrollToBottom();
@@ -336,9 +365,10 @@ export default function ChatPage() {
             </div>
           ) : (
             messages.map((message, index) => {
-              const senderId = typeof message.sender === 'object' && message.sender !== null
-                ? String(message.sender.id)
-                : String(message.sender);
+              const senderId =
+                typeof message.sender === "object" && message.sender !== null
+                  ? String(message.sender.id)
+                  : String(message.sender);
               const userId = String(user?.id);
               const isSender = senderId === userId;
               return (
@@ -356,19 +386,22 @@ export default function ChatPage() {
                       }`}
                     >
                       {message.type === "text" ? (
-                        <p key={message._id + '-text'} className="whitespace-pre-line break-words">
+                        <p
+                          key={message._id + "-text"}
+                          className="whitespace-pre-line break-words"
+                        >
                           {message.content}
                         </p>
                       ) : message.type === "image" ? (
                         <img
-                          key={message._id + '-img'}
+                          key={message._id + "-img"}
                           src={message.media?.url}
                           alt="Shared image"
                           className="rounded-lg max-w-full"
                         />
                       ) : null}
                       <div
-                        key={message._id + '-meta'}
+                        key={message._id + "-meta"}
                         className={`text-xs mt-1 ${
                           isSender ? "text-pink-200" : "text-gray-500"
                         }`}
@@ -376,7 +409,12 @@ export default function ChatPage() {
                         {formatMessageTime(message.createdAt)}
                         {isSender && (
                           <span className="ml-1">
-                            {message.readStatus.isRead ? "• Read" : "• Sent"}
+                            {message.readStatus &&
+                            typeof message.readStatus.isRead === "boolean"
+                              ? message.readStatus.isRead
+                                ? "• Read"
+                                : "• Sent"
+                              : "• Sent"}
                           </span>
                         )}
                       </div>
