@@ -10,11 +10,11 @@ import { formatDistanceToNow } from "date-fns";
 
 interface Message {
   _id: string;
-  sender: string;
+  sender: string | { _id: string; [key: string]: any };
   recipient: string;
   match: string;
   content: string;
-  type: 'text' | 'image' | 'video' | 'audio' | 'location';
+  type: "text" | "image" | "video" | "audio" | "location";
   media?: {
     url: string;
     key: string;
@@ -48,37 +48,66 @@ interface MatchData {
   lastMessageAt?: string;
 }
 
+const formatMessageTime = (timestamp: string) => {
+  if (!timestamp) return "Just now";
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "Just now";
+    return `${formatDistanceToNow(date)} ago`;
+  } catch {
+    return "Just now";
+  }
+};
+
+const useClickOutside = (handler: () => void) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        handler();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [handler]);
+
+  return ref;
+};
+
 export default function ChatPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [match, setMatch] = useState<MatchData | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
 
   // Function to retry loading messages
   const retryLoadMessages = () => {
     setError(null);
-    setRetryCount(prev => prev + 1);
+    setRetryCount((prev) => prev + 1);
   };
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   // Load initial messages and setup real-time updates
   useEffect(() => {
     let retryTimeout: NodeJS.Timeout;
-    
+
     const loadMessages = async () => {
       try {
         setLoading(true);
@@ -88,13 +117,14 @@ export default function ChatPage() {
 
         // Mark messages as read
         if (data.messages.length > 0) {
-          await apiRequest('/messages/read', {
-            method: 'POST',
-            body: JSON.stringify({ matchId: id })
+          await apiRequest("/messages/read", {
+            method: "POST",
+            body: JSON.stringify({ matchId: id }),
           });
         }
       } catch (error: any) {
-        const errorMessage = error.message || 'Failed to load messages. Please try again.';
+        const errorMessage =
+          error.message || "Failed to load messages. Please try again.";
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -105,12 +135,14 @@ export default function ChatPage() {
       loadMessages();
 
       // Set up EventSource for real-time updates with auth token
-      const token = localStorage.getItem('fiorell_auth_token');
-      const eventSource = new EventSource(`/api/messages/subscribe?matchId=${id}&token=${token}`);
-      
+      const token = localStorage.getItem("fiorell_auth_token");
+      const eventSource = new EventSource(
+        `/api/messages/subscribe?matchId=${id}&token=${token}`
+      );
+
       eventSource.onmessage = (event) => {
         const message = JSON.parse(event.data);
-        setMessages(prev => [...prev, message]);
+        setMessages((prev) => [...prev, message]);
       };
 
       return () => {
@@ -131,17 +163,21 @@ export default function ChatPage() {
 
     try {
       setSending(true);
-      const data = await apiRequest('/messages', {
-        method: 'POST',
+      const data = await apiRequest("/messages", {
+        method: "POST",
         body: JSON.stringify({
           matchId: id,
           content: newMessage.trim(),
-          type: 'text'
-        })
+          type: "text",
+        }),
       });
 
-      setMessages(prev => [...prev, data.message]);
-      setNewMessage('');
+      const newMsg = data.message;
+      setMessages((prev) => [...prev, newMsg]);
+      setNewMessage("");
+      scrollToBottom();
+      // Add small delay to ensure scroll happens after render
+      setTimeout(scrollToBottom, 100);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -156,26 +192,26 @@ export default function ChatPage() {
 
     try {
       setUploadingMedia(true);
-      
+
       // Create form data
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('matchId', id as string);
+      formData.append("file", file);
+      formData.append("matchId", id as string);
 
       // Upload to AWS via API route
-      const data = await apiRequest('/messages/media', {
-        method: 'POST',
+      const data = await apiRequest("/messages/media", {
+        method: "POST",
         body: formData,
-        headers: {} // Remove Content-Type to allow FormData to set its own
+        headers: {}, // Remove Content-Type to allow FormData to set its own
       });
 
-      setMessages(prev => [...prev, data.message]);
+      setMessages((prev) => [...prev, data.message]);
     } catch (error: any) {
       setError(error.message);
     } finally {
       setUploadingMedia(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     }
   };
@@ -231,85 +267,142 @@ export default function ChatPage() {
             >
               <ArrowLeft className="h-6 w-6" />
             </Link>
-            <Link href={`/profile/${otherUser?._id}`} className="flex items-center space-x-3">
+            <Link
+              href={`/profile/${otherUser?._id}`}
+              className="flex items-center space-x-3"
+            >
               <img
-                src={otherUser?.photos?.[0]?.url || '/api/placeholder/profile'}
+                src={otherUser?.photos?.[0]?.url || "/api/placeholder/profile"}
                 alt={otherUser?.firstName}
                 className="h-10 w-10 rounded-full object-cover"
               />
               <div>
-                <h2 className="font-medium text-gray-900">{otherUser?.firstName}</h2>
+                <h2 className="font-medium text-gray-900">
+                  {otherUser?.firstName}
+                </h2>
                 <p className="text-sm text-gray-500">
                   {otherUser?.lastSeen
-                    ? `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen))} ago`
-                    : 'Offline'}
+                    ? `Last seen ${formatDistanceToNow(
+                        new Date(otherUser.lastSeen)
+                      )} ago`
+                    : "Offline"}
                 </p>
               </div>
             </Link>
           </div>
-          <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-            <MoreVertical className="h-6 w-6 text-gray-600" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <MoreVertical className="h-6 w-6 text-gray-600" />
+            </button>
+
+            {showMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
+                <button
+                  onClick={() => {
+                    router.push(`/profile/${otherUser._id}`);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-700 text-sm"
+                >
+                  View Profile
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implement block user
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 text-red-600 text-sm"
+                >
+                  Block User
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-2xl mx-auto space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 scroll-smooth">
+        <div className="max-w-2xl mx-auto">
           {messages.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">No messages yet.</p>
-              <p className="text-gray-400 text-sm mt-2">Send a message to start the conversation!</p>
+              <p className="text-gray-400 text-sm mt-2">
+                Send a message to start the conversation!
+              </p>
             </div>
           ) : (
-            messages.map((message) => {
-            const isSender = message.sender === user?.id;
-            return (
-              <div
-                key={message._id}
-                className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                    isSender
-                      ? 'bg-pink-500 text-white'
-                      : 'bg-white text-gray-900 shadow-sm'
-                  }`}
-                >
-                  {message.type === 'text' ? (
-                    <p className="whitespace-pre-line">{message.content}</p>
-                  ) : message.type === 'image' ? (
-                    <img
-                      src={message.media?.url}
-                      alt="Shared image"
-                      className="rounded-lg max-w-full"
-                    />
-                  ) : null}
+            messages.map((message, index) => {
+              const senderId = typeof message.sender === 'object' && message.sender !== null
+                ? String(message.sender.id)
+                : String(message.sender);
+              const userId = String(user?.id);
+              const isSender = senderId === userId;
+              return (
+                <div key={message._id || index} className="w-full mb-2">
                   <div
-                    className={`text-xs mt-1 ${
-                      isSender ? 'text-pink-200' : 'text-gray-500'
+                    className={`flex ${
+                      isSender ? "justify-end" : "justify-start"
                     }`}
                   >
-                    {formatDistanceToNow(new Date(message.createdAt))} ago
-                    {isSender && (
-                      <span className="ml-1">
-                        {message.readStatus.isRead ? '• Read' : '• Sent'}
-                      </span>
-                    )}
+                    <div
+                      className={`max-w-[70%] px-4 py-2 shadow-sm rounded-2xl ${
+                        isSender
+                          ? "bg-pink-500 text-white"
+                          : "bg-white text-gray-900"
+                      }`}
+                    >
+                      {message.type === "text" ? (
+                        <p key={message._id + '-text'} className="whitespace-pre-line break-words">
+                          {message.content}
+                        </p>
+                      ) : message.type === "image" ? (
+                        <img
+                          key={message._id + '-img'}
+                          src={message.media?.url}
+                          alt="Shared image"
+                          className="rounded-lg max-w-full"
+                        />
+                      ) : null}
+                      <div
+                        key={message._id + '-meta'}
+                        className={`text-xs mt-1 ${
+                          isSender ? "text-pink-200" : "text-gray-500"
+                        }`}
+                      >
+                        {formatMessageTime(message.createdAt)}
+                        {isSender && (
+                          <span className="ml-1">
+                            {message.readStatus.isRead ? "• Read" : "• Sent"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          }))}
+              );
+            })
+          )}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Message Input */}
-      <div className="bg-white border-t border-gray-200 px-4 py-3">
+      <div className="bg-white border-t border-gray-200 px-4 py-3 shadow-sm">
         <form
           onSubmit={handleSendMessage}
           className="max-w-2xl mx-auto flex items-center space-x-4"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (newMessage.trim()) {
+                handleSendMessage(e);
+              }
+            }
+          }}
         >
           <button
             type="button"
@@ -336,9 +429,19 @@ export default function ChatPage() {
           <button
             type="submit"
             disabled={!newMessage.trim() || sending}
-            className="p-2 rounded-full text-pink-500 hover:bg-pink-50 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+            className={`p-2 rounded-full transition-all transform ${
+              sending ? "bg-pink-100" : "hover:bg-pink-50"
+            } ${
+              !newMessage.trim() || sending
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:scale-105"
+            }`}
           >
-            <Send className="h-6 w-6" />
+            <Send
+              className={`h-6 w-6 ${
+                sending ? "text-pink-300" : "text-pink-500"
+              }`}
+            />
           </button>
         </form>
       </div>

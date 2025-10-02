@@ -28,14 +28,14 @@ export const apiRequest = async (
 ): Promise<any> => {
   const token = getAuthToken();
   
-  const defaultHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
+  let defaultHeaders: HeadersInit = {};
+  // Only set Content-Type if not FormData
+  if (!(options.body instanceof FormData)) {
+    defaultHeaders['Content-Type'] = 'application/json';
+  }
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
-
   const config: RequestInit = {
     ...options,
     headers: {
