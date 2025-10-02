@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
+import connectToDatabase from '@/lib/mongodb';
+import Interaction from '@/models/Interaction';
+import User from '@/models/User';
 
 export async function POST(request: NextRequest) {
   try {
+    await connectToDatabase();
     const body = await request.json();
-    
+    let match: any = null;
+
     // Validate required fields
     if (!body.userId || !body.targetUserId || !body.action) {
       return NextResponse.json(
@@ -20,30 +26,104 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Store the interaction (in a real app, this would go to a database)
-    const interaction = {
-      userId: body.userId,
-      targetUserId: body.targetUserId,
-      action: body.action,
-      timestamp: new Date().toISOString()
-    };
+            // Connect to database and start a MongoDB session for transaction
+    await connectToDatabase();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // Check if it's a match (both users liked each other)
-    // In a real app, you would query the database for mutual likes
-    const isMatch = body.action === 'like' && Math.random() > 0.7; // 30% chance of match for demo
-
-    return NextResponse.json({ 
-      success: true, 
-      match: isMatch ? {
-        id: `match-${Date.now()}`,
+    try {
+      // Check for existing interaction
+      const existingInteraction = await Interaction.findOne({
         userId: body.userId,
-        matchedUserId: body.targetUserId,
-        timestamp: new Date().toISOString()
-      } : null
-    });
+        targetUserId: body.targetUserId,
+        action: body.action
+      }).session(session);
 
+      if (existingInteraction) {
+        await session.abortTransaction();
+        return NextResponse.json(
+          { error: 'You have already performed this action with this user' },
+          { status: 409 }
+        );
+      }
+
+      // Store the interaction
+      const interaction = await Interaction.create([{
+        userId: body.userId,
+        targetUserId: body.targetUserId,
+        action: body.action,
+      }], { session });
+
+      // Update target user's received likes/super likes count
+      if (body.action === 'like' || body.action === 'super_like') {
+        const updateField = body.action === 'like' 
+          ? 'stats.totalLikesReceived' 
+          : 'stats.totalSuperLikesReceived';
+        
+        await User.findByIdAndUpdate(
+          body.targetUserId,
+          { $inc: { [updateField]: 1 } },
+          { session }
+        );
+      }
+
+      // Check for a match
+      let match = null;
+      if (body.action === 'like' || body.action === 'super_like') {
+        const reciprocal = await Interaction.findOne({
+          userId: body.targetUserId,
+          targetUserId: body.userId,
+          action: { $in: ['like', 'super_like'] }
+        }).session(session);
+
+        if (reciprocal) {
+          // Update both interactions to mark them as matches
+          await Interaction.updateMany(
+            {
+              $or: [
+                { userId: body.userId, targetUserId: body.targetUserId },
+                { userId: body.targetUserId, targetUserId: body.userId }
+              ]
+            },
+            { isMatch: true },
+            { session }
+          );
+
+          // Increment match count for both users
+          await User.updateMany(
+            {
+              _id: { $in: [body.userId, body.targetUserId] }
+            },
+            { $inc: { 'stats.totalMatches': 1 } },
+            { session }
+          );
+
+          match = {
+            id: `match-${Date.now()}`,
+            userId: body.userId,
+            matchedUserId: body.targetUserId,
+            timestamp: new Date().toISOString()
+          };
+        }
+      }
+
+      // Commit the transaction
+      await session.commitTransaction();
+
+      return NextResponse.json({
+        success: true,
+        match
+      });
+    } catch (error) {
+      // If anything fails, abort the transaction
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      // End the session
+      await session.endSession();
+    }
+      
   } catch (error) {
-    console.error('Error processing interaction:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

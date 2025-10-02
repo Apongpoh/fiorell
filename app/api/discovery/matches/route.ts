@@ -65,97 +65,35 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .lean();
 
-    // If no users found in database, return mock profiles
-    if (users.length === 0) {
-    const mockProfiles = [
-      {
-        id: 'profile-1',
-        firstName: 'Emma',
-        age: 28,
-        location: { city: 'New York' },
-        bio: 'Adventure seeker and coffee lover. Looking for someone to explore the city with!',
-        interests: ['Photography', 'Travel', 'Coffee', 'Hiking', 'Art', 'Yoga'],
-        photos: [
-          { url: '/api/placeholder?width=400&height=600', isMain: true },
-          { url: '/api/placeholder?width=400&height=600', isMain: false },
-          { url: '/api/placeholder?width=400&height=600', isMain: false }
-        ],
-        verification: { isVerified: true },
-        compatibilityScore: 85,
-        commonInterests: ['Photography', 'Travel']
-      },
-      {
-        id: 'profile-2',
-        firstName: 'Sarah',
-        age: 26,
-        location: { city: 'Brooklyn' },
-        bio: 'Artist and designer passionate about creating beautiful spaces.',
-        interests: ['Art', 'Design', 'Dogs', 'Wine', 'Music', 'Reading'],
-        photos: [
-          { url: '/api/placeholder?width=400&height=600', isMain: true },
-          { url: '/api/placeholder?width=400&height=600', isMain: false }
-        ],
-        verification: { isVerified: false },
-        compatibilityScore: 78,
-        commonInterests: ['Art']
-      },
-      {
-        id: 'profile-3',
-        firstName: 'Michael',
-        age: 32,
-        location: { city: 'Manhattan' },
-        bio: 'Software engineer by day, musician by night. Love coding and playing guitar.',
-        interests: ['Music', 'Technology', 'Food', 'Rock Climbing', 'Gaming'],
-        photos: [
-          { url: '/api/placeholder?width=400&height=600', isMain: true },
-          { url: '/api/placeholder?width=400&height=600', isMain: false },
-          { url: '/api/placeholder?width=400&height=600', isMain: false },
-          { url: '/api/placeholder?width=400&height=600', isMain: false }
-        ],
-        verification: { isVerified: true },
-        compatibilityScore: 92,
-        commonInterests: ['Technology', 'Music']
-      },
-      {
-        id: 'profile-4',
-        firstName: 'Jessica',
-        age: 29,
-        location: { city: 'Queens' },
-        bio: 'Fitness enthusiast and food blogger. Always trying new restaurants!',
-        interests: ['Fitness', 'Food', 'Travel', 'Photography', 'Dancing'],
-        photos: [
-          { url: '/api/placeholder?width=400&height=600', isMain: true },
-          { url: '/api/placeholder?width=400&height=600', isMain: false },
-          { url: '/api/placeholder?width=400&height=600', isMain: false }
-        ],
-        verification: { isVerified: true },
-        compatibilityScore: 88,
-        commonInterests: ['Food', 'Photography']
-      },
-      {
-        id: 'profile-5',
-        firstName: 'David',
-        age: 31,
-        location: { city: 'Bronx' },
-        bio: 'Entrepreneur and book lover. Building my own startup.',
-        interests: ['Business', 'Books', 'Movies', 'Travel', 'Cooking'],
-        photos: [
-          { url: '/api/placeholder?width=400&height=600', isMain: true },
-          { url: '/api/placeholder?width=400&height=600', isMain: false }
-        ],
-        verification: { isVerified: false },
-        compatibilityScore: 76,
-        commonInterests: ['Books', 'Travel']
-      }
-    ];
+    // Calculate compatibility based on shared interests
+    const currentUserInterests = Array.isArray(currentUser.interests) ? currentUser.interests : [];
+    const formattedUsers = users.map(user => {
+      const candidateInterests = Array.isArray(user.interests) ? user.interests : [];
+      const sharedInterests = candidateInterests.filter((interest: string) => currentUserInterests.includes(interest));
+      const compatibilityScore = candidateInterests.length > 0
+        ? Math.round((sharedInterests.length / candidateInterests.length) * 100)
+        : 0;
+      return {
+        id: user._id,
+        firstName: user.firstName,
+        age: user.dateOfBirth ? Math.floor((new Date().getTime() - new Date(user.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null,
+        location: user.location,
+        bio: user.bio,
+        interests: user.interests,
+        photos: user.photos,
+        verification: user.verification,
+        compatibilityScore,
+        commonInterests: sharedInterests.slice(0, 3)
+      };
+    });
 
     return NextResponse.json(
       {
-        matches: mockProfiles.slice(offset, offset + limit),
-        hasMore: offset + limit < mockProfiles.length,
-        totalShown: Math.min(offset + limit, mockProfiles.length)
+        matches: formattedUsers,
+        hasMore: users.length === limit,
+        totalShown: offset + users.length
       },
-      { 
+      {
         status: 200,
         headers: {
           'Access-Control-Allow-Origin': '*',
@@ -164,7 +102,6 @@ export async function GET(request: NextRequest) {
         }
       }
     );
-    }
   } catch (error: unknown) {
     console.error('Get matches error:', error);
 

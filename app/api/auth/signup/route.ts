@@ -72,6 +72,11 @@ const signupSchema = z
       .string()
       .min(2, "Location is required")
       .max(100, "Location cannot exceed 100 characters"),
+
+    interests: z
+      .array(z.string())
+      .min(3, "Please select at least 3 interests")
+      .max(10, "Maximum 10 interests allowed"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -171,6 +176,7 @@ export async function POST(request: NextRequest) {
       dateOfBirth,
       gender,
       location,
+      interests,
     } = result.data;
 
     // Check if user already exists (case-insensitive)
@@ -208,7 +214,7 @@ export async function POST(request: NextRequest) {
         city: location || "Unknown",
       },
       bio: "",
-      interests: [],
+      interests: interests,
       photos: [],
       preferences: {
         ageRange: { min: 18, max: 35 },

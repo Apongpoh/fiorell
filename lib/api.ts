@@ -121,6 +121,13 @@ export const userAPI = {
   getProfile: async () => {
     return await apiRequest('/user/profile');
   },
+  // Record a profile view
+  recordProfileView: async (targetUserId: string) => {
+    return await apiRequest('/user/profile/view', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    });
+  },
 
   // Update user profile
   updateProfile: async (profileData: {
@@ -272,7 +279,10 @@ export const messagesAPI = {
 // Stats API calls
 export const statsAPI = {
   // Get user statistics
-  getUserStats: async () => {
+  getUserStats: async (userId?: string) => {
+    if (userId) {
+      return await apiRequest(`/stats?userId=${encodeURIComponent(userId)}`);
+    }
     return await apiRequest('/stats');
   },
 };

@@ -20,6 +20,7 @@ const signupSchema = z.object({
   dateOfBirth: z.string().min(1, "Please enter your date of birth"),
   gender: z.string().min(1, "Please select your gender"),
   location: z.string().min(2, "Please enter your location"),
+  interests: z.array(z.string()).min(3, "Please select at least 3 interests"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -32,17 +33,49 @@ export default function SignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const { signup, isAuthenticated } = useAuth();
   const router = useRouter();
 
+  // Available interests list
+  const availableInterests = [
+    'Travel', 'Photography', 'Music', 'Movies', 'Books', 'Cooking', 'Fitness',
+    'Art', 'Dancing', 'Hiking', 'Gaming', 'Technology', 'Food', 'Sports',
+    'Yoga', 'Writing', 'Fashion', 'Design', 'Nature', 'Animals', 'Wine',
+    'Coffee', 'Business', 'Entrepreneurship', 'Science', 'History',
+    'Languages', 'Comedy', 'Theater', 'Volunteering'
+  ];
+
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
+    defaultValues: {
+      interests: [],
+    },
   });
+
+  const watchedInterests = watch('interests');
+
+  // Handle interest selection
+  const toggleInterest = (interest: string) => {
+    const currentInterests = watchedInterests || [];
+    let newInterests;
+    
+    if (currentInterests.includes(interest)) {
+      newInterests = currentInterests.filter(i => i !== interest);
+    } else {
+      newInterests = [...currentInterests, interest];
+    }
+    
+    setSelectedInterests(newInterests);
+    setValue('interests', newInterests, { shouldValidate: true });
+  };
 
   // Redirect if already authenticated
   if (isAuthenticated) {
@@ -269,6 +302,38 @@ export default function SignupPage() {
                 />
                 {errors.location && (
                   <p className="text-red-500 text-sm mt-1">{errors.location.message}</p>
+                )}
+              </div>
+
+              {/* Interests Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Interests <span className="text-gray-500">(Select at least 3)</span>
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+                  {availableInterests.map((interest) => {
+                    const isSelected = selectedInterests.includes(interest);
+                    return (
+                      <button
+                        key={interest}
+                        type="button"
+                        onClick={() => toggleInterest(interest)}
+                        className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-pink-500 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {interest}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-sm text-gray-500 mb-2">
+                  Selected: {selectedInterests.length} interests
+                </p>
+                {errors.interests && (
+                  <p className="text-red-500 text-sm mt-1">{errors.interests.message}</p>
                 )}
               </div>
 

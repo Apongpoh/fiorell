@@ -1,27 +1,87 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import mongoose from 'mongoose';
+import connectToDatabase from "@/lib/mongodb";
+import Interaction from "@/models/Interaction";
+import Match from "@/models/Match";
+import Message from "@/models/Message";
+import User from "@/models/User";
+import ProfileView from "@/models/ProfileView";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // In a real app, you would fetch this data from your database
-    // For now, we'll return realistic mock data
+    await connectToDatabase();
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    }
+
+    // Calculate likes given today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const likesToday = await Interaction.countDocuments({
+      userId,
+      action: { $in: ["like", "super_like"] },
+      createdAt: { $gte: today },
+    });
+
+    // Get the user's current total stats
+    const user = await User.findById(userId);
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Get active matches (has messages in last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
+    const activeMatches = await Interaction.countDocuments({
+      userId,
+      isMatch: true,
+      updatedAt: { $gte: thirtyDaysAgo }
+    });
+
+    // Get unread messages
+    const unreadMessages = await Message.countDocuments({
+      to: userId,
+      read: false
+    });
+
+    // Get today's profile views from unique viewers
+    const viewsToday = await ProfileView.countDocuments({
+      targetUserId: userId,
+      createdAt: { $gte: today }
+    });
+
+    // Get total profile views
+    const totalViews = await ProfileView.countDocuments({
+      targetUserId: userId
+    });
+
+    // Comprehensive stats response
     const stats = {
-      likesToday: Math.floor(Math.random() * 15) + 5, // 5-20 likes
-      matches: Math.floor(Math.random() * 8) + 2, // 2-10 matches
-      messages: Math.floor(Math.random() * 12) + 3, // 3-15 messages
-      profileViews: Math.floor(Math.random() * 25) + 10, // 10-35 views
-      superLikesRemaining: Math.floor(Math.random() * 3) + 1, // 1-4 super likes
-      likesRemaining: Math.floor(Math.random() * 50) + 25, // 25-75 likes
-      totalMatches: Math.floor(Math.random() * 100) + 50, // 50-150 total matches
-      responseRate: Math.floor(Math.random() * 40) + 40 // 40-80% response rate
+      today: {
+        likes: likesToday,
+        views: viewsToday
+      },
+      totals: {
+        receivedLikes: user?.stats?.totalLikesReceived || 0,
+        receivedSuperLikes: user?.stats?.totalSuperLikesReceived || 0,
+        matches: user?.stats?.totalMatches || 0,
+        profileViews: totalViews
+      },
+      active: {
+        matches: activeMatches,
+        unreadMessages: unreadMessages
+      }
     };
 
     return NextResponse.json(stats);
-
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('Stats error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     // Return user data
     const userResponse = {
-      id: user._id,
+      id: user._id.toString(),
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,

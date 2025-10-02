@@ -28,6 +28,7 @@ interface Profile {
   verification: { isVerified: boolean };
   compatibilityScore: number;
   commonInterests: string[];
+  defaultPhoto?: string;
 }
 
 function DashboardPage() {
@@ -41,7 +42,11 @@ function DashboardPage() {
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [currentMatch, setCurrentMatch] = useState<Profile | null>(null);
   const [showMatchModal, setShowMatchModal] = useState(false);
-  const [stats, setStats] = useState({ likesToday: 0, matches: 0, messages: 0 });
+  const [stats, setStats] = useState({
+    today: { likes: 0, views: 0 },
+    totals: { receivedLikes: 0, receivedSuperLikes: 0, matches: 0, profileViews: 0 },
+    active: { matches: 0, unreadMessages: 0 }
+  });
   const [statsLoading, setStatsLoading] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -57,10 +62,11 @@ function DashboardPage() {
         const response = await userAPI.getProfile();
         setCurrentUser(response.user);
       } catch (error: any) {
-        console.error('Failed to load user profile:', error);
         // If auth fails, redirect to login
         if (error.message.includes('Unauthorized')) {
           logout();
+        } else {
+          setError('Failed to load user profile');
         }
       } finally {
         setUserLoading(false);
@@ -92,27 +98,27 @@ function DashboardPage() {
     const fetchStats = async () => {
       try {
         setIsLoadingStats(true);
-        const data = await statsAPI.getUserStats();
-        setStats({
-          likesToday: data.likesToday || 0,
-          matches: data.matches || 0,
-          messages: data.messages || 0
-        });
+        if (!currentUser?.id) {
+          return;
+        }
+        const data = await statsAPI.getUserStats(currentUser.id);
+        setStats(data);
       } catch (error) {
-        console.error('Failed to fetch stats:', error);
-        // Fallback to default values
+        console.error('Error fetching stats:', error);
         setStats({
-          likesToday: 5,
-          matches: 3,
-          messages: 8
+          today: { likes: 0, views: 0 },
+          totals: { receivedLikes: 0, receivedSuperLikes: 0, matches: 0, profileViews: 0 },
+          active: { matches: 0, unreadMessages: 0 }
         });
       } finally {
         setIsLoadingStats(false);
       }
     };
 
-    fetchStats();
-  }, []);
+    if (currentUser?.id) {
+      fetchStats();
+    }
+  }, [currentUser]);
 
   // Reset photo index when profile changes
   useEffect(() => {
@@ -127,7 +133,9 @@ function DashboardPage() {
   };
 
     const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
-    if (profiles.length === 0 || !currentUser) return;
+    if (profiles.length === 0 || !currentUser?.id) {
+      return;
+    }
 
     const currentProfile = profiles[currentProfileIndex];
     const action = direction === 'left' ? 'pass' : direction === 'up' ? 'super_like' : 'like';
@@ -146,11 +154,14 @@ function DashboardPage() {
       if (action === 'like' || action === 'super_like') {
         setStats(prev => ({
           ...prev,
-          likesToday: prev.likesToday + 1
+          today: {
+            ...prev.today,
+            likes: prev.today.likes + 1
+          }
         }));
       }
-    } catch (error) {
-      console.error('Failed to record swipe:', error);
+    } catch {
+      // Don't throw here, just log the error
     }
 
     // Move to next profile
@@ -167,8 +178,8 @@ function DashboardPage() {
     try {
       const response = await discoveryAPI.getMatches(10, profiles.length);
       setProfiles(prev => [...prev, ...(response.matches || [])]);
-    } catch (error) {
-      console.error('Failed to load more profiles:', error);
+    } catch {
+      throw new Error('Failed to load more profiles');
     }
   };
 
@@ -275,10 +286,14 @@ function DashboardPage() {
                 {/* Profile Image */}
                 <div className="relative h-3/4 cursor-pointer" onClick={advancePhoto}>
                   <img
-                    src={currentProfile.photos[photoIndex]?.url || currentProfile.photos[0]?.url || "/api/placeholder/400/600"}
+                    src={currentProfile.photos[photoIndex]?.url || currentProfile.photos[0]?.url || currentProfile.defaultPhoto || "/api/placeholder/profile"}
                     alt={currentProfile.firstName}
                     className="w-full h-full object-cover"
                     draggable={false}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = "/api/placeholder/profile";
+                    }}
                   />
                   
                   {/* Photo indicators */}
@@ -379,21 +394,21 @@ function DashboardPage() {
         <div className="grid grid-cols-3 gap-4 mt-8 text-center">
           <div>
             <div className="text-2xl font-bold text-gray-900">
-              {statsLoading ? '...' : stats.likesToday}
+              {isLoadingStats ? '...' : stats.today.likes}
             </div>
             <div className="text-sm text-gray-600">Likes Today</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-gray-900">
-              {statsLoading ? '...' : stats.matches}
+              {isLoadingStats ? '...' : stats.active.matches}
             </div>
-            <div className="text-sm text-gray-600">Matches</div>
+            <div className="text-sm text-gray-600">Active Matches</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-gray-900">
-              {statsLoading ? '...' : stats.messages}
+              {isLoadingStats ? '...' : stats.active.unreadMessages}
             </div>
-            <div className="text-sm text-gray-600">Messages</div>
+            <div className="text-sm text-gray-600">Unread Messages</div>
           </div>
         </div>
       </main>
@@ -405,9 +420,13 @@ function DashboardPage() {
             <Star className="h-12 w-12 text-pink-500 mx-auto mb-4" />
             <h3 className="text-2xl font-semibold mb-2">It's a Match!</h3>
             <img
-              src={matchedProfile.photos.find(p => p.isMain)?.url || matchedProfile.photos[0]?.url || "/api/placeholder/400/600"}
+              src={matchedProfile.photos.find(p => p.isMain)?.url || matchedProfile.photos[0]?.url || matchedProfile.defaultPhoto || "/api/placeholder/profile"}
               alt={matchedProfile.firstName}
               className="w-24 h-24 rounded-full object-cover mx-auto mb-3 border-4 border-pink-100"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = "/api/placeholder/profile";
+              }}
             />
             <p className="text-sm text-gray-600 mb-6">
               You and {matchedProfile.firstName} liked each other. Start a conversation now!
@@ -436,19 +455,31 @@ function DashboardPage() {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
         <div className="flex items-center justify-around max-w-md mx-auto">
-          <button className="flex flex-col items-center space-y-1 text-pink-500">
+          <button 
+            onClick={() => router.push('/dashboard')}
+            className="flex flex-col items-center space-y-1 text-pink-500"
+          >
             <Users className="h-6 w-6" />
             <span className="text-xs">Discover</span>
           </button>
-          <button className="flex flex-col items-center space-y-1 text-gray-400">
+          <button 
+            onClick={() => router.push('/matches')}
+            className="flex flex-col items-center space-y-1 text-gray-400 hover:text-pink-500 transition-colors"
+          >
             <Heart className="h-6 w-6" />
             <span className="text-xs">Likes</span>
           </button>
-          <button className="flex flex-col items-center space-y-1 text-gray-400">
+          <button 
+            onClick={() => router.push('/chat')}
+            className="flex flex-col items-center space-y-1 text-gray-400 hover:text-pink-500 transition-colors"
+          >
             <MessageCircle className="h-6 w-6" />
             <span className="text-xs">Messages</span>
           </button>
-          <button className="flex flex-col items-center space-y-1 text-gray-400">
+          <button 
+            onClick={() => router.push('/profile')}
+            className="flex flex-col items-center space-y-1 text-gray-400 hover:text-pink-500 transition-colors"
+          >
             <Camera className="h-6 w-6" />
             <span className="text-xs">Profile</span>
           </button>

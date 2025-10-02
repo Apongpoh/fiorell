@@ -1,17 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import connectToDatabase from '@/lib/mongodb';
-import User from '@/models/User';
-import { generateToken } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import connectToDatabase from "@/lib/mongodb";
+import User from "@/models/User";
+import { generateToken } from "@/lib/auth";
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Credentials': 'true',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Credentials": "true",
     },
   });
 }
@@ -21,21 +21,28 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
 
     const body = await request.json();
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "unknown";
 
     // Rate limiting: max 5 login attempts per IP+email per 15 minutes
-    const LoginAttempt = (await import('@/models/LoginAttempt')).default;
+    const LoginAttempt = (await import("@/models/LoginAttempt")).default;
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-    const recentAttempts = await LoginAttempt.countDocuments({ ip, email: body.email?.toLowerCase(), createdAt: { $gte: fifteenMinutesAgo } });
+    const recentAttempts = await LoginAttempt.countDocuments({
+      ip,
+      email: body.email?.toLowerCase(),
+      createdAt: { $gte: fifteenMinutesAgo },
+    });
     if (recentAttempts >= 5) {
       return NextResponse.json(
-        { error: 'Too many login attempts. Please try again later.' },
-        { status: 429,
+        { error: "Too many login attempts. Please try again later." },
+        {
+          status: 429,
           headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          }
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
         }
       );
     }
@@ -47,31 +54,33 @@ export async function POST(request: NextRequest) {
     // Basic validation
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
-        { 
+        { error: "Email and password are required" },
+        {
           status: 400,
           headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          }
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
         }
       );
     }
 
     // Find user by email
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: email.toLowerCase() }).select(
+      "+password"
+    );
     if (!user) {
-      console.error('Login error: User not found for email', email);
+      console.error("Login error: User not found for email", email);
       return NextResponse.json(
-        { error: 'User not found' },
-        { 
+        { error: "User not found" },
+        {
           status: 401,
           headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          }
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
         }
       );
     }
@@ -80,14 +89,14 @@ export async function POST(request: NextRequest) {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Incorrect password' },
-        { 
+        { error: "Incorrect password" },
+        {
           status: 401,
           headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          }
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
         }
       );
     }
@@ -97,48 +106,55 @@ export async function POST(request: NextRequest) {
     await user.save();
 
     // Generate JWT token
-    const token = generateToken({ userId: user._id.toString(), email: user.email });
-    
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+    });
+
     return NextResponse.json(
       {
-        message: 'Login successful',
+        message: "Login successful",
         user: {
           id: user._id,
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
-          age: user.dateOfBirth ? new Date().getFullYear() - user.dateOfBirth.getFullYear() : null,
+          age: user.dateOfBirth
+            ? new Date().getFullYear() - user.dateOfBirth.getFullYear()
+            : null,
           gender: user.gender,
           location: user.location,
           bio: user.bio,
           interests: user.interests,
           photos: user.photos,
           isActive: user.isActive,
-          lastSeen: user.lastSeen
+          lastSeen: user.lastSeen,
         },
-        token
+        token,
       },
-      { 
+      {
         status: 200,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        }
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
       }
     );
-
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
-      { 
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      {
         status: 500,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        }
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
       }
     );
   }

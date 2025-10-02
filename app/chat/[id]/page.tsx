@@ -20,7 +20,8 @@ import Link from "next/link";
 const mockUser = {
   id: 1,
   name: "Emma Johnson",
-  photo: "/api/placeholder/100/100",
+  photo: null,
+  defaultPhoto: "/api/placeholder/profile",
   isOnline: true,
   lastSeen: "2 minutes ago",
 };
@@ -147,9 +148,13 @@ export default function ChatPage() {
             </Link>
             <div className="relative">
               <img
-                src={mockUser.photo}
+                src={mockUser.photo || mockUser.defaultPhoto || "/api/placeholder/profile"}
                 alt={mockUser.name}
                 className="w-10 h-10 rounded-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = "/api/placeholder/profile";
+                }}
               />
               {mockUser.isOnline && (
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>

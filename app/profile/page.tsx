@@ -289,13 +289,14 @@ export default function ProfilePage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-pink-500">
-                  {currentUser?.stats?.likes || 0}
+                  {currentUser?.stats?.totalLikesReceived +
+                    currentUser?.stats?.totalSuperLikesReceived || 0}
                 </div>
                 <div className="text-sm text-gray-600">Likes</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-pink-500">
-                  {currentUser?.stats?.matches || 0}
+                  {currentUser?.stats?.totalMatches || 0}
                 </div>
                 <div className="text-sm text-gray-600">Matches</div>
               </div>
