@@ -77,7 +77,12 @@ const newMatches = [
 ];
 
 export default function MatchesPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'new' | 'messages'>('new');
+
+  const handleProfileClick = (id: number) => {
+    router.push(`/profile/${id}`);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -148,7 +153,8 @@ export default function MatchesPage() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-2xl shadow-sm overflow-hidden"
+                  className="bg-white rounded-2xl shadow-sm overflow-hidden cursor-pointer"
+                  onClick={() => handleProfileClick(match.id)}
                 >
                   <div className="relative">
                     <img
@@ -188,7 +194,8 @@ export default function MatchesPage() {
                 {matches.slice(0, 3).map((match) => (
                   <div
                     key={match.id}
-                    className="flex items-center space-x-3 bg-white rounded-xl p-3"
+                    className="flex items-center space-x-3 bg-white rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => handleProfileClick(match.id)}
                   >
                     <div className="relative">
                       <img

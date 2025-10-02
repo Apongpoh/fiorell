@@ -284,7 +284,18 @@ function DashboardPage() {
                 className="absolute inset-0 bg-white rounded-2xl shadow-xl overflow-hidden"
               >
                 {/* Profile Image */}
-                <div className="relative h-3/4 cursor-pointer" onClick={advancePhoto}>
+                <div 
+                  className="relative h-3/4 cursor-pointer" 
+                  onClick={(e) => {
+                    // If clicked with two fingers or right click, advance photo
+                    // Otherwise navigate to profile
+                    if (e.detail === 2) {
+                      advancePhoto();
+                    } else {
+                      router.push(`/profile/${currentProfile.id}`);
+                    }
+                  }}
+                >
                   <img
                     src={currentProfile.photos[photoIndex]?.url || currentProfile.photos[0]?.url || currentProfile.defaultPhoto || "/api/placeholder/profile"}
                     alt={currentProfile.firstName}
