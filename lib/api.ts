@@ -22,7 +22,7 @@ const removeAuthToken = (): void => {
 };
 
 // Generic API request function
-const apiRequest = async (
+export const apiRequest = async (
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> => {
@@ -124,6 +124,27 @@ export const userAPI = {
   // Record a profile view
   recordProfileView: async (targetUserId: string) => {
     return await apiRequest('/user/profile/view', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    });
+  },
+
+  // Get another user's profile
+  getUser: async (userId: string) => {
+    return await apiRequest(`/user/profile/${userId}`);
+  },
+
+  // Like a profile
+  likeProfile: async (targetUserId: string) => {
+    return await apiRequest('/interactions/likes', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    });
+  },
+
+  // Create or get existing match
+  createMatch: async (targetUserId: string) => {
+    return await apiRequest('/matches', {
       method: 'POST',
       body: JSON.stringify({ targetUserId }),
     });

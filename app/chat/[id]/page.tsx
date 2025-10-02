@@ -1,296 +1,346 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, 
-  Send, 
-  MoreVertical,
-  Phone,
-  Video,
-  Image as ImageIcon,
-  Smile,
-  Heart,
-  Check,
-  CheckCheck
-} from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { ArrowLeft, Image, Send, MoreVertical } from "lucide-react";
+import { apiRequest } from "@/lib/api";
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
 
-// Mock conversation data
-const mockUser = {
-  id: 1,
-  name: "Emma Johnson",
-  photo: null,
-  defaultPhoto: "/api/placeholder/profile",
-  isOnline: true,
-  lastSeen: "2 minutes ago",
-};
+interface Message {
+  _id: string;
+  sender: string;
+  recipient: string;
+  match: string;
+  content: string;
+  type: 'text' | 'image' | 'video' | 'audio' | 'location';
+  media?: {
+    url: string;
+    key: string;
+    mimeType: string;
+    size: number;
+  };
+  createdAt: string;
+  readStatus: {
+    isRead: boolean;
+    readAt?: string;
+  };
+  isDeleted: boolean;
+}
 
-const mockMessages = [
-  {
-    id: 1,
-    senderId: 1,
-    content: "Hey! Thanks for the like 😊",
-    timestamp: "2:30 PM",
-    isRead: true,
-    type: "text"
-  },
-  {
-    id: 2,
-    senderId: 2, // Current user
-    content: "Hi Emma! I loved your photos from the hiking trip. Where was that taken?",
-    timestamp: "2:32 PM",
-    isRead: true,
-    type: "text"
-  },
-  {
-    id: 3,
-    senderId: 1,
-    content: "That was at Mount Washington! It's one of my favorite hiking spots. Do you enjoy hiking too?",
-    timestamp: "2:35 PM",
-    isRead: true,
-    type: "text"
-  },
-  {
-    id: 4,
-    senderId: 2,
-    content: "I love hiking! I've been wanting to explore more trails in the area. Would you recommend any others?",
-    timestamp: "2:37 PM",
-    isRead: true,
-    type: "text"
-  },
-  {
-    id: 5,
-    senderId: 1,
-    content: "Absolutely! There's also Bear Mountain and Storm King. Both have amazing views. Maybe we could check one out together sometime? ☕",
-    timestamp: "2:40 PM",
-    isRead: false,
-    type: "text"
-  },
-];
-
-const quickReplies = [
-  "That sounds great! 😊",
-  "I'd love to!",
-  "When are you free?",
-  "Tell me more",
-  "Absolutely!",
-];
+interface MatchData {
+  _id: string;
+  user1: {
+    _id: string;
+    firstName: string;
+    photos: Array<{ url: string }>;
+    lastSeen?: Date;
+  };
+  user2: {
+    _id: string;
+    firstName: string;
+    photos: Array<{ url: string }>;
+    lastSeen?: Date;
+  };
+  status: string;
+  matchedAt: string;
+  lastMessageAt?: string;
+}
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState(mockMessages);
-  const [newMessage, setNewMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const { id } = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [match, setMatch] = useState<MatchData | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Function to retry loading messages
+  const retryLoadMessages = () => {
+    setError(null);
+    setRetryCount(prev => prev + 1);
   };
 
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Load initial messages and setup real-time updates
+  useEffect(() => {
+    let retryTimeout: NodeJS.Timeout;
+    
+    const loadMessages = async () => {
+      try {
+        setLoading(true);
+        const data = await apiRequest(`/messages?matchId=${id}`);
+        setMessages(data.messages);
+        setMatch(data.match);
+
+        // Mark messages as read
+        if (data.messages.length > 0) {
+          await apiRequest('/messages/read', {
+            method: 'POST',
+            body: JSON.stringify({ matchId: id })
+          });
+        }
+      } catch (error: any) {
+        const errorMessage = error.message || 'Failed to load messages. Please try again.';
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      loadMessages();
+
+      // Set up EventSource for real-time updates with auth token
+      const token = localStorage.getItem('fiorell_auth_token');
+      const eventSource = new EventSource(`/api/messages/subscribe?matchId=${id}&token=${token}`);
+      
+      eventSource.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        setMessages(prev => [...prev, message]);
+      };
+
+      return () => {
+        eventSource.close();
+      };
+    }
+  }, [id, retryCount]);
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const sendMessage = () => {
-    if (newMessage.trim()) {
-      const message = {
-        id: messages.length + 1,
-        senderId: 2, // Current user
-        content: newMessage,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isRead: false,
-        type: "text" as const
-      };
-      
-      setMessages(prev => [...prev, message]);
-      setNewMessage("");
-      
-      // Simulate typing indicator and response
-      setIsTyping(true);
-      setTimeout(() => {
-        setIsTyping(false);
-        const responses = [
-          "That's interesting!",
-          "I totally agree!",
-          "Sounds like a plan 😊",
-          "Can't wait!",
-          "You're so sweet ❤️"
-        ];
-        const response = {
-          id: messages.length + 2,
-          senderId: 1,
-          content: responses[Math.floor(Math.random() * responses.length)],
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isRead: false,
-          type: "text" as const
-        };
-        setMessages(prev => [...prev, response]);
-      }, 2000);
+  // Send text message
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || sending) return;
+
+    try {
+      setSending(true);
+      const data = await apiRequest('/messages', {
+        method: 'POST',
+        body: JSON.stringify({
+          matchId: id,
+          content: newMessage.trim(),
+          type: 'text'
+        })
+      });
+
+      setMessages(prev => [...prev, data.message]);
+      setNewMessage('');
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setSending(false);
     }
   };
 
-  const sendQuickReply = (reply: string) => {
-    setNewMessage(reply);
-    setTimeout(() => sendMessage(), 100);
+  // Handle media upload
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingMedia(true);
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('matchId', id as string);
+
+      // Upload to AWS via API route
+      const data = await apiRequest('/messages/media', {
+        method: 'POST',
+        body: formData,
+        headers: {} // Remove Content-Type to allow FormData to set its own
+      });
+
+      setMessages(prev => [...prev, data.message]);
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setUploadingMedia(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading chat messages...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-4">
+          <p className="text-red-500">{error}</p>
+          <button
+            onClick={retryLoadMessages}
+            className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!match?.user1 || !match?.user2) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-gray-500">Match data is not available</p>
+        </div>
+      </div>
+    );
+  }
+
+  const otherUser = match.user1._id === user?.id ? match.user2 : match.user1;
+
   return (
-    <div className="h-screen bg-white flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between max-w-md mx-auto">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Chat Header */}
+      <header className="bg-white shadow-sm px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center space-x-3">
             <Link
               href="/matches"
-              className="text-gray-600 hover:text-pink-600 transition-colors"
+              className="p-2 -ml-2 rounded-full text-gray-600 hover:bg-gray-100 transition-colors"
             >
               <ArrowLeft className="h-6 w-6" />
             </Link>
-            <div className="relative">
+            <Link href={`/profile/${otherUser?._id}`} className="flex items-center space-x-3">
               <img
-                src={mockUser.photo || mockUser.defaultPhoto || "/api/placeholder/profile"}
-                alt={mockUser.name}
-                className="w-10 h-10 rounded-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = "/api/placeholder/profile";
-                }}
+                src={otherUser?.photos?.[0]?.url || '/api/placeholder/profile'}
+                alt={otherUser?.firstName}
+                className="h-10 w-10 rounded-full object-cover"
               />
-              {mockUser.isOnline && (
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
-              )}
-            </div>
-            <div>
-              <h1 className="font-semibold text-gray-900">{mockUser.name}</h1>
-              <p className="text-xs text-gray-500">
-                {mockUser.isOnline ? "Online" : `Last seen ${mockUser.lastSeen}`}
-              </p>
-            </div>
+              <div>
+                <h2 className="font-medium text-gray-900">{otherUser?.firstName}</h2>
+                <p className="text-sm text-gray-500">
+                  {otherUser?.lastSeen
+                    ? `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen))} ago`
+                    : 'Offline'}
+                </p>
+              </div>
+            </Link>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <button className="p-2 text-gray-600 hover:text-pink-600 transition-colors">
-              <Phone className="h-5 w-5" />
-            </button>
-            <button className="p-2 text-gray-600 hover:text-pink-600 transition-colors">
-              <Video className="h-5 w-5" />
-            </button>
-            <button className="p-2 text-gray-600 hover:text-pink-600 transition-colors">
-              <MoreVertical className="h-5 w-5" />
-            </button>
-          </div>
+          <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <MoreVertical className="h-6 w-6 text-gray-600" />
+          </button>
         </div>
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-md mx-auto w-full">
-        <div className="space-y-4">
-          {messages.map((message, index) => (
-            <motion.div
-              key={message.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`flex ${message.senderId === 2 ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-xs lg:max-w-md ${message.senderId === 2 ? 'order-2' : 'order-1'}`}>
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-2xl mx-auto space-y-4">
+          {messages.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No messages yet.</p>
+              <p className="text-gray-400 text-sm mt-2">Send a message to start the conversation!</p>
+            </div>
+          ) : (
+            messages.map((message) => {
+            const isSender = message.sender === user?.id;
+            return (
+              <div
+                key={message._id}
+                className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}
+              >
                 <div
-                  className={`px-4 py-2 rounded-2xl ${
-                    message.senderId === 2
-                      ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white'
-                      : 'bg-gray-100 text-gray-900'
+                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                    isSender
+                      ? 'bg-pink-500 text-white'
+                      : 'bg-white text-gray-900 shadow-sm'
                   }`}
                 >
-                  <p className="text-sm">{message.content}</p>
-                </div>
-                <div className={`flex items-center mt-1 space-x-1 ${message.senderId === 2 ? 'justify-end' : 'justify-start'}`}>
-                  <span className="text-xs text-gray-500">{message.timestamp}</span>
-                  {message.senderId === 2 && (
-                    <div className="text-gray-500">
-                      {message.isRead ? (
-                        <CheckCheck className="h-3 w-3" />
-                      ) : (
-                        <Check className="h-3 w-3" />
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-          
-          {/* Typing Indicator */}
-          <AnimatePresence>
-            {isTyping && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="flex justify-start"
-              >
-                <div className="bg-gray-100 rounded-2xl px-4 py-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  {message.type === 'text' ? (
+                    <p className="whitespace-pre-line">{message.content}</p>
+                  ) : message.type === 'image' ? (
+                    <img
+                      src={message.media?.url}
+                      alt="Shared image"
+                      className="rounded-lg max-w-full"
+                    />
+                  ) : null}
+                  <div
+                    className={`text-xs mt-1 ${
+                      isSender ? 'text-pink-200' : 'text-gray-500'
+                    }`}
+                  >
+                    {formatDistanceToNow(new Date(message.createdAt))} ago
+                    {isSender && (
+                      <span className="ml-1">
+                        {message.readStatus.isRead ? '• Read' : '• Sent'}
+                      </span>
+                    )}
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
+              </div>
+            );
+          }))}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Quick Replies */}
-      <div className="px-4 py-2 max-w-md mx-auto w-full">
-        <div className="flex space-x-2 overflow-x-auto pb-2">
-          {quickReplies.map((reply, index) => (
-            <button
-              key={index}
-              onClick={() => sendQuickReply(reply)}
-              className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors"
-            >
-              {reply}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Message Input */}
-      <div className="border-t border-gray-200 px-4 py-3">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center space-x-3">
-            <button className="text-gray-400 hover:text-pink-500 transition-colors">
-              <ImageIcon className="h-6 w-6" />
-            </button>
-            
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Type a message..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              />
-              <button className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-pink-500 transition-colors">
-                <Smile className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={sendMessage}
-              disabled={!newMessage.trim()}
-              className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send className="h-5 w-5" />
-            </motion.button>
-          </div>
-        </div>
+      <div className="bg-white border-t border-gray-200 px-4 py-3">
+        <form
+          onSubmit={handleSendMessage}
+          className="max-w-2xl mx-auto flex items-center space-x-4"
+        >
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingMedia}
+            className="p-2 rounded-full text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+          >
+            <Image className="h-6 w-6" />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleMediaUpload}
+            accept="image/*,video/*"
+            className="hidden"
+          />
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
+          />
+          <button
+            type="submit"
+            disabled={!newMessage.trim() || sending}
+            className="p-2 rounded-full text-pink-500 hover:bg-pink-50 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+          >
+            <Send className="h-6 w-6" />
+          </button>
+        </form>
       </div>
     </div>
   );

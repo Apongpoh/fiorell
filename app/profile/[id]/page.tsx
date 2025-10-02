@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { userAPI } from "@/lib/api";
+import { userAPI, discoveryAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -22,8 +22,11 @@ export default function ViewProfilePage() {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [mutualStats, setMutualStats] = useState<any>(null);
+  const [startingChat, setStartingChat] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
+
+
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -33,7 +36,7 @@ export default function ViewProfilePage() {
         await userAPI.recordProfileView(id as string);
         
         // Then get the profile data
-        const response = await userAPI.getProfile();
+        const response = await userAPI.getUser(id as string);
         setProfile(response.user);
       } catch (error: any) {
         setError(error.message || 'Failed to load profile');
@@ -84,11 +87,48 @@ export default function ViewProfilePage() {
       setLikePending(true);
       // Toggle like status
       setIsLiked(!isLiked);
-      // API call here
+      await userAPI.likeProfile(id as string);
     } catch (error) {
       setIsLiked(!isLiked); // Revert on error
     } finally {
       setLikePending(false);
+    }
+  };
+
+  const handleStartChat = async () => {
+    if (startingChat || !id) return;
+    
+    try {
+      setStartingChat(true);
+      setError(null);
+      
+      const response = await fetch('/api/matches', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('fiorell_auth_token')}`
+        },
+        body: JSON.stringify({ targetUserId: id })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 400 && data.matchId) {
+          // Match already exists, redirect to chat
+          router.push(`/chat/${data.matchId}`);
+          return;
+        }
+        throw new Error(data.error || 'Failed to start chat');
+      }
+
+      // Redirect to new chat
+      router.push(`/chat/${data.match._id}`);
+    } catch (error: any) {
+      console.error('Error starting chat:', error);
+      setError(error.message || 'Failed to start chat');
+    } finally {
+      setStartingChat(false);
     }
   };
 
@@ -191,12 +231,19 @@ export default function ViewProfilePage() {
             >
               <Heart className={`h-6 w-6 ${isLiked ? 'fill-current' : ''}`} />
             </button>
-            <Link
-              href={`/chat/${profile?.id}`}
+            <button
+              onClick={handleStartChat}
+              disabled={startingChat}
               className="p-2 rounded-full hover:bg-gray-100 transition-all transform active:scale-90"
             >
               <MessageCircle className="h-6 w-6" />
-            </Link>
+              {startingChat && (
+                <span className="absolute top-0 right-0 h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-pink-500"></span>
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setShowActionsMenu(true)}
               className="p-2 rounded-full hover:bg-gray-100 transition-all transform active:scale-90"

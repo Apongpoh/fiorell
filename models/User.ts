@@ -82,12 +82,17 @@ const UserSchema = new Schema<IUser>(
         "Please enter a valid email",
       ],
     },
-    password: {
-      type: String,
-      required: [true, "Password is required"],
-      minlength: [8, "Password must be at least 8 characters"],
-      select: false,
-    },
+    // Password validation
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
+  // Index on commonly searched fields
+  id: {
+    type: Schema.Types.ObjectId,
+    index: true
+  },
     dateOfBirth: {
       type: Date,
       required: false,
@@ -191,7 +196,8 @@ const UserSchema = new Schema<IUser>(
 
 // Virtual for age calculation
 UserSchema.virtual("age").get(function () {
-  return new Date().getFullYear() - this.dateOfBirth.getFullYear();
+  if (!this.dateOfBirth) return null;
+  return Math.floor((Date.now() - this.dateOfBirth.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
 });
 
 // Pre-save middleware to hash password

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Users, Heart, Camera } from "lucide-react";
+import { apiRequest } from "@/lib/api";
 import Link from "next/link";
 
 interface Message {
@@ -16,6 +17,7 @@ interface Message {
 }
 
 interface ChatPreview {
+  matchId: string;
   userId: string;
   firstName: string;
   photo?: string;
@@ -31,45 +33,89 @@ export default function MessagesPage() {
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const router = useRouter();
   const { user } = useAuth();
 
+  const handleRetry = () => {
+    setError(null);
+    setRetryCount(prev => prev + 1);
+  };
+
   useEffect(() => {
     const loadChats = async () => {
+      if (!user?.id) return;
+      
       try {
         setLoading(true);
-        // TODO: Implement API call to fetch chats
-        // const response = await messagesAPI.getChats();
-        // setChats(response.chats);
-        
-        // Placeholder data for now
-        setChats([
-          {
-            userId: "1",
-            firstName: "Sarah",
-            photo: "/placeholder-profile.jpg",
-            lastMessage: {
-              content: "Hey, how are you?",
-              createdAt: new Date().toISOString(),
-              isRead: false
+        const response = await apiRequest('/matches');
+
+        if (!response || !response.matches) {
+          throw new Error('Invalid response from server');
+        }
+
+        if (!Array.isArray(response.matches)) {
+          throw new Error('Invalid matches data');
+        }
+
+        type MatchData = {
+          _id: string;
+          user1: {
+            _id: string;
+            firstName: string;
+            photos?: Array<{ url: string }>;
+          };
+          user2: {
+            _id: string;
+            firstName: string;
+            photos?: Array<{ url: string }>;
+          };
+          lastMessage?: {
+            content: string;
+            createdAt: string;
+            readStatus: { isRead: boolean };
+          };
+        };
+
+        const validChats = response.matches
+          .map((match: MatchData) => {
+            if (!match?.user1 || !match?.user2) {
+              return null;
             }
-          },
-          // Add more placeholder chats here
-        ]);
-      } catch (error) {
-        setError("Failed to load messages");
+
+            const otherUser = match.user1._id === user.id ? match.user2 : match.user1;
+            return {
+              matchId: match._id,
+              userId: otherUser._id,
+              firstName: otherUser.firstName,
+              photo: otherUser.photos?.[0]?.url || '/api/placeholder/profile',
+              lastMessage: match.lastMessage ? {
+                content: match.lastMessage.content,
+                createdAt: match.lastMessage.createdAt,
+                isRead: match.lastMessage.readStatus?.isRead || false
+              } : undefined
+            };
+          })
+          .filter((chat: ChatPreview | null): chat is ChatPreview => chat !== null);
+
+        setChats(validChats);
+      } catch (error: any) {
+        setError(error?.message || "Failed to load messages");
       } finally {
         setLoading(false);
       }
     };
 
     loadChats();
-  }, []);
+  }, [retryCount, user?.id]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading conversations...</p>
+        </div>
       </div>
     );
   }
@@ -80,8 +126,8 @@ export default function MessagesPage() {
         <div className="text-center">
           <p className="text-red-500 mb-4">{error}</p>
           <button
-            onClick={() => window.location.reload()}
-            className="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600"
+            onClick={handleRetry}
+            className="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors"
           >
             Try Again
           </button>
@@ -105,7 +151,7 @@ export default function MessagesPage() {
           {chats.map((chat) => (
             <button
               key={chat.userId}
-              onClick={() => router.push(`/chat/${chat.userId}`)}
+              onClick={() => router.push(`/chat/${chat.matchId}`)}
               className="w-full bg-white rounded-lg shadow p-4 flex items-center space-x-4 hover:bg-gray-50 transition-colors"
             >
               {/* Profile Picture */}
@@ -148,10 +194,16 @@ export default function MessagesPage() {
           ))}
 
           {chats.length === 0 && (
-            <div className="text-center py-12">
+            <div className="text-center py-12 bg-white rounded-lg shadow-sm">
               <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No messages yet</h3>
-              <p className="text-gray-500">Start matching with people to begin conversations</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
+              <p className="text-gray-500 mb-4">Start matching with people to begin conversations</p>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors"
+              >
+                Find Matches
+              </button>
             </div>
           )}
         </div>

@@ -26,12 +26,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify user is part of this match
+    // Check if matchId is valid MongoDB ObjectId
+    if (!matchId.match(/^[0-9a-fA-F]{24}$/)) {
+      return NextResponse.json(
+        { error: 'Invalid match ID format' },
+        { status: 400 }
+      );
+    }
+
+    // Fetch and validate match
     const match = await Match.findOne({
       _id: matchId,
       $or: [{ user1: userId }, { user2: userId }],
       status: 'matched',
       isActive: true
-    }).populate('user1 user2', 'firstName photos');
+    }).populate('user1 user2', '_id firstName photos lastSeen');
+    
+    if (!match?.user1 || !match?.user2) {
+      return NextResponse.json(
+        { error: 'Match data is incomplete' },
+        { status: 500 }
+      );
+    }
 
     if (!match) {
       return NextResponse.json(
@@ -48,7 +64,7 @@ export async function GET(request: NextRequest) {
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip(offset)
-    .populate('sender', 'firstName');
+    .populate('sender', 'firstName') || [];
 
     // Mark messages as read if they were sent to the current user
     await Message.updateMany(
@@ -79,24 +95,39 @@ export async function GET(request: NextRequest) {
       createdAt: message.createdAt
     }));
 
-    // Get other user info
-    const otherUser = match.user1._id.toString() === userId ? match.user2 : match.user1;
-    const isOnline = otherUser.lastSeen && 
-      (Date.now() - otherUser.lastSeen.getTime()) < (5 * 60 * 1000);
+    // Format match data for response
+    let formattedMatch;
+    try {
+      formattedMatch = {
+        _id: match._id,
+        user1: {
+          _id: match.user1._id,
+          firstName: match.user1.firstName,
+          photos: match.user1.photos || [],
+          lastSeen: match.user1.lastSeen
+        },
+        user2: {
+          _id: match.user2._id,
+          firstName: match.user2.firstName,
+          photos: match.user2.photos || [],
+          lastSeen: match.user2.lastSeen
+        },
+        status: match.status,
+        matchedAt: match.matchedAt,
+        lastMessageAt: match.lastMessageAt
+      };
+    } catch (error) {
+      console.error('Error formatting match data:', error);
+      return NextResponse.json(
+        { error: 'Failed to process match data' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {
         messages: formattedMessages,
-        match: {
-          id: match._id,
-          otherUser: {
-            id: otherUser._id,
-            firstName: otherUser.firstName,
-            photos: otherUser.photos,
-            isOnline,
-            lastSeen: otherUser.lastSeen
-          }
-        },
+        match: formattedMatch,
         hasMore: messages.length === limit
       },
       { status: 200 }

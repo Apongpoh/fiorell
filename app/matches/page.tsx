@@ -8,81 +8,106 @@ import {
   ArrowLeft,
   Star,
   MapPin,
-  Clock
+  Clock,
+  Shield
 } from "lucide-react";
 import Link from "next/link";
-import { useAuth, withAuth } from "@/contexts/AuthContext";
-import { matchesAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
 
-// Mock matches data
-const matches = [
-  {
-    id: 1,
-    name: "Emma Johnson",
-    age: 28,
-    photo: "/api/placeholder/300/300",
-    lastMessage: "Hey! Thanks for the like 😊",
-    timestamp: "2 hours ago",
-    isOnline: true,
-    mutual: true,
-  },
-  {
-    id: 2,
-    name: "Sarah Williams",
-    age: 26,
-    photo: "/api/placeholder/300/300",
-    lastMessage: "I love your taste in music!",
-    timestamp: "1 day ago",
-    isOnline: false,
-    mutual: true,
-  },
-  {
-    id: 3,
-    name: "Jessica Brown",
-    age: 30,
-    photo: "/api/placeholder/300/300",
-    lastMessage: "Would love to grab coffee sometime",
-    timestamp: "3 days ago",
-    isOnline: true,
-    mutual: true,
-  },
-  {
-    id: 4,
-    name: "Amanda Davis",
-    age: 27,
-    photo: "/api/placeholder/300/300",
-    lastMessage: "Your photos are amazing!",
-    timestamp: "1 week ago",
-    isOnline: false,
-    mutual: true,
-  },
-];
-
-const newMatches = [
-  {
-    id: 5,
-    name: "Rachel Green",
-    age: 29,
-    photo: "/api/placeholder/300/300",
-    matchedAt: "Just now",
-  },
-  {
-    id: 6,
-    name: "Monica Geller",
-    age: 31,
-    photo: "/api/placeholder/300/300",
-    matchedAt: "5 minutes ago",
-  },
-];
+interface Match {
+  _id: string;
+  user: {
+    _id: string;
+    firstName: string;
+    age: number;
+    photos: Array<{ url: string }>;
+    lastSeen?: Date;
+    verification: {
+      isVerified: boolean;
+    };
+  };
+  lastMessage?: {
+    _id: string;
+    content: string;
+    type: string;
+    sender: string;
+    createdAt: string;
+    readStatus: {
+      isRead: boolean;
+    };
+  };
+  unreadCount: number;
+  matchedAt: string;
+  lastMessageAt?: string;
+}
 
 export default function MatchesPage() {
+  const { user } = useAuth();
   const router = useRouter();
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [newMatches, setNewMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'new' | 'messages'>('new');
 
-  const handleProfileClick = (id: number) => {
-    router.push(`/profile/${id}`);
-  };
+  useEffect(() => {
+    const loadMatches = async () => {
+      try {
+        setLoading(true);
+        const data = await apiRequest('/matches');
+        
+        // Split matches into new and existing conversations
+        const now = new Date();
+        const oneDay = 24 * 60 * 60 * 1000; // one day in milliseconds
+
+        const { new: newOnes, existing } = data.matches.reduce(
+          (acc: { new: Match[]; existing: Match[] }, match: Match) => {
+            const matchDate = new Date(match.matchedAt);
+            if (now.getTime() - matchDate.getTime() < oneDay && !match.lastMessage) {
+              acc.new.push(match);
+            } else {
+              acc.existing.push(match);
+            }
+            return acc;
+          },
+          { new: [], existing: [] }
+        );
+
+        setNewMatches(newOnes);
+        setMatches(existing);
+      } catch (error: any) {
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMatches();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading matches...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -149,26 +174,34 @@ export default function MatchesPage() {
             <div className="grid grid-cols-2 gap-4 mb-8">
               {newMatches.map((match, index) => (
                 <motion.div
-                  key={match.id}
+                  key={match._id}
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-2xl shadow-sm overflow-hidden cursor-pointer"
-                  onClick={() => handleProfileClick(match.id)}
+                  className="bg-white rounded-2xl shadow-sm overflow-hidden"
                 >
                   <div className="relative">
                     <img
-                      src={match.photo}
-                      alt={match.name}
+                      src={match.user?.photos?.[0]?.url || '/api/placeholder/profile'}
+                      alt={match.user?.firstName || 'User'}
                       className="w-full h-48 object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/api/placeholder/profile';
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     <div className="absolute bottom-3 left-3 right-3">
-                      <h3 className="text-white font-semibold text-sm">
-                        {match.name}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-semibold text-sm">
+                          {match.user.firstName}
+                        </h3>
+                        {match.user.verification.isVerified && (
+                          <Shield className="h-4 w-4 text-blue-400" />
+                        )}
+                      </div>
                       <p className="text-white/90 text-xs">
-                        Matched {match.matchedAt}
+                        Matched {formatDistanceToNow(new Date(match.matchedAt))} ago
                       </p>
                     </div>
                     {/* Heart overlay */}
@@ -177,7 +210,10 @@ export default function MatchesPage() {
                     </div>
                   </div>
                   <div className="p-3">
-                    <button className="w-full bg-pink-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-pink-600 transition-colors">
+                    <button
+                      onClick={() => router.push(`/chat/${match._id}`)}
+                      className="w-full bg-pink-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-pink-600 transition-colors"
+                    >
                       Say Hello
                     </button>
                   </div>
@@ -193,28 +229,46 @@ export default function MatchesPage() {
               <div className="space-y-3">
                 {matches.slice(0, 3).map((match) => (
                   <div
-                    key={match.id}
+                    key={match._id}
+                    onClick={() => router.push(`/chat/${match._id}`)}
                     className="flex items-center space-x-3 bg-white rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => handleProfileClick(match.id)}
                   >
                     <div className="relative">
                       <img
-                        src={match.photo}
-                        alt={match.name}
+                        src={match.user.photos[0]?.url || '/api/placeholder/profile'}
+                        alt={match.user.firstName}
                         className="w-12 h-12 rounded-full object-cover"
                       />
-                      {match.isOnline && (
+                      {match.user.lastSeen && Date.now() - new Date(match.user.lastSeen).getTime() < 5 * 60 * 1000 && (
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900">{match.name}</p>
-                      <p className="text-sm text-gray-500 truncate">
-                        {match.lastMessage}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-gray-900">
+                          {match.user.firstName}
+                        </h4>
+                        {match.user.verification.isVerified && (
+                          <Shield className="h-4 w-4 text-blue-500" />
+                        )}
+                      </div>
+                      {match.lastMessage && (
+                        <p className="text-sm text-gray-600 truncate">
+                          {match.lastMessage.content}
+                        </p>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-400">
-                      {match.timestamp}
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">
+                        {match.lastMessage
+                          ? formatDistanceToNow(new Date(match.lastMessage.createdAt)) + ' ago'
+                          : formatDistanceToNow(new Date(match.matchedAt)) + ' ago'}
+                      </p>
+                      {match.unreadCount > 0 && (
+                        <div className="mt-1 bg-pink-500 text-white text-xs rounded-full px-2 py-0.5 inline-block">
+                          {match.unreadCount}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -224,73 +278,52 @@ export default function MatchesPage() {
         )}
 
         {activeTab === 'messages' && (
-          <div>
-            {/* Messages List */}
-            <div className="space-y-1">
-              {matches.map((match, index) => (
-                <motion.div
-                  key={match.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-white rounded-xl p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <img
-                        src={match.photo}
-                        alt={match.name}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                      {match.isOnline && (
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
-                      )}
-                      {match.mutual && (
-                        <div className="absolute -top-1 -right-1 bg-pink-500 rounded-full p-1">
-                          <Heart className="h-3 w-3 text-white fill-current" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-gray-900">
-                          {match.name}
-                        </h3>
-                        <div className="flex items-center space-x-1 text-xs text-gray-400">
-                          <Clock className="h-3 w-3" />
-                          <span>{match.timestamp}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 truncate">
-                        {match.lastMessage}
-                      </p>
-                    </div>
-                    
-                    <div className="flex flex-col items-center space-y-2">
-                      <button className="p-2 bg-pink-100 rounded-full hover:bg-pink-200 transition-colors">
-                        <MessageCircle className="h-4 w-4 text-pink-500" />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Empty State */}
-            {matches.length === 0 && (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MessageCircle className="h-10 w-10 text-gray-400" />
+          <div className="space-y-3">
+            {matches.map((match) => (
+              <div
+                key={match._id}
+                onClick={() => router.push(`/chat/${match._id}`)}
+                className="flex items-center space-x-3 bg-white rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="relative">
+                  <img
+                    src={match.user.photos[0]?.url || '/api/placeholder/profile'}
+                    alt={match.user.firstName}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                  {match.user.lastSeen && Date.now() - new Date(match.user.lastSeen).getTime() < 5 * 60 * 1000 && (
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  No messages yet
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  Start swiping to find your matches!
-                </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-gray-900">
+                      {match.user.firstName}
+                    </h4>
+                    {match.user.verification.isVerified && (
+                      <Shield className="h-4 w-4 text-blue-500" />
+                    )}
+                  </div>
+                  {match.lastMessage && (
+                    <p className="text-sm text-gray-600 truncate">
+                      {match.lastMessage.content}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">
+                    {match.lastMessage
+                      ? formatDistanceToNow(new Date(match.lastMessage.createdAt)) + ' ago'
+                      : formatDistanceToNow(new Date(match.matchedAt)) + ' ago'}
+                  </p>
+                  {match.unreadCount > 0 && (
+                    <div className="mt-1 bg-pink-500 text-white text-xs rounded-full px-2 py-0.5 inline-block">
+                      {match.unreadCount}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            ))}
           </div>
         )}
       </main>

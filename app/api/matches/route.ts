@@ -4,24 +4,36 @@ import Match from '@/models/Match';
 import Message from '@/models/Message';
 import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
+import { ObjectId } from 'mongodb';
 
-// Get user's matches
+    // Get user's matches
 export async function GET(request: NextRequest) {
   try {
-    await connectToDatabase();
+    // Connect to database
+    try {
+      await connectToDatabase();
+    } catch (error) {
+      console.error('Database connection error:', error);
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 500 }
+      );
+    }
 
     // Verify authentication
-    const { userId } = verifyAuth(request);
-
-    // Find all matches for the user
+    const { userId } = verifyAuth(request);    // Find all matches for the user
     const matches = await Match.find({
       $or: [{ user1: userId }, { user2: userId }],
       status: 'matched',
       isActive: true
     })
-    .populate('user1', 'firstName dateOfBirth photos lastSeen verification')
-    .populate('user2', 'firstName dateOfBirth photos lastSeen verification')
-    .sort({ lastMessageAt: -1, matchedAt: -1 });
+      .populate('user1', '_id firstName dateOfBirth photos lastSeen verification')
+      .populate('user2', '_id firstName dateOfBirth photos lastSeen verification')
+      .sort({ lastMessageAt: -1, matchedAt: -1 });
+
+    if (!matches) {
+      return NextResponse.json({ matches: [] });
+    }
 
     // Format matches for response
     const formattedMatches = await Promise.all(matches.map(async (match) => {
@@ -45,113 +57,110 @@ export async function GET(request: NextRequest) {
       const isOnline = otherUser.lastSeen && 
         (Date.now() - otherUser.lastSeen.getTime()) < (5 * 60 * 1000);
 
+      const age = otherUser.dateOfBirth 
+        ? Math.floor((Date.now() - new Date(otherUser.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+        : null;
+
       return {
-        id: match._id,
+        _id: match._id,
         user: {
-          id: otherUser._id,
+          _id: otherUser._id,
           firstName: otherUser.firstName,
-          age: new Date().getFullYear() - otherUser.dateOfBirth.getFullYear(),
-          photos: otherUser.photos,
-          isOnline,
+          age,
+          photos: otherUser.photos || [],
           lastSeen: otherUser.lastSeen,
-          isVerified: otherUser.verification.isVerified
+          verification: otherUser.verification || { isVerified: false },
+          isOnline
         },
         lastMessage: lastMessage ? {
-          id: lastMessage._id,
+          _id: lastMessage._id,
           content: lastMessage.content,
           type: lastMessage.type,
-          sender: lastMessage.sender.toString(),
+          sender: lastMessage.sender,
           createdAt: lastMessage.createdAt,
-          isRead: lastMessage.readStatus.isRead
+          readStatus: lastMessage.readStatus
         } : null,
         unreadCount,
         matchedAt: match.matchedAt,
-        lastMessageAt: match.lastMessageAt || match.matchedAt
+        lastMessageAt: match.lastMessageAt
       };
     }));
 
-    return NextResponse.json(
-      { matches: formattedMatches },
-      { status: 200 }
-    );
+    return NextResponse.json({ matches: formattedMatches });
 
   } catch (error: any) {
-    console.error('Get matches error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
+    console.error('Error getting matches:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error.message || 'Failed to get matches' },
       { status: 500 }
     );
   }
 }
 
-// Unmatch with a user
-export async function DELETE(request: NextRequest) {
+// Create a new match
+export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
 
     // Verify authentication
     const { userId } = verifyAuth(request);
 
-    const { searchParams } = new URL(request.url);
-    const matchId = searchParams.get('matchId');
+    // Get target user ID from request body
+    const { targetUserId } = await request.json();
 
-    if (!matchId) {
-      return NextResponse.json(
-        { error: 'Match ID is required' },
-        { status: 400 }
-      );
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'Target user ID is required' }, { status: 400 });
     }
 
-    // Find the match
-    const match = await Match.findOne({
-      _id: matchId,
-      $or: [{ user1: userId }, { user2: userId }],
-      status: 'matched'
+    // Check if users exist
+    const [user1, user2] = await Promise.all([
+      User.findById(userId),
+      User.findById(targetUserId)
+    ]);
+
+    if (!user1 || !user2) {
+      return NextResponse.json({ error: 'One or both users not found' }, { status: 404 });
+    }
+
+    // Check if a match already exists between these users
+    const existingMatch = await Match.findOne({
+      $or: [
+        { user1: userId, user2: targetUserId },
+        { user1: targetUserId, user2: userId }
+      ],
+      status: 'matched',
+      isActive: true
     });
 
-    if (!match) {
-      return NextResponse.json(
-        { error: 'Match not found' },
-        { status: 404 }
-      );
+    if (existingMatch) {
+      return NextResponse.json({ 
+        error: 'Match already exists',
+        matchId: existingMatch._id
+      }, { status: 400 });
     }
 
-    // Update match status to unmatched
-    match.status = 'unmatched';
-    match.isActive = false;
-    await match.save();
+    // Create a new match
+    const newMatch = new Match({
+      user1: new ObjectId(userId),
+      user2: new ObjectId(targetUserId),
+      status: 'matched',
+      initiatedBy: new ObjectId(userId),
+      matchedAt: new Date(),
+      isActive: true
+    });
 
-    // Optionally, you could also deactivate the messages
-    await Message.updateMany(
-      { match: matchId },
-      { isDeleted: true, deletedAt: new Date() }
-    );
+    await newMatch.save();
 
-    return NextResponse.json(
-      { message: 'Successfully unmatched' },
-      { status: 200 }
-    );
+    // Populate user details for response
+    await newMatch.populate('user1', 'firstName photos lastSeen');
+    await newMatch.populate('user2', 'firstName photos lastSeen');
+
+    return NextResponse.json({ match: newMatch });
 
   } catch (error: any) {
-    console.error('Unmatch error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
+    console.error('Error creating match:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error.message || 'Failed to create match' },
       { status: 500 }
     );
   }
