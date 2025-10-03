@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import BottomNav from "@/components/BottomNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,9 @@ export default function RootLayout({
       >
         <AuthProvider>
           <NotificationProvider>
-            {children}
+            <div className="min-h-screen pb-20">{children}</div>
+            {/* Bottom navigation rendered on all pages; component hides itself on chat detail */}
+            <BottomNav />
           </NotificationProvider>
         </AuthProvider>
       </body>

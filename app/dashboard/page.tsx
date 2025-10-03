@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
@@ -12,6 +12,7 @@ import {
   Settings,
   Filter,
   Camera,
+  Info,
 } from "lucide-react";
 import { useAuth, withAuth } from "@/contexts/AuthContext";
 import {
@@ -44,6 +45,26 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [photoProgress, setPhotoProgress] = useState(0); // 0-100 progress for current photo
+  const [isPaused, setIsPaused] = useState(false); // long-press pause state
+  const [liteMode, setLiteMode] = useState(false); // simplified visuals for performance
+  // Swipe + gesture tuning constants
+  const SWIPE_OFFSET_THRESHOLD = 80; // horizontal distance in px
+  const SWIPE_VELOCITY_THRESHOLD = 650; // px/s horizontal velocity to count as swipe
+  const SUPERLIKE_VERTICAL_THRESHOLD = 110; // vertical upward distance in px
+
+  // Visual drag feedback state (point 1)
+  const [dragFeedback, setDragFeedback] = useState<{
+    direction: 'left' | 'right' | 'up' | null;
+    strength: number;
+  }>({ direction: null, strength: 0 });
+  const [pulseDirection, setPulseDirection] = useState<'left' | 'right' | 'up' | null>(null); // transient pulse when threshold crossed
+  const lastDragFeedbackTsRef = useRef(0);
+  const lastDragFeedbackRef = useRef<{direction: 'left' | 'right' | 'up' | null; strength: number}>({direction: null, strength: 0});
+
+  // Gesture refs
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const gestureTriggeredRef = useRef(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [currentMatch, setCurrentMatch] = useState<Profile | null>(null);
@@ -64,6 +85,18 @@ function DashboardPage() {
   const [userLoading, setUserLoading] = useState(true);
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [swipeError, setSwipeError] = useState<string | null>(null);
+  const swipeErrorTimeoutRef = useRef<number | null>(null);
+
+  const safeSetSwipeError = (msg: string) => {
+    setSwipeError(msg);
+    if (swipeErrorTimeoutRef.current) {
+      clearTimeout(swipeErrorTimeoutRef.current);
+    }
+    swipeErrorTimeoutRef.current = window.setTimeout(() => {
+      setSwipeError(null);
+    }, 2000);
+  };
 
   // Load current user profile
   useEffect(() => {
@@ -141,62 +174,198 @@ function DashboardPage() {
     setPhotoIndex(0);
   }, [currentProfileIndex]);
 
+  // Advanced story-style progress w/ pause + tap zones
+  const PHOTO_DURATION = 4000; // ms per photo
+  const startTimeRef = useRef<number | null>(null);
+  const elapsedBeforePauseRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const longPressTimeoutRef = useRef<number | null>(null);
+  const longPressActivatedRef = useRef(false);
+
   const currentProfile = profiles[currentProfileIndex];
 
-  const advancePhoto = () => {
+  const nextPhoto = useCallback(() => {
     if (!currentProfile || currentProfile.photos.length <= 1) return;
     setPhotoIndex((prev) => (prev + 1) % currentProfile.photos.length);
-  };
+  }, [currentProfile]);
 
-  const handleSwipe = async (direction: "left" | "right" | "up") => {
-    if (profiles.length === 0 || !currentUser?.id) {
+  const prevPhoto = useCallback(() => {
+    if (!currentProfile || currentProfile.photos.length <= 1) return;
+    setPhotoIndex((prev) =>
+      prev === 0 ? currentProfile!.photos.length - 1 : prev - 1
+    );
+  }, [currentProfile]);
+
+  // (Re)start progress animation whenever the photo changes
+  useEffect(() => {
+    const profile = currentProfile;
+    if (!profile || showMatchModal) return; // pause when modal open
+    const total = profile.photos?.length || 0;
+    if (total <= 1) {
+      setPhotoProgress(0);
       return;
     }
 
-    const currentProfile = profiles[currentProfileIndex];
-    const action =
-      direction === "left"
-        ? "pass"
-        : direction === "up"
-        ? "super_like"
-        : "like";
+    // reset trackers for new photo
+    elapsedBeforePauseRef.current = 0;
+    startTimeRef.current = performance.now();
+    setPhotoProgress(0);
+    setIsPaused(false);
 
-    try {
-      // Record the swipe interaction with real user ID
-      const response = await interactionsAPI.recordSwipe(
-        currentUser.id,
-        currentProfile.id,
-        action
-      );
-
-      // Check if it's a match
-      if (response.match) {
-        setCurrentMatch(currentProfile);
-        setShowMatchModal(true);
+    const animate = (ts: number) => {
+      if (!startTimeRef.current) startTimeRef.current = ts;
+      // If paused, just keep requesting next frame without advancing
+      if (isPaused) {
+        frameRef.current = requestAnimationFrame(animate);
+        return;
       }
-
-      // Update stats if it was a like
-      if (action === "like" || action === "super_like") {
-        setStats((prev) => ({
-          ...prev,
-          today: {
-            ...prev.today,
-            likes: prev.today.likes + 1,
-          },
-        }));
+      const elapsed =
+        elapsedBeforePauseRef.current + (ts - startTimeRef.current);
+  const pct = Math.min(100, (elapsed / PHOTO_DURATION) * 100);
+  // Throttle progress updates (reduce re-renders)
+  setPhotoProgress(prev => (pct < 99 && Math.abs(pct - prev) < 2.5 ? prev : pct));
+      if (pct >= 100) {
+        nextPhoto();
+        return; // effect will restart for the next photo
       }
-    } catch {
-      // Don't throw here, just log the error
+      frameRef.current = requestAnimationFrame(animate);
+    };
+
+    frameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [photoIndex, currentProfileIndex, profiles, showMatchModal, isPaused, nextPhoto]);
+
+  const beginPause = () => {
+    if (isPaused) return;
+    // accumulate elapsed so far into the ref
+    if (startTimeRef.current) {
+      elapsedBeforePauseRef.current +=
+        performance.now() - startTimeRef.current;
+    }
+    setIsPaused(true);
+  };
+
+  const endPause = () => {
+    if (!isPaused) return;
+    startTimeRef.current = performance.now();
+    setIsPaused(false);
+  };
+
+  const handlePointerDown = () => {
+    longPressActivatedRef.current = false;
+    if (longPressTimeoutRef.current) window.clearTimeout(longPressTimeoutRef.current);
+    longPressTimeoutRef.current = window.setTimeout(() => {
+      longPressActivatedRef.current = true;
+      beginPause();
+    }, 220); // long press threshold
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Always clear timer
+    if (longPressTimeoutRef.current)
+      window.clearTimeout(longPressTimeoutRef.current);
+
+    if (longPressActivatedRef.current) {
+      // was a long press -> resume
+      longPressActivatedRef.current = false;
+      endPause();
+      return;
     }
 
-    // Move to next profile
+    // Treat as a tap -> determine zone (left/back, right/forward)
+    const bounds = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX - bounds.left;
+    if (bounds.width === 0) return;
+    const leftZone = bounds.width * 0.35; // ~35% for previous
+    if (x < leftZone) {
+      prevPhoto();
+    } else {
+      nextPhoto();
+    }
+  };
+
+  const handlePointerLeave = () => {
+    // If user drags out while holding, cancel pending long-press
+    if (longPressTimeoutRef.current)
+      window.clearTimeout(longPressTimeoutRef.current);
+    if (longPressActivatedRef.current) {
+      longPressActivatedRef.current = false;
+      endPause();
+    }
+  };
+  // currentProfile constant already declared above
+  useEffect(() => {
+    try {
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const mem = (navigator as any).deviceMemory;
+      const lowMem = mem && mem <= 4;
+      const lowCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+      if (reduced || lowMem || lowCores) setLiteMode(true);
+    } catch {}
+  }, []);
+
+  // Swipe queue to serialize backend calls & avoid race conditions
+  const swipeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastSwipeTsRef = useRef(0);
+
+  const moveToNextProfile = () => {
+    if (profiles.length === 0) return;
     if (currentProfileIndex < profiles.length - 1) {
       setCurrentProfileIndex((prev) => prev + 1);
-      setCurrentPhotoIndex(0); // Reset photo index for new profile
+      setCurrentPhotoIndex(0);
     } else {
-      // Load more profiles or show end message
       setCurrentProfileIndex(0);
+      setCurrentPhotoIndex(0);
     }
+  };
+
+  const handleSwipe = (direction: "left" | "right" | "up") => {
+    const now = performance.now();
+    if (now - lastSwipeTsRef.current < 120) return; // throttle accidental double triggers
+    lastSwipeTsRef.current = now;
+
+    if (profiles.length === 0 || !currentUser?.id) return;
+    const profileSnapshot = profiles[currentProfileIndex];
+    if (!profileSnapshot) return;
+
+    const action = direction === 'left' ? 'pass' : direction === 'up' ? 'super_like' : 'like';
+
+    // Advance immediately for snappy UI
+    moveToNextProfile();
+
+    // Enqueue backend call (non-blocking)
+    swipeQueueRef.current = swipeQueueRef.current
+      .catch(() => {}) // swallow prior errors
+      .then(async () => {
+        try {
+          const response = await interactionsAPI.recordSwipe(
+            currentUser.id,
+            profileSnapshot.id,
+            action
+          );
+          if (response?.match) {
+            // Show match modal on the profile just swiped
+            setCurrentMatch(profileSnapshot);
+            setShowMatchModal(true);
+          }
+          if (action === 'like' || action === 'super_like') {
+            setStats(prev => ({
+              ...prev,
+              today: { ...prev.today, likes: prev.today.likes + 1 }
+            }));
+          }
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+            if (/already performed/i.test(msg)) {
+              // Duplicate – silently ignore (user already moved on)
+              return;
+            }
+          // Network or server issue – optional: show small toast
+          console.warn('Swipe API error (ignored, UI already advanced):', msg);
+        }
+      });
   };
 
   const loadMoreProfiles = async () => {
@@ -263,6 +432,11 @@ function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {swipeError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900/90 text-white text-xs px-3 py-2 rounded-full shadow-lg animate-fade-in">
+          {swipeError}
+        </div>
+      )}
       {/* Header */}
       <header className="bg-white shadow-sm px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -323,24 +497,174 @@ function DashboardPage() {
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0 bg-white rounded-2xl shadow-xl overflow-hidden"
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.6}
+                style={{ touchAction: 'none' }}
+                onPointerDown={(e) => {
+                  pointerStartRef.current = { x: e.clientX, y: e.clientY };
+                  gestureTriggeredRef.current = false;
+                  setDragFeedback({ direction: null, strength: 0 });
+                }}
+                onPointerUp={(e) => {
+                  if (gestureTriggeredRef.current) return;
+                  if (!pointerStartRef.current) return;
+                  if (isPaused) return; // prevent interactions while paused
+                  if (!currentProfile) return;
+                  const dx = e.clientX - pointerStartRef.current.x;
+                  const dy = e.clientY - pointerStartRef.current.y;
+                  // Upward swipe detection for super like
+                  if (
+                    dy < -SUPERLIKE_VERTICAL_THRESHOLD &&
+                    Math.abs(dx) < SWIPE_OFFSET_THRESHOLD * 0.75
+                  ) {
+                    gestureTriggeredRef.current = true;
+                    setDragDirection("up");
+                    setTimeout(() => {
+                      handleSwipe("up");
+                      setDragDirection(null);
+                    }, 120);
+                  }
+                }}
+                onDragEnd={(event, info) => {
+                  if (isPaused) return; // do not swipe while paused
+                  if (gestureTriggeredRef.current) return; // already handled as vertical gesture
+                  const offsetX = info.offset.x;
+                  const velocityX = info.velocity.x || 0;
+                  // Reset feedback when drag completes
+                  setTimeout(() => setDragFeedback({ direction: null, strength: 0 }), 120);
+                  if (
+                    offsetX > SWIPE_OFFSET_THRESHOLD ||
+                    velocityX > SWIPE_VELOCITY_THRESHOLD
+                  ) {
+                    // Swipe Right -> Like
+                    gestureTriggeredRef.current = true;
+                    setDragDirection("right");
+                    setTimeout(() => {
+                      handleSwipe("right");
+                      setDragDirection(null);
+                    }, 140);
+                  } else if (
+                    offsetX < -SWIPE_OFFSET_THRESHOLD ||
+                    velocityX < -SWIPE_VELOCITY_THRESHOLD
+                  ) {
+                    // Swipe Left -> Pass
+                    gestureTriggeredRef.current = true;
+                    setDragDirection("left");
+                    setTimeout(() => {
+                      handleSwipe("left");
+                      setDragDirection(null);
+                    }, 140);
+                  } else {
+                    setDragDirection(null);
+                  }
+                }}
+                onDrag={(e, info) => {
+                  if (isPaused) return;
+                  if (gestureTriggeredRef.current) return;
+                  if (!currentProfile) return;
+                  const { offset } = info;
+                  const { x, y } = offset;
+                  const absX = Math.abs(x);
+                  const absY = Math.abs(y);
+                  const now = performance.now();
+                  const update = (direction: 'left'|'right'|'up'|null, strength: number) => {
+                    if (direction === lastDragFeedbackRef.current.direction && Math.abs(strength - lastDragFeedbackRef.current.strength) < 0.1 && now - lastDragFeedbackTsRef.current < 60) return;
+                    lastDragFeedbackRef.current = { direction, strength };
+                    lastDragFeedbackTsRef.current = now;
+                    setDragFeedback({ direction, strength });
+                  };
+                  if (absY > absX && y < -10) {
+                    const strength = Math.min(1, Math.abs(y) / SUPERLIKE_VERTICAL_THRESHOLD);
+                    if (strength >= 1 && dragFeedback.direction !== 'up' && !liteMode) {
+                      setPulseDirection('up');
+                      setTimeout(() => setPulseDirection(null), 200);
+                    }
+                    update('up', strength);
+                  } else if (absX > 6) {
+                    const strength = Math.min(1, absX / SWIPE_OFFSET_THRESHOLD);
+                    if (x > 0) {
+                      if (strength >= 1 && dragFeedback.direction !== 'right' && !liteMode) {
+                        setPulseDirection('right');
+                        setTimeout(() => setPulseDirection(null), 200);
+                      }
+                      update('right', strength);
+                    } else {
+                      if (strength >= 1 && dragFeedback.direction !== 'left' && !liteMode) {
+                        setPulseDirection('left');
+                        setTimeout(() => setPulseDirection(null), 200);
+                      }
+                      update('left', strength);
+                    }
+                  } else if (lastDragFeedbackRef.current.direction !== null) {
+                    update(null, 0);
+                  }
+                }}
               >
+                {/* Drag feedback overlay (directional tint) */}
+                {dragFeedback.direction && (
+                  <div
+                    className="absolute inset-0 pointer-events-none rounded-2xl overflow-hidden"
+                    style={{
+                      background:
+                        dragFeedback.direction === 'right'
+                          ? 'linear-gradient(to right, rgba(16,185,129,0.25), rgba(5,150,105,0.15))'
+                          : dragFeedback.direction === 'left'
+                          ? 'linear-gradient(to left, rgba(244,63,94,0.28), rgba(225,29,72,0.15))'
+                          : 'linear-gradient(to top, rgba(59,130,246,0.3), rgba(37,99,235,0.15))',
+                      opacity: 0.15 + dragFeedback.strength * 0.55,
+                      mixBlendMode: 'overlay',
+                      transition: 'opacity 120ms ease',
+                    }}
+                  />
+                )}
+                {/* Direction Icon / Label */}
+                {dragFeedback.direction && (
+                  <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-1 select-none">
+                    <div
+                      className={`rounded-full backdrop-blur-sm px-4 py-2 flex items-center gap-2 border text-xs font-semibold tracking-wide uppercase shadow-md ${dragFeedback.direction === 'right' ? 'border-emerald-300/70 bg-emerald-500/20 text-emerald-100' : dragFeedback.direction === 'left' ? 'border-rose-300/70 bg-rose-500/25 text-rose-100' : 'border-sky-300/70 bg-sky-500/25 text-sky-100'}`}
+                      style={{
+                        transform: `scale(${0.9 + dragFeedback.strength * 0.25})`,
+                        opacity: 0.6 + dragFeedback.strength * 0.4,
+                        transition: 'transform 120ms ease, opacity 120ms ease',
+                      }}
+                    >
+                      {dragFeedback.direction === 'left' && (
+                        <X className="h-4 w-4" />
+                      )}
+                      {dragFeedback.direction === 'right' && (
+                        <Heart className="h-4 w-4" />
+                      )}
+                      {dragFeedback.direction === 'up' && (
+                        <Star className="h-4 w-4" />
+                      )}
+                      <span>
+                        {dragFeedback.direction === 'left'
+                          ? 'Pass'
+                          : dragFeedback.direction === 'right'
+                          ? 'Like'
+                          : 'Super Like'}
+                      </span>
+                    </div>
+                    {/* Pulse ring */}
+                    {!liteMode && pulseDirection && pulseDirection === dragFeedback.direction && (
+                      <div className="relative">
+                        <div className="absolute inset-0 -z-10 animate-ping-slow rounded-full bg-white/60" />
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Profile Image */}
                 <div
-                  className="relative h-3/4 cursor-pointer"
-                  onClick={(e) => {
-                    // If clicked with two fingers or right click, advance photo
-                    // Otherwise navigate to profile
-                    if (e.detail === 2) {
-                      advancePhoto();
-                    } else {
-                      router.push(`/profile/${currentProfile.id}`);
-                    }
-                  }}
+                  className="relative h-3/4 cursor-pointer select-none"
+                  onPointerDown={handlePointerDown}
+                  onPointerUp={handlePointerUp}
+                  onPointerLeave={handlePointerLeave}
                 >
                   <img
                     src={
-                      currentProfile.photos[photoIndex]?.url ||
-                      currentProfile.photos[0]?.url ||
+                      currentProfile.photos?.[photoIndex]?.url ||
+                      currentProfile.photos?.[0]?.url ||
                       currentProfile.defaultPhoto ||
                       "/api/placeholder/profile"
                     }
@@ -353,32 +677,57 @@ function DashboardPage() {
                     }}
                   />
 
-                  {/* Photo indicators */}
-                  {currentProfile.photos.length > 1 && (
+                  {/* Story-style progress bars */}
+                  {currentProfile.photos && currentProfile.photos.length > 1 && (
                     <div className="absolute top-2 left-4 right-4 flex gap-1">
-                      {currentProfile.photos.map((_, index) => (
-                        <div
-                          key={index}
-                          className={`h-1 flex-1 rounded-full ${
-                            index === photoIndex ? "bg-white" : "bg-white/40"
-                          }`}
-                        />
-                      ))}
+                      {currentProfile.photos.map((_, idx) => {
+                        const filled = idx < photoIndex ? 100 : idx === photoIndex ? photoProgress : 0;
+                        return (
+                          <div
+                            key={idx}
+                            className="h-1 flex-1 rounded-full bg-white/25 overflow-hidden relative"
+                          >
+                            <div
+                              className={`h-full ${liteMode ? 'bg-white' : 'bg-gradient-to-r from-pink-500 via-fuchsia-500 to-purple-500'} transition-[width] duration-150 ${idx === photoIndex && !liteMode ? "shadow-[0_0_4px_rgba(255,255,255,0.8)]" : ""}`}
+                              style={{ width: `${filled}%` }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Pause indicator */}
+                  {isPaused && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-xs font-medium px-2 py-1 bg-black/50 rounded-full tracking-wide">
+                      Paused
                     </div>
                   )}
 
                   {/* Gradient Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                  {/* Verified Badge */}
-                  {currentProfile.verification.isVerified && (
-                    <div className="absolute top-4 right-4 bg-blue-500 rounded-full p-1">
-                      <Star className="h-4 w-4 text-white fill-current" />
-                    </div>
-                  )}
+                  {/* Top Right Overlay Buttons */}
+                  <div className="absolute top-4 right-4 flex items-center gap-2">
+                    {currentProfile.verification.isVerified && (
+                      <div className="bg-blue-500 rounded-full p-1">
+                        <Star className="h-4 w-4 text-white fill-current" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/profile/${currentProfile.id}`);
+                      }}
+                      className="bg-white/70 backdrop-blur-sm hover:bg-white text-gray-800 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 shadow-sm transition-colors"
+                    >
+                      <Info className="h-3 w-3" /> Profile
+                    </button>
+                  </div>
 
                   {/* Profile Info Overlay */}
-                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                  <div className="absolute bottom-4 left-4 right-4 text-white pointer-events-none">
                     <h2 className="text-2xl font-bold mb-1">
                       {currentProfile.firstName}, {currentProfile.age}
                     </h2>
@@ -553,3 +902,16 @@ function DashboardPage() {
 }
 
 export default withAuth(DashboardPage);
+
+// Tailwind utility extension (scoped) for pulse animation if not globally defined
+// If you already configure this in tailwind.config, you can remove this <style jsx> block.
+// The class 'animate-ping-slow' is used for the pulse ring when threshold crossed.
+// Using a styled-jsx block keeps it local to this component.
+// On mobile this remains lightweight.
+// (Optional) Move to a global CSS if re-used elsewhere.
+// eslint-disable-next-line @next/next/no-sync-scripts
+// @ts-ignore - styled-jsx types may not be present
+<style jsx global>{`
+  @keyframes ping-slow-custom { 0% { transform: scale(0.9); opacity: 0.65;} 70% { transform: scale(1.4); opacity: 0;} 100% { transform: scale(1.5); opacity:0;} }
+  .animate-ping-slow { animation: ping-slow-custom 0.9s ease-out forwards; }
+`}</style>
