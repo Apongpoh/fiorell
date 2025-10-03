@@ -71,6 +71,40 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Apply user deal breakers (server-side hard constraints)
+    const dealBreakers = currentUser.preferences?.dealBreakers;
+    if (dealBreakers) {
+      // Require verified profiles only
+      if (dealBreakers.requireVerified) {
+        filter['verification.isVerified'] = true;
+      }
+      // Candidate must include ALL of mustHaveInterests
+      if (Array.isArray(dealBreakers.mustHaveInterests) && dealBreakers.mustHaveInterests.length) {
+        filter.interests = {
+          ...(filter.interests || {}),
+          $all: dealBreakers.mustHaveInterests,
+        };
+      }
+      // Candidate must include NONE of excludeInterests
+      if (Array.isArray(dealBreakers.excludeInterests) && dealBreakers.excludeInterests.length) {
+        // If we already have an interests filter object, merge; else start a new object
+        if (!filter.interests) filter.interests = {};
+        filter.interests.$nin = dealBreakers.excludeInterests;
+      }
+      // Lifestyle exclusions
+      if (Array.isArray(dealBreakers.excludeSmoking) && dealBreakers.excludeSmoking.length) {
+        filter['lifestyle.smoking'] = { $nin: dealBreakers.excludeSmoking };
+      }
+      if (Array.isArray(dealBreakers.excludeMaritalStatuses) && dealBreakers.excludeMaritalStatuses.length) {
+        filter['lifestyle.maritalStatus'] = { $nin: dealBreakers.excludeMaritalStatuses };
+      }
+      if (dealBreakers.requireHasKids === true) {
+        filter['lifestyle.hasKids'] = true;
+      } else if (dealBreakers.requireHasKids === false) {
+        filter['lifestyle.hasKids'] = { $in: [false, null] };
+      }
+    }
+
     // Distance filtering (if user + candidate have coordinates)
     if (maxDistance && currentUser.location?.coordinates?.length === 2) {
       const distKm = parseInt(maxDistance);

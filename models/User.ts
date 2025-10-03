@@ -29,6 +29,19 @@ export interface IUser extends Document {
     };
     maxDistance: number;
     lookingFor: string[];
+    dealBreakers?: {
+      requireVerified?: boolean;
+      mustHaveInterests?: string[];
+      excludeInterests?: string[];
+      excludeSmoking?: string[];
+      excludeMaritalStatuses?: string[];
+      requireHasKids?: boolean | null;
+    };
+  };
+  lifestyle?: {
+    hasKids?: boolean;
+    smoking?: 'no' | 'occasionally' | 'yes';
+    maritalStatus?: 'single' | 'divorced' | 'widowed' | 'separated';
   };
   verification: {
     isVerified: boolean;
@@ -156,6 +169,19 @@ const UserSchema = new Schema<IUser>(
       },
       maxDistance: { type: Number, default: 50, min: 1, max: 100 },
       lookingFor: [{ type: String }],
+      dealBreakers: {
+        requireVerified: { type: Boolean, default: false },
+        mustHaveInterests: [{ type: String, trim: true }], // candidate must include ALL
+        excludeInterests: [{ type: String, trim: true }], // candidate must include NONE
+        excludeSmoking: [{ type: String, trim: true }], // values of lifestyle.smoking to exclude
+        excludeMaritalStatuses: [{ type: String, trim: true }],
+        requireHasKids: { type: Boolean, required: false, default: null }
+      }
+    },
+    lifestyle: {
+      hasKids: { type: Boolean, required: false },
+      smoking: { type: String, enum: ['no','occasionally','yes'], required: false },
+      maritalStatus: { type: String, enum: ['single','divorced','widowed','separated'], required: false }
     },
     verification: {
       isVerified: { type: Boolean, default: false },

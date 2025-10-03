@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       interests: user.interests,
       photos: user.photos,
       preferences: user.preferences,
+  lifestyle: user.lifestyle,
       verification: user.verification,
       privacy: user.privacy,
       subscription: user.subscription,
@@ -83,7 +84,8 @@ export async function PUT(request: NextRequest) {
       location,
       interests,
       preferences,
-      privacy
+      privacy,
+      lifestyle
     } = body;
 
     // Find user
@@ -118,6 +120,15 @@ export async function PUT(request: NextRequest) {
       if (preferences.lookingFor !== undefined) {
         user.preferences.lookingFor = preferences.lookingFor;
       }
+      if (preferences.dealBreakers) {
+        user.preferences.dealBreakers = {
+          ...(user.preferences.dealBreakers || {}),
+          ...preferences.dealBreakers,
+        } as any;
+      }
+    }
+    if (lifestyle !== undefined) {
+      user.lifestyle = { ...(user.lifestyle || {}), ...lifestyle } as any;
     }
     if (privacy !== undefined) {
       user.privacy = { ...user.privacy, ...privacy };
@@ -138,6 +149,7 @@ export async function PUT(request: NextRequest) {
       interests: user.interests,
       photos: user.photos,
       preferences: user.preferences,
+  lifestyle: user.lifestyle,
       verification: user.verification,
       privacy: user.privacy,
       subscription: user.subscription,

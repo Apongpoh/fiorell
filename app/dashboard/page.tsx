@@ -87,6 +87,13 @@ function DashboardPage() {
   const [autoApply, setAutoApply] = useState(true); // enable debounce apply
   const [appliedFiltersSignature, setAppliedFiltersSignature] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
+  // Deal breakers (local UI state; persisted via Save Prefs)
+  const [dealBreakers, setDealBreakers] = useState({
+    requireVerified: false,
+    mustHaveInterests: '',
+    excludeInterests: ''
+  });
+  const [showDealBreakers, setShowDealBreakers] = useState(false);
 
   // Persist filters (A)
   useEffect(() => {
@@ -294,6 +301,11 @@ function DashboardPage() {
           maxDistance: filters.maxDistance,
           genderPreference:
             filters.gender === "all" ? undefined : filters.gender,
+          dealBreakers: {
+            requireVerified: dealBreakers.requireVerified,
+            mustHaveInterests: dealBreakers.mustHaveInterests.split(',').map(i=>i.trim()).filter(Boolean),
+            excludeInterests: dealBreakers.excludeInterests.split(',').map(i=>i.trim()).filter(Boolean)
+          }
         } as any,
       });
       safeSetSwipeError("Preferences saved");
@@ -838,6 +850,92 @@ function DashboardPage() {
                   className="w-full accent-pink-500"
                 />
               </label>
+              {/* Deal Breakers Section */}
+              <div className="col-span-2 pt-2 mt-1 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowDealBreakers((v) => !v)}
+                  className="text-[11px] font-medium text-pink-600 hover:text-pink-700"
+                >
+                  {showDealBreakers ? 'Hide' : 'Show'} Deal Breakers
+                </button>
+                {showDealBreakers && (
+                  <div className="mt-2 space-y-3 animate-fade-in">
+                    <label className="flex items-center gap-2 text-gray-600 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={dealBreakers.requireVerified}
+                        onChange={(e) =>
+                          setDealBreakers((db) => ({
+                            ...db,
+                            requireVerified: e.target.checked,
+                          }))
+                        }
+                        className="text-pink-500 rounded border-gray-300 focus:ring-pink-500"
+                      />
+                      Require verified profiles
+                    </label>
+                    <label className="space-y-1 block text-[11px]">
+                      <span className="font-medium text-gray-600 flex justify-between">
+                        Must Have ALL Interests
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDealBreakers((db) => ({
+                              ...db,
+                              mustHaveInterests: '',
+                            }))
+                          }
+                          className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                        >
+                          Clear
+                        </button>
+                      </span>
+                      <input
+                        type="text"
+                        value={dealBreakers.mustHaveInterests}
+                        onChange={(e) =>
+                          setDealBreakers((db) => ({
+                            ...db,
+                            mustHaveInterests: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. Hiking, Cooking"
+                        className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
+                      />
+                    </label>
+                    <label className="space-y-1 block text-[11px]">
+                      <span className="font-medium text-gray-600 flex justify-between">
+                        Exclude ANY Interests
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDealBreakers((db) => ({
+                              ...db,
+                              excludeInterests: '',
+                            }))
+                          }
+                          className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                        >
+                          Clear
+                        </button>
+                      </span>
+                      <input
+                        type="text"
+                        value={dealBreakers.excludeInterests}
+                        onChange={(e) =>
+                          setDealBreakers((db) => ({
+                            ...db,
+                            excludeInterests: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. Smoking, Gambling"
+                        className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-1 items-center">
               <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer select-none">

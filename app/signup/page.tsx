@@ -11,20 +11,22 @@ import { z } from "zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
-const signupSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string(),
-  dateOfBirth: z.string().min(1, "Please enter your date of birth"),
-  gender: z.string().min(1, "Please select your gender"),
-  location: z.string().min(2, "Please enter your location"),
-  interests: z.array(z.string()).min(3, "Please select at least 3 interests"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const signupSchema = z
+  .object({
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    email: z.string().email("Please enter a valid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+    dateOfBirth: z.string().min(1, "Please enter your date of birth"),
+    gender: z.string().min(1, "Please select your gender"),
+    location: z.string().min(2, "Please enter your location"),
+    interests: z.array(z.string()).min(3, "Please select at least 3 interests"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 type SignupForm = z.infer<typeof signupSchema>;
 
@@ -34,17 +36,38 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [showAllInterests, setShowAllInterests] = useState(false);
+  const INTERESTS_COLLAPSED_COUNT = 12;
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const { signup, isAuthenticated } = useAuth();
   const router = useRouter();
 
   // Available interests list
   const availableInterests = [
-    'Travel', 'Photography', 'Music', 'Movies', 'Books', 'Cooking', 'Fitness',
-    'Art', 'Dancing', 'Hiking', 'Gaming', 'Technology', 'Food', 'Sports',
-    'Yoga', 'Writing', 'Fashion', 'Design', 'Nature', 'Animals', 'Wine',
-    'Coffee', 'Business', 'Entrepreneurship', 'Science', 'History',
-    'Languages', 'Comedy', 'Theater', 'Volunteering'
+    "Photography",
+    "Travel",
+    "Cooking",
+    "Yoga",
+    "Music",
+    "Technology",
+    "Food",
+    "Rock Climbing",
+    "Art",
+    "Design",
+    "Dogs",
+    "Wine Tasting",
+    "Hiking",
+    "Reading",
+    "Movies",
+    "Dancing",
+    "Sports",
+    "Gaming",
+    "Fitness",
+    "Nature",
+    "Fashion",
+    "Coffee",
+    "Beach",
+    "Adventure",
   ];
 
   const {
@@ -60,26 +83,26 @@ export default function SignupPage() {
     },
   });
 
-  const watchedInterests = watch('interests');
+  const watchedInterests = watch("interests");
 
   // Handle interest selection
   const toggleInterest = (interest: string) => {
     const currentInterests = watchedInterests || [];
     let newInterests;
-    
+
     if (currentInterests.includes(interest)) {
-      newInterests = currentInterests.filter(i => i !== interest);
+      newInterests = currentInterests.filter((i) => i !== interest);
     } else {
       newInterests = [...currentInterests, interest];
     }
-    
+
     setSelectedInterests(newInterests);
-    setValue('interests', newInterests, { shouldValidate: true });
+    setValue("interests", newInterests, { shouldValidate: true });
   };
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    router.push('/dashboard');
+    router.push("/dashboard");
     return null;
   }
 
@@ -93,16 +116,18 @@ export default function SignupPage() {
       setError(null);
       setSuccess(null);
       // Send signup data with recaptchaToken
-  // await signup({ ...data, recaptchaToken });
-  await signup(data);
-      setSuccess("Account created! Please check your email to verify your account.");
+      // await signup({ ...data, recaptchaToken });
+      await signup(data);
+      setSuccess(
+        "Account created! Please check your email to verify your account."
+      );
     } catch (error: any) {
       if (error?.response?.error) {
         setError(error.response.error);
       } else if (error?.message) {
         setError(error.message);
       } else {
-        setError('Signup failed. Please try again.');
+        setError("Signup failed. Please try again.");
       }
     }
   };
@@ -169,7 +194,9 @@ export default function SignupPage() {
                     placeholder="Enter your first name"
                   />
                   {errors.firstName && (
-                    <p className="text-red-500 text-sm mt-1">{errors.firstName.message}</p>
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.firstName.message}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -183,7 +210,9 @@ export default function SignupPage() {
                     placeholder="Enter your last name"
                   />
                   {errors.lastName && (
-                    <p className="text-red-500 text-sm mt-1">{errors.lastName.message}</p>
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.lastName.message}
+                    </p>
                   )}
                 </div>
               </div>
@@ -200,7 +229,9 @@ export default function SignupPage() {
                   placeholder="Enter your email"
                 />
                 {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.email.message}
+                  </p>
                 )}
               </div>
 
@@ -222,11 +253,17 @@ export default function SignupPage() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
                   {errors.password && (
-                    <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.password.message}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -242,14 +279,22 @@ export default function SignupPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
                   {errors.confirmPassword && (
-                    <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.confirmPassword.message}
+                    </p>
                   )}
                 </div>
               </div>
@@ -266,7 +311,9 @@ export default function SignupPage() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                   />
                   {errors.dateOfBirth && (
-                    <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth.message}</p>
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.dateOfBirth.message}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -284,7 +331,9 @@ export default function SignupPage() {
                     <option value="prefer-not-to-say">Prefer not to say</option>
                   </select>
                   {errors.gender && (
-                    <p className="text-red-500 text-sm mt-1">{errors.gender.message}</p>
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.gender.message}
+                    </p>
                   )}
                 </div>
               </div>
@@ -301,17 +350,20 @@ export default function SignupPage() {
                   placeholder="Enter your city/location"
                 />
                 {errors.location && (
-                  <p className="text-red-500 text-sm mt-1">{errors.location.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.location.message}
+                  </p>
                 )}
               </div>
 
               {/* Interests Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Interests <span className="text-gray-500">(Select at least 3)</span>
+                  Interests{" "}
+                  <span className="text-gray-500">(Select at least 3)</span>
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
-                  {availableInterests.map((interest) => {
+                  {(showAllInterests ? availableInterests : availableInterests.slice(0, INTERESTS_COLLAPSED_COUNT)).map((interest) => {
                     const isSelected = selectedInterests.includes(interest);
                     return (
                       <button
@@ -320,20 +372,31 @@ export default function SignupPage() {
                         onClick={() => toggleInterest(interest)}
                         className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${
                           isSelected
-                            ? 'bg-pink-500 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? "bg-pink-500 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
                         {interest}
                       </button>
                     );
                   })}
+                  {availableInterests.length > INTERESTS_COLLAPSED_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllInterests(v => !v)}
+                      className="px-3 py-2 rounded-full text-sm font-medium border border-dashed border-pink-400 text-pink-600 bg-white hover:bg-pink-50 transition-colors"
+                    >
+                      {showAllInterests ? 'Show Less' : `Show ${availableInterests.length - INTERESTS_COLLAPSED_COUNT} More`}
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mb-2">
                   Selected: {selectedInterests.length} interests
                 </p>
                 {errors.interests && (
-                  <p className="text-red-500 text-sm mt-1">{errors.interests.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.interests.message}
+                  </p>
                 )}
               </div>
 
@@ -357,7 +420,10 @@ export default function SignupPage() {
               <div className="text-center">
                 <p className="text-gray-600">
                   Already have an account?{" "}
-                  <Link href="/login" className="text-pink-500 hover:text-pink-600 font-semibold">
+                  <Link
+                    href="/login"
+                    className="text-pink-500 hover:text-pink-600 font-semibold"
+                  >
                     Sign In
                   </Link>
                 </p>

@@ -158,10 +158,23 @@ export const userAPI = {
       ageRange: { min: number; max: number };
       maxDistance: number;
       genderPreference?: string;
+      dealBreakers?: {
+        requireVerified?: boolean;
+        mustHaveInterests?: string[];
+        excludeInterests?: string[];
+        excludeSmoking?: string[];
+        excludeMaritalStatuses?: string[];
+        requireHasKids?: boolean | null;
+      };
     };
     location?: {
       city: string;
       coordinates?: [number, number];
+    };
+    lifestyle?: {
+      hasKids?: boolean;
+      smoking?: 'no' | 'occasionally' | 'yes';
+      maritalStatus?: 'single' | 'divorced' | 'widowed' | 'separated';
     };
     privacy?: {
       showAge: boolean;
