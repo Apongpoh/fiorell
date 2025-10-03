@@ -18,14 +18,14 @@ export default function Home() {
             <Heart className="h-8 w-8 text-pink-500" />
             <span className="text-2xl font-bold text-gray-900">Fiorell</span>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center space-x-4"
           >
-            <Link 
-              href="/login" 
+            <Link
+              href="/login"
               className="px-4 py-2 text-gray-700 hover:text-pink-600 transition-colors"
             >
               Sign In
@@ -52,17 +52,19 @@ export default function Home() {
             >
               Find Your
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">
-                {" "}Perfect Match
+                {" "}
+                Perfect Match
               </span>
             </motion.h1>
-            
+
             <motion.p
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
               className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto"
             >
-              Connect with like-minded people, build meaningful relationships, and discover love that lasts a lifetime.
+              Connect with like-minded people, build meaningful relationships,
+              and discover love that lasts a lifetime.
             </motion.p>
 
             <motion.div
@@ -97,9 +99,12 @@ export default function Home() {
               <div className="inline-flex items-center justify-center w-16 h-16 bg-pink-100 rounded-full mb-6">
                 <Users className="h-8 w-8 text-pink-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Smart Matching</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                Smart Matching
+              </h3>
               <p className="text-gray-600">
-                Our advanced algorithm connects you with compatible partners based on your interests and values.
+                Our advanced algorithm connects you with compatible partners
+                based on your interests and values.
               </p>
             </div>
 
@@ -107,9 +112,12 @@ export default function Home() {
               <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-6">
                 <MessageCircle className="h-8 w-8 text-purple-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Meaningful Conversations</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                Meaningful Conversations
+              </h3>
               <p className="text-gray-600">
-                Break the ice with conversation starters and build deeper connections through thoughtful chats.
+                Break the ice with conversation starters and build deeper
+                connections through thoughtful chats.
               </p>
             </div>
 
@@ -117,9 +125,12 @@ export default function Home() {
               <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-6">
                 <Sparkles className="h-8 w-8 text-yellow-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Safe & Secure</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                Safe & Secure
+              </h3>
               <p className="text-gray-600">
-                Your privacy and safety are our top priorities with verified profiles and secure messaging.
+                Your privacy and safety are our top priorities with verified
+                profiles and secure messaging.
               </p>
             </div>
           </motion.div>

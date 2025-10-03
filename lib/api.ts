@@ -101,7 +101,12 @@ export const authAPI = {
   },
 
   // Logout
-  logout: () => {
+  logout: async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore network errors, still clear client state
+    }
     removeAuthToken();
     window.location.href = '/login';
   },

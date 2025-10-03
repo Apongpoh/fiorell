@@ -249,7 +249,7 @@ export async function POST(_request: NextRequest) {
       email: savedUser.email,
     });
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         message:
           "Welcome to Fiorell! Please check your email to verify your account.",
@@ -281,6 +281,17 @@ export async function POST(_request: NextRequest) {
         },
       }
     );
+    // Set HttpOnly auth cookie for middleware protection on app routes
+    response.cookies.set({
+      name: "auth_token",
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    });
+    return response;
   } catch (error) {
     // Handle validation errors specifically
     if (error instanceof Error && error.message.includes("validation failed")) {

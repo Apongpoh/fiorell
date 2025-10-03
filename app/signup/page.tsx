@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 // import ReCAPTCHA from "react-google-recaptcha";
 import { motion } from "framer-motion";
 import { Heart, Eye, EyeOff, ArrowLeft } from "lucide-react";
@@ -41,6 +41,13 @@ export default function SignupPage() {
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const { signup, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  // Redirect if already authenticated (avoid navigation during render)
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, router]);
 
   // Available interests list
   const availableInterests = [
@@ -100,11 +107,7 @@ export default function SignupPage() {
     setValue("interests", newInterests, { shouldValidate: true });
   };
 
-  // Redirect if already authenticated
-  if (isAuthenticated) {
-    router.push("/dashboard");
-    return null;
-  }
+  // Do not navigate in render; effect above handles it
 
   const onSubmit = async (data: SignupForm) => {
     // reCAPTCHA logic disabled for local/dev
