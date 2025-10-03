@@ -3,6 +3,7 @@ import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
 import { computeProfileCompletion } from '@/lib/profileCompletion';
+import { sanitizeBio, sanitizeCity, validateInterests } from '@/lib/validators';
 
 // Get user profile
 export async function GET(request: NextRequest) {
@@ -85,7 +86,7 @@ export async function PUT(request: NextRequest) {
     const {
       firstName,
       lastName,
-      age,
+  age,
       gender,
       dateOfBirth,
       bio,
@@ -108,15 +109,19 @@ export async function PUT(request: NextRequest) {
     // Update fields if provided
     if (firstName !== undefined) user.firstName = firstName.trim();
     if (lastName !== undefined) user.lastName = lastName.trim();
-    if (age !== undefined) user.age = age;
+  // Age is computed from dateOfBirth; ignore direct age assignment
     if (gender !== undefined) user.gender = gender;
   if (dateOfBirth !== undefined && dateOfBirth !== '') user.dateOfBirth = new Date(dateOfBirth);
-    if (bio !== undefined) user.bio = bio.trim();
+  if (bio !== undefined) user.bio = sanitizeBio(String(bio));
     if (location !== undefined) {
-      user.location.city = location.city?.trim?.() || location.city;
+      if (!user.location) {
+        user.location = { city: '', country: '', coordinates: { type: 'Point', coordinates: [0,0] } } as any;
+      }
+      if (location.city !== undefined) user.location.city = sanitizeCity(String(location.city || ''));
+      if (location.country !== undefined) user.location.country = String(location.country).slice(0,56);
     }
-    if (interests !== undefined && Array.isArray(interests)) {
-      user.interests = interests;
+    if (interests !== undefined) {
+      user.interests = validateInterests(interests);
     }
     if (preferences !== undefined) {
       if (preferences.ageRange) {

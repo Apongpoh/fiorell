@@ -5,6 +5,8 @@ import Message from '@/models/Message';
 import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import Block from '../../../models/Block';
+import { isObjectId } from '@/lib/validators';
 
     // Get user's matches
 export async function GET(request: NextRequest) {
@@ -106,10 +108,27 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     // Get target user ID from request body
-    const { targetUserId } = await request.json();
+  const { targetUserId } = await request.json();
 
     if (!targetUserId) {
       return NextResponse.json({ error: 'Target user ID is required' }, { status: 400 });
+    }
+    if (!isObjectId(targetUserId)) {
+      return NextResponse.json({ error: 'Invalid target user id' }, { status: 400 });
+    }
+    if (userId === targetUserId) {
+      return NextResponse.json({ error: 'Cannot match with yourself' }, { status: 400 });
+    }
+
+    // Block checks
+    const block = await Block.findOne({
+      $or: [
+        { blocker: userId, blocked: targetUserId, active: true },
+        { blocker: targetUserId, blocked: userId, active: true }
+      ]
+    });
+    if (block) {
+      return NextResponse.json({ error: 'Match blocked between users' }, { status: 403 });
     }
 
     // Check if users exist

@@ -27,6 +27,10 @@ interface Message {
     readAt?: string;
   };
   isDeleted: boolean;
+  // Optimistic / client-only state extensions
+  uploading?: boolean;
+  progress?: number; // future use if we implement xhr progress
+  error?: string;
 }
 
 interface MatchData {
@@ -222,19 +226,106 @@ export default function ChatPage() {
     try {
       setUploadingMedia(true);
 
+      // Derive message type from MIME
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
+      const msgType: Message["type"] = isImage
+        ? "image"
+        : isVideo
+        ? "video"
+        : "image"; // default fallback
+
+      // Create a local object URL for instant preview
+      const objectUrl = URL.createObjectURL(file);
+      const tempId = `temp-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}`;
+
+      // Build optimistic placeholder message
+      const optimistic: Message = {
+        _id: tempId,
+        sender: {
+          _id: user?.id || "",
+          id: user?.id,
+          firstName: user?.firstName,
+          isCurrentUser: true,
+        },
+        recipient:
+          (match?.user1._id === user?.id
+            ? match?.user2._id
+            : match?.user1._id) || "",
+        match: String(id),
+        content: "", // not used for media
+        type: msgType,
+        media: {
+          url: objectUrl,
+          key: "",
+          mimeType: file.type,
+          size: file.size,
+        },
+        createdAt: new Date().toISOString(),
+        readStatus: { isRead: false },
+        isDeleted: false,
+        uploading: true,
+        progress: undefined,
+      };
+
+      setMessages((prev) => [...prev, optimistic]);
+      scrollToBottom();
+      setTimeout(scrollToBottom, 50);
+
       // Create form data
       const formData = new FormData();
       formData.append("file", file);
       formData.append("matchId", id as string);
 
       // Upload to AWS via API route
-      const data = await apiRequest("/messages/media", {
-        method: "POST",
-        body: formData,
-        headers: {}, // Remove Content-Type to allow FormData to set its own
-      });
+      let data;
+      try {
+        data = await apiRequest("/messages/media", {
+          method: "POST",
+          body: formData,
+          headers: {}, // Allow browser to set multipart boundary
+        });
+      } catch (err: any) {
+        // Mark placeholder as failed
+        setMessages((prev) =>
+          prev.map((m) =>
+            m._id === tempId
+              ? {
+                  ...m,
+                  uploading: false,
+                  error: err.message || "Upload failed",
+                }
+              : m
+          )
+        );
+        throw err; // rethrow to surface error UI
+      }
 
-      setMessages((prev) => [...prev, data.message]);
+      // Replace optimistic message with server message
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m._id !== tempId) return m;
+          const serverMsg = data.message || {};
+          return {
+            ...m,
+            _id: serverMsg._id || m._id,
+            media: serverMsg.media ? { ...serverMsg.media } : m.media,
+            uploading: false,
+            error: undefined,
+            createdAt: serverMsg.createdAt || m.createdAt,
+          } as Message;
+        })
+      );
+
+      // Release object URL now that we have server URL (if different)
+      if (
+        data?.message?.media?.url &&
+        data.message.media.url !== optimistic.media?.url
+      ) {
+        URL.revokeObjectURL(objectUrl);
+      }
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -393,12 +484,30 @@ export default function ChatPage() {
                           {message.content}
                         </p>
                       ) : message.type === "image" ? (
-                        <img
-                          key={message._id + "-img"}
-                          src={message.media?.url}
-                          alt="Shared image"
-                          className="rounded-lg max-w-full"
-                        />
+                        <div className="relative">
+                          <img
+                            key={message._id + "-img"}
+                            src={message.media?.url}
+                            alt={
+                              message.uploading
+                                ? "Uploading image"
+                                : "Shared image"
+                            }
+                            className={`rounded-lg max-w-full ${
+                              message.uploading ? "opacity-70" : ""
+                            }`}
+                          />
+                          {message.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="h-10 w-10 border-4 border-white/40 border-t-white rounded-full animate-spin" />
+                            </div>
+                          )}
+                          {message.error && !message.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs text-white font-medium rounded-lg">
+                              Upload failed
+                            </div>
+                          )}
+                        </div>
                       ) : null}
                       <div
                         key={message._id + "-meta"}
@@ -406,7 +515,11 @@ export default function ChatPage() {
                           isSender ? "text-pink-200" : "text-gray-500"
                         }`}
                       >
-                        {formatMessageTime(message.createdAt)}
+                        {message.uploading
+                          ? message.error
+                            ? "Failed"
+                            : "Uploading..."
+                          : formatMessageTime(message.createdAt)}
                         {isSender && (
                           <span className="ml-1">
                             {message.readStatus &&

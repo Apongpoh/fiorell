@@ -3,19 +3,38 @@ import mongoose from 'mongoose';
 import connectToDatabase from '@/lib/mongodb';
 import Interaction from '@/models/Interaction';
 import User from '@/models/User';
+import { verifyAuth } from '@/lib/auth';
+// Block model (ensure path alias resolves)
+import Block from '../../../models/Block';
+import { isObjectId } from '@/lib/validators';
+
+// Simple in-memory like/super_like rate limiter (per user)
+const recentActions: Map<string, number[]> = new Map();
+const ACTION_WINDOW_MS = 60_000; // 1 minute
+const ACTION_LIMIT = 30; // max 30 interactions per minute
 
 export async function POST(request: NextRequest) {
   try {
-    await connectToDatabase();
-    const body = await request.json();
-    let match: any = null;
+  await connectToDatabase();
+  const { userId: authUserId } = verifyAuth(request);
+  const body = await request.json();
+
+  // Force userId to be auth user to prevent spoofing
+  body.userId = authUserId;
 
     // Validate required fields
-    if (!body.userId || !body.targetUserId || !body.action) {
+    if (!body.targetUserId || !body.action) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, targetUserId, action' },
+        { error: 'Missing required fields: targetUserId, action' },
         { status: 400 }
       );
+    }
+
+    if (!isObjectId(body.targetUserId)) {
+      return NextResponse.json({ error: 'Invalid target user id' }, { status: 400 });
+    }
+    if (body.userId === body.targetUserId) {
+      return NextResponse.json({ error: 'Cannot interact with yourself' }, { status: 400 });
     }
 
     // Validate action type
@@ -27,7 +46,26 @@ export async function POST(request: NextRequest) {
     }
 
             // Connect to database and start a MongoDB session for transaction
-    await connectToDatabase();
+    // Rate limiting
+    const now = Date.now();
+    const arr = recentActions.get(body.userId) || [];
+    const filtered = arr.filter(ts => now - ts < ACTION_WINDOW_MS);
+    if (filtered.length >= ACTION_LIMIT) {
+      return NextResponse.json({ error: 'Too many actions, slow down' }, { status: 429 });
+    }
+    filtered.push(now);
+    recentActions.set(body.userId, filtered);
+
+    // Block checks
+    const block = await Block.findOne({
+      $or: [
+        { blocker: body.userId, blocked: body.targetUserId, active: true },
+        { blocker: body.targetUserId, blocked: body.userId, active: true }
+      ]
+    });
+    if (block) {
+      return NextResponse.json({ error: 'Interaction blocked between users' }, { status: 403 });
+    }
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -68,7 +106,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check for a match
-      let match = null;
+  let match = null;
       if (body.action === 'like' || body.action === 'super_like') {
         const reciprocal = await Interaction.findOne({
           userId: body.targetUserId,

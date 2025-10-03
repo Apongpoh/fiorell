@@ -4,6 +4,8 @@ import User from '@/models/User';
 import Like from '@/models/Like';
 import Match from '@/models/Match';
 import { verifyAuth } from '@/lib/auth';
+import Block from '../../../../models/Block';
+import { isObjectId } from '@/lib/validators';
 
 // Like or pass a user
 export async function POST(request: NextRequest) {
@@ -14,7 +16,7 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const body = await request.json();
-    const { targetUserId, action } = body;
+  const { targetUserId, action } = body;
 
     // Validation
     if (!targetUserId || !action) {
@@ -22,6 +24,10 @@ export async function POST(request: NextRequest) {
         { error: 'Target user ID and action are required' },
         { status: 400 }
       );
+    }
+
+    if (!isObjectId(targetUserId)) {
+      return NextResponse.json({ error: 'Invalid target user id' }, { status: 400 });
     }
 
     if (!['like', 'super_like', 'pass'].includes(action)) {
@@ -36,6 +42,17 @@ export async function POST(request: NextRequest) {
         { error: 'Cannot perform action on yourself' },
         { status: 400 }
       );
+    }
+
+    // Block checks
+    const block = await Block.findOne({
+      $or: [
+        { blocker: userId, blocked: targetUserId, active: true },
+        { blocker: targetUserId, blocked: userId, active: true }
+      ]
+    });
+    if (block) {
+      return NextResponse.json({ error: 'Action blocked between users' }, { status: 403 });
     }
 
     // Check if target user exists and is active
@@ -90,15 +107,15 @@ export async function POST(request: NextRequest) {
         await match.save();
 
         // Update user stats
-        await User.findByIdAndUpdate(userId, { $inc: { 'stats.matches': 1 } });
-        await User.findByIdAndUpdate(targetUserId, { $inc: { 'stats.matches': 1 } });
+  await User.findByIdAndUpdate(userId, { $inc: { 'stats.totalMatches': 1 } });
+  await User.findByIdAndUpdate(targetUserId, { $inc: { 'stats.totalMatches': 1 } });
 
         isMatch = true;
         matchId = match._id;
       }
 
       // Update target user's like count
-      await User.findByIdAndUpdate(targetUserId, { $inc: { 'stats.likes': 1 } });
+  await User.findByIdAndUpdate(targetUserId, { $inc: { 'stats.totalLikesReceived': 1 } });
     }
 
     // Prepare response
