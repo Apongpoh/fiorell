@@ -4,7 +4,8 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
 
-export async function OPTIONS(request: NextRequest) {
+// CORS preflight handler (no request body needed)
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {

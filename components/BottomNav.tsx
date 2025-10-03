@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Users, Heart, MessageCircle, Camera } from "lucide-react";
-import { useEffect, useState } from "react";
 
 interface BottomNavProps {
   unreadMessages?: number;

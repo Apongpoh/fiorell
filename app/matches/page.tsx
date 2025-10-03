@@ -2,20 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { 
-  Heart, 
-  MessageCircle, 
-  ArrowLeft,
-  Star,
-  MapPin,
-  Clock,
-  Shield
-} from "lucide-react";
+import { Heart, ArrowLeft, Shield } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
+import Image from "next/image";
 
 interface Match {
   _id: string;
@@ -45,28 +37,37 @@ interface Match {
 }
 
 export default function MatchesPage() {
-  const { user } = useAuth();
   const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [newMatches, setNewMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'new' | 'messages'>('new');
+  const [activeTab, setActiveTab] = useState<"new" | "messages">("new");
 
   useEffect(() => {
     const loadMatches = async () => {
       try {
         setLoading(true);
-        const data = await apiRequest('/matches');
-        
+        const data = await apiRequest("/matches");
+        if (!data || typeof data !== 'object' || !('matches' in data)) {
+          throw new Error('Invalid matches response');
+        }
+        const matchesVal = (data as { matches?: unknown }).matches;
+        if (!Array.isArray(matchesVal)) {
+          throw new Error('Invalid matches data');
+        }
+
         // Split matches into new and existing conversations
         const now = new Date();
         const oneDay = 24 * 60 * 60 * 1000; // one day in milliseconds
 
-        const { new: newOnes, existing } = data.matches.reduce(
+        const { new: newOnes, existing } = (matchesVal as Match[]).reduce(
           (acc: { new: Match[]; existing: Match[] }, match: Match) => {
             const matchDate = new Date(match.matchedAt);
-            if (now.getTime() - matchDate.getTime() < oneDay && !match.lastMessage) {
+            if (
+              now.getTime() - matchDate.getTime() < oneDay &&
+              !match.lastMessage
+            ) {
               acc.new.push(match);
             } else {
               acc.existing.push(match);
@@ -78,8 +79,8 @@ export default function MatchesPage() {
 
         setNewMatches(newOnes);
         setMatches(existing);
-      } catch (error: any) {
-        setError(error.message);
+      } catch {
+        setError("An unknown error occurred");
       } finally {
         setLoading(false);
       }
@@ -134,21 +135,21 @@ export default function MatchesPage() {
         <div className="max-w-md mx-auto px-6">
           <div className="flex">
             <button
-              onClick={() => setActiveTab('new')}
+              onClick={() => setActiveTab("new")}
               className={`flex-1 py-4 text-center font-medium transition-colors ${
-                activeTab === 'new'
-                  ? 'text-pink-500 border-b-2 border-pink-500'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === "new"
+                  ? "text-pink-500 border-b-2 border-pink-500"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               New Matches ({newMatches.length})
             </button>
             <button
-              onClick={() => setActiveTab('messages')}
+              onClick={() => setActiveTab("messages")}
               className={`flex-1 py-4 text-center font-medium transition-colors ${
-                activeTab === 'messages'
-                  ? 'text-pink-500 border-b-2 border-pink-500'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === "messages"
+                  ? "text-pink-500 border-b-2 border-pink-500"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               Messages ({matches.length})
@@ -158,7 +159,7 @@ export default function MatchesPage() {
       </div>
 
       <main className="max-w-md mx-auto px-6 py-6">
-        {activeTab === 'new' && (
+        {activeTab === "new" && (
           <div>
             {/* New Matches Header */}
             <div className="mb-6">
@@ -181,13 +182,16 @@ export default function MatchesPage() {
                   className="bg-white rounded-2xl shadow-sm overflow-hidden"
                 >
                   <div className="relative">
-                    <img
-                      src={match.user?.photos?.[0]?.url || '/api/placeholder/profile'}
-                      alt={match.user?.firstName || 'User'}
+                    <Image
+                      src={
+                        match.user?.photos?.[0]?.url ||
+                        "/api/placeholder/profile"
+                      }
+                      alt={match.user?.firstName || "User"}
                       className="w-full h-48 object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = '/api/placeholder/profile';
+                        target.src = "/api/placeholder/profile";
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -201,7 +205,8 @@ export default function MatchesPage() {
                         )}
                       </div>
                       <p className="text-white/90 text-xs">
-                        Matched {formatDistanceToNow(new Date(match.matchedAt))} ago
+                        Matched {formatDistanceToNow(new Date(match.matchedAt))}{" "}
+                        ago
                       </p>
                     </div>
                     {/* Heart overlay */}
@@ -234,14 +239,19 @@ export default function MatchesPage() {
                     className="flex items-center space-x-3 bg-white rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition-colors"
                   >
                     <div className="relative">
-                      <img
-                        src={match.user.photos[0]?.url || '/api/placeholder/profile'}
+                      <Image
+                        src={
+                          match.user.photos[0]?.url ||
+                          "/api/placeholder/profile"
+                        }
                         alt={match.user.firstName}
                         className="w-12 h-12 rounded-full object-cover"
                       />
-                      {match.user.lastSeen && Date.now() - new Date(match.user.lastSeen).getTime() < 5 * 60 * 1000 && (
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
-                      )}
+                      {match.user.lastSeen &&
+                        Date.now() - new Date(match.user.lastSeen).getTime() <
+                          5 * 60 * 1000 && (
+                          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                        )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -261,8 +271,11 @@ export default function MatchesPage() {
                     <div className="text-right">
                       <p className="text-xs text-gray-500">
                         {match.lastMessage
-                          ? formatDistanceToNow(new Date(match.lastMessage.createdAt)) + ' ago'
-                          : formatDistanceToNow(new Date(match.matchedAt)) + ' ago'}
+                          ? formatDistanceToNow(
+                              new Date(match.lastMessage.createdAt)
+                            ) + " ago"
+                          : formatDistanceToNow(new Date(match.matchedAt)) +
+                            " ago"}
                       </p>
                       {match.unreadCount > 0 && (
                         <div className="mt-1 bg-pink-500 text-white text-xs rounded-full px-2 py-0.5 inline-block">
@@ -277,7 +290,7 @@ export default function MatchesPage() {
           </div>
         )}
 
-        {activeTab === 'messages' && (
+        {activeTab === "messages" && (
           <div className="space-y-3">
             {matches.map((match) => (
               <div
@@ -286,14 +299,18 @@ export default function MatchesPage() {
                 className="flex items-center space-x-3 bg-white rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition-colors"
               >
                 <div className="relative">
-                  <img
-                    src={match.user.photos[0]?.url || '/api/placeholder/profile'}
+                  <Image
+                    src={
+                      match.user.photos[0]?.url || "/api/placeholder/profile"
+                    }
                     alt={match.user.firstName}
                     className="w-12 h-12 rounded-full object-cover"
                   />
-                  {match.user.lastSeen && Date.now() - new Date(match.user.lastSeen).getTime() < 5 * 60 * 1000 && (
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
-                  )}
+                  {match.user.lastSeen &&
+                    Date.now() - new Date(match.user.lastSeen).getTime() <
+                      5 * 60 * 1000 && (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                    )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -313,8 +330,10 @@ export default function MatchesPage() {
                 <div className="text-right">
                   <p className="text-xs text-gray-500">
                     {match.lastMessage
-                      ? formatDistanceToNow(new Date(match.lastMessage.createdAt)) + ' ago'
-                      : formatDistanceToNow(new Date(match.matchedAt)) + ' ago'}
+                      ? formatDistanceToNow(
+                          new Date(match.lastMessage.createdAt)
+                        ) + " ago"
+                      : formatDistanceToNow(new Date(match.matchedAt)) + " ago"}
                   </p>
                   {match.unreadCount > 0 && (
                     <div className="mt-1 bg-pink-500 text-white text-xs rounded-full px-2 py-0.5 inline-block">

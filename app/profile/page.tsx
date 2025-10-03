@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -89,25 +90,92 @@ const availableInterests = [
   "Adventure",
 ];
 
+// Photo interface & parsing helper hoisted outside component so its identity is stable
+// and does not trigger react-hooks/exhaustive-deps warnings.
+interface Photo {
+  url: string;
+  key: string;
+  isMain: boolean;
+  createdAt: Date;
+  _id?: string;
+}
+
+function parsePhotos(raw: unknown): Photo[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (p): p is {
+        url?: unknown;
+        key?: unknown;
+        isMain?: unknown;
+        createdAt?: unknown;
+        _id?: unknown;
+      } => typeof p === "object" && p !== null
+    )
+    .map((p) => {
+      const obj = p as {
+        url?: unknown;
+        key?: unknown;
+        isMain?: unknown;
+        createdAt?: unknown;
+        _id?: unknown;
+      };
+      const createdAtVal = obj.createdAt;
+      return {
+        url: typeof obj.url === "string" ? obj.url : "/api/placeholder/profile",
+        key: typeof obj.key === "string" ? obj.key : "",
+        isMain: obj.isMain === true,
+        createdAt:
+          createdAtVal instanceof Date
+            ? createdAtVal
+            : typeof createdAtVal === "string"
+            ? new Date(createdAtVal)
+            : new Date(),
+        _id: typeof obj._id === "string" ? obj._id : undefined,
+      };
+    });
+}
+
 export default function ProfilePage() {
   const { logout } = useAuth();
   const router = useRouter();
   const { showNotification } = useNotification();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  type ProfileStats = {
+    likes: number;
+    matches: number;
+    views: number;
+    totalLikesReceived?: number;
+    totalSuperLikesReceived?: number;
+    totalMatches?: number;
+    profileViews?: number;
+  };
+
+  interface Profile extends Omit<import("@/models/User").IUser, "stats"> {
+    age?: number;
+    stats: ProfileStats;
+  }
+
+  // (parsePhotos moved above)
+
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [photos, setPhotos] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [dealBreakers, setDealBreakers] = useState({
     requireVerified: false,
-    mustHaveInterests: '',
-    excludeInterests: '',
+    mustHaveInterests: "",
+    excludeInterests: "",
     excludeSmoking: [] as string[],
     excludeMaritalStatuses: [] as string[],
     requireHasKids: null as boolean | null,
   });
-  const [lifestyle, setLifestyle] = useState<{hasKids?: boolean; smoking?: 'no' | 'occasionally' | 'yes' | undefined; maritalStatus?: 'single' | 'divorced' | 'widowed' | 'separated' | undefined}>({});
+  const [lifestyle, setLifestyle] = useState<{
+    hasKids?: boolean;
+    smoking?: "no" | "occasionally" | "yes" | undefined;
+    maritalStatus?: "single" | "divorced" | "widowed" | "separated" | undefined;
+  }>({});
   const [savingDealBreakers, setSavingDealBreakers] = useState(false);
   const [savingLifestyle, setSavingLifestyle] = useState(false);
 
@@ -117,10 +185,20 @@ export default function ProfilePage() {
       try {
         setLoading(true);
         const response = await userAPI.getProfile();
-        const userData = response.user;
+        if (!response || typeof response !== "object" || !("user" in response)) {
+          throw new Error("Invalid profile response");
+        }
+        const userData = (response as { user: typeof currentUser }).user as typeof currentUser;
         setCurrentUser(userData);
-        setSelectedInterests(userData.interests || []);
-        setPhotos(userData.photos || []);
+        if (userData) {
+          const interestsRaw = (userData as { interests?: unknown }).interests;
+          const interests = Array.isArray(interestsRaw)
+            ? interestsRaw.filter((i): i is string => typeof i === 'string')
+            : [];
+          const photosArr = parsePhotos((userData as { photos?: unknown }).photos);
+          setSelectedInterests(interests);
+          setPhotos(photosArr as Photo[]);
+        }
       } catch (error) {
         console.error("Failed to load user profile:", error);
         if (error instanceof Error && error.message.includes("Unauthorized")) {
@@ -180,11 +258,11 @@ export default function ProfilePage() {
       if (db) {
         setDealBreakers({
           requireVerified: !!db.requireVerified,
-            mustHaveInterests: (db.mustHaveInterests || []).join(', '),
-            excludeInterests: (db.excludeInterests || []).join(', '),
-            excludeSmoking: db.excludeSmoking || [],
-            excludeMaritalStatuses: db.excludeMaritalStatuses || [],
-            requireHasKids: db.requireHasKids ?? null,
+          mustHaveInterests: (db.mustHaveInterests || []).join(", "),
+          excludeInterests: (db.excludeInterests || []).join(", "),
+          excludeSmoking: db.excludeSmoking || [],
+          excludeMaritalStatuses: db.excludeMaritalStatuses || [],
+          requireHasKids: db.requireHasKids ?? null,
         });
       }
     }
@@ -219,7 +297,9 @@ export default function ProfilePage() {
 
       // Refresh user data
       const response = await userAPI.getProfile();
-      setCurrentUser(response.user);
+      if (response && typeof response === "object" && "user" in response) {
+        setCurrentUser((response as { user: typeof currentUser }).user as typeof currentUser);
+      }
 
       showNotification("Profile updated successfully!", "success");
     } catch (error) {
@@ -237,19 +317,27 @@ export default function ProfilePage() {
           maxDistance: currentUser?.preferences?.maxDistance || 50,
           dealBreakers: {
             requireVerified: dealBreakers.requireVerified,
-            mustHaveInterests: dealBreakers.mustHaveInterests.split(',').map(i=>i.trim()).filter(Boolean),
-            excludeInterests: dealBreakers.excludeInterests.split(',').map(i=>i.trim()).filter(Boolean),
+            mustHaveInterests: dealBreakers.mustHaveInterests
+              .split(",")
+              .map((i) => i.trim())
+              .filter(Boolean),
+            excludeInterests: dealBreakers.excludeInterests
+              .split(",")
+              .map((i) => i.trim())
+              .filter(Boolean),
             excludeSmoking: dealBreakers.excludeSmoking,
             excludeMaritalStatuses: dealBreakers.excludeMaritalStatuses,
             requireHasKids: dealBreakers.requireHasKids,
-          }
-        }
+          },
+        },
       });
       const refreshed = await userAPI.getProfile();
-      setCurrentUser(refreshed.user);
-      showNotification('Deal breakers saved', 'success');
-    } catch (e) {
-      showNotification('Failed to save deal breakers', 'error');
+      if (refreshed && typeof refreshed === "object" && "user" in refreshed) {
+        setCurrentUser((refreshed as { user: typeof currentUser }).user as typeof currentUser);
+      }
+      showNotification("Deal breakers saved", "success");
+    } catch {
+      showNotification("Failed to save deal breakers", "error");
     } finally {
       setSavingDealBreakers(false);
     }
@@ -263,13 +351,15 @@ export default function ProfilePage() {
           hasKids: lifestyle.hasKids,
           smoking: lifestyle.smoking,
           maritalStatus: lifestyle.maritalStatus,
-        }
+        },
       });
       const refreshed = await userAPI.getProfile();
-      setCurrentUser(refreshed.user);
-      showNotification('Lifestyle saved', 'success');
-    } catch (e) {
-      showNotification('Failed to save lifestyle', 'error');
+      if (refreshed && typeof refreshed === "object" && "user" in refreshed) {
+        setCurrentUser((refreshed as { user: typeof currentUser }).user as typeof currentUser);
+      }
+      showNotification("Lifestyle saved", "success");
+    } catch {
+      showNotification("Failed to save lifestyle", "error");
     } finally {
       setSavingLifestyle(false);
     }
@@ -282,10 +372,6 @@ export default function ProfilePage() {
       : [...currentInterests, interest];
     setValue("interests", newInterests);
     setSelectedInterests(newInterests);
-  };
-
-  const removePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -336,7 +422,7 @@ export default function ProfilePage() {
           <div className="flex-1 flex items-center justify-center">
             <User className="h-6 w-6 text-pink-500" />
             <span className="text-xl font-bold text-gray-900 ml-2">
-              {currentUser?.firstName}'s Profile
+              {currentUser?.firstName}&apos;s Profile
             </span>
           </div>
           <button
@@ -372,8 +458,8 @@ export default function ProfilePage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-pink-500">
-                  {currentUser?.stats?.totalLikesReceived +
-                    currentUser?.stats?.totalSuperLikesReceived || 0}
+                  {(currentUser?.stats?.totalLikesReceived ?? 0) +
+                    (currentUser?.stats?.totalSuperLikesReceived ?? 0)}
                 </div>
                 <div className="text-sm text-gray-600">Likes</div>
               </div>
@@ -403,10 +489,12 @@ export default function ProfilePage() {
                   key={photo._id || index}
                   className="relative aspect-[3/4] group"
                 >
-                  <img
+                  <Image
                     src={photo.url || "/api/placeholder?width=200&height=300"}
                     alt={`Profile photo ${index + 1}`}
                     className="w-full h-full object-cover rounded-lg"
+                    width={200}
+                    height={300}
                   />
                   {/* Delete photo button */}
                   <button
@@ -422,8 +510,13 @@ export default function ProfilePage() {
                         await userAPI.deletePhoto(photo._id);
                         // Refresh user data and photos
                         const response = await userAPI.getProfile();
-                        setCurrentUser(response.user);
-                        setPhotos(response.user.photos || []);
+                        if (response && typeof response === "object" && "user" in response) {
+                          const u = (response as { user: typeof currentUser }).user as typeof currentUser;
+                          setCurrentUser(u);
+                          if (u && typeof u === 'object') {
+                            setPhotos(parsePhotos((u as { photos?: unknown }).photos) as Photo[]);
+                          }
+                        }
                         showNotification(
                           "Photo deleted successfully!",
                           "success"
@@ -453,11 +546,18 @@ export default function ProfilePage() {
                     <button
                       onClick={async () => {
                         try {
-                          await userAPI.setMainPhoto(photo._id);
+                          if (photo._id) {
+                            await userAPI.setMainPhoto(photo._id);
+                          }
                           // Refresh user data and photos
                           const response = await userAPI.getProfile();
-                          setCurrentUser(response.user);
-                          setPhotos(response.user.photos || []);
+                          if (response && typeof response === "object" && "user" in response) {
+                            const u = (response as { user: typeof currentUser }).user as typeof currentUser;
+                            setCurrentUser(u);
+                            if (u && typeof u === 'object') {
+                              setPhotos(parsePhotos((u as { photos?: unknown }).photos) as Photo[]);
+                            }
+                          }
                           showNotification("Main photo updated!", "success");
                         } catch (error) {
                           console.error("Set main photo failed:", error);
@@ -510,8 +610,13 @@ export default function ProfilePage() {
                             await userAPI.uploadPhotos(files);
                             // Refresh user data and photos
                             const response = await userAPI.getProfile();
-                            setCurrentUser(response.user);
-                            setPhotos(response.user.photos || []);
+                            if (response && typeof response === "object" && "user" in response) {
+                              const u = (response as { user: typeof currentUser }).user as typeof currentUser;
+                              setCurrentUser(u);
+                              if (u && typeof u === 'object') {
+                                setPhotos(parsePhotos((u as { photos?: unknown }).photos) as Photo[]);
+                              }
+                            }
                             showNotification(
                               "Photo(s) uploaded successfully!",
                               "success"
@@ -761,81 +866,149 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setLifestyle({ hasKids: undefined, smoking: undefined, maritalStatus: undefined })}
+                  onClick={() =>
+                    setLifestyle({
+                      hasKids: undefined,
+                      smoking: undefined,
+                      maritalStatus: undefined,
+                    })
+                  }
                   disabled={savingLifestyle}
                   className="px-3 py-1.5 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-                >Reset</button>
+                >
+                  Reset
+                </button>
                 <button
                   type="button"
                   onClick={saveLifestyle}
                   disabled={savingLifestyle}
                   className="px-3 py-1.5 text-xs rounded-md bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-40"
-                >{savingLifestyle ? 'Saving...' : 'Save'}</button>
+                >
+                  {savingLifestyle ? "Saving..." : "Save"}
+                </button>
               </div>
             </div>
             <div className="grid md:grid-cols-3 gap-4 text-sm">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Smoking</label>
+                <label className="block text-gray-700 font-medium mb-1">
+                  Smoking
+                </label>
                 <div className="flex flex-wrap gap-2">
-                  {(['no','occasionally','yes'] as ('no'|'occasionally'|'yes')[]).map(s => {
+                  {(
+                    ["no", "occasionally", "yes"] as (
+                      | "no"
+                      | "occasionally"
+                      | "yes"
+                    )[]
+                  ).map((s) => {
                     const active = lifestyle.smoking === s;
                     return (
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setLifestyle(ls => ({ ...ls, smoking: s }))}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${active ? 'bg-pink-500 border-pink-500 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                      >{s === 'no' ? 'Non-smoker' : s === 'yes' ? 'Smoker' : 'Occasional'}</button>
+                        onClick={() =>
+                          setLifestyle((ls) => ({ ...ls, smoking: s }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-pink-500 border-pink-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {s === "no"
+                          ? "Non-smoker"
+                          : s === "yes"
+                          ? "Smoker"
+                          : "Occasional"}
+                      </button>
                     );
                   })}
                   {lifestyle.smoking && (
                     <button
                       type="button"
-                      onClick={() => setLifestyle(ls => ({ ...ls, smoking: undefined }))}
+                      onClick={() =>
+                        setLifestyle((ls) => ({ ...ls, smoking: undefined }))
+                      }
                       className="px-2 py-1.5 rounded-full text-xs border border-gray-300 text-gray-500 hover:bg-gray-100"
-                    >Clear</button>
+                    >
+                      Clear
+                    </button>
                   )}
                 </div>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Marital Status</label>
+                <label className="block text-gray-700 font-medium mb-1">
+                  Marital Status
+                </label>
                 <div className="flex flex-wrap gap-2">
-                  {(['single','divorced','widowed','separated'] as ('single'|'divorced'|'widowed'|'separated')[]).map(m => {
+                  {(
+                    ["single", "divorced", "widowed", "separated"] as (
+                      | "single"
+                      | "divorced"
+                      | "widowed"
+                      | "separated"
+                    )[]
+                  ).map((m) => {
                     const active = lifestyle.maritalStatus === m;
                     return (
                       <button
                         key={m}
                         type="button"
-                        onClick={() => setLifestyle(ls => ({ ...ls, maritalStatus: m }))}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${active ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                      >{m}</button>
+                        onClick={() =>
+                          setLifestyle((ls) => ({ ...ls, maritalStatus: m }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-indigo-500 border-indigo-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {m}
+                      </button>
                     );
                   })}
                   {lifestyle.maritalStatus && (
                     <button
                       type="button"
-                      onClick={() => setLifestyle(ls => ({ ...ls, maritalStatus: undefined }))}
+                      onClick={() =>
+                        setLifestyle((ls) => ({
+                          ...ls,
+                          maritalStatus: undefined,
+                        }))
+                      }
                       className="px-2 py-1.5 rounded-full text-xs border border-gray-300 text-gray-500 hover:bg-gray-100"
-                    >Clear</button>
+                    >
+                      Clear
+                    </button>
                   )}
                 </div>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Has Kids</label>
+                <label className="block text-gray-700 font-medium mb-1">
+                  Has Kids
+                </label>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    {label: 'Not Set', val: undefined},
-                    {label: 'Yes', val: true},
-                    {label: 'No', val: false},
-                  ].map(opt => {
+                    { label: "Not Set", val: undefined },
+                    { label: "Yes", val: true },
+                    { label: "No", val: false },
+                  ].map((opt) => {
                     const active = lifestyle.hasKids === opt.val;
                     return (
                       <button
                         key={String(opt.val)}
                         type="button"
-                        onClick={() => setLifestyle(ls => ({ ...ls, hasKids: opt.val }))}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${active ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                      >{opt.label}</button>
+                        onClick={() =>
+                          setLifestyle((ls) => ({ ...ls, hasKids: opt.val }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-emerald-500 border-emerald-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
                     );
                   })}
                 </div>
@@ -846,87 +1019,214 @@ export default function ProfilePage() {
           {/* Deal Breakers */}
           <div className="bg-white rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Deal Breakers</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Deal Breakers
+              </h2>
               <button
                 type="button"
                 onClick={saveDealBreakers}
                 disabled={savingDealBreakers}
                 className="px-3 py-2 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600 disabled:opacity-40"
-              >{savingDealBreakers ? 'Saving...' : 'Save'}</button>
+              >
+                {savingDealBreakers ? "Saving..." : "Save"}
+              </button>
             </div>
             <div className="space-y-5 text-xs">
               <label className="flex items-center gap-2 text-gray-700">
                 <input
                   type="checkbox"
                   checked={dealBreakers.requireVerified}
-                  onChange={e => setDealBreakers(db => ({ ...db, requireVerified: e.target.checked }))}
+                  onChange={(e) =>
+                    setDealBreakers((db) => ({
+                      ...db,
+                      requireVerified: e.target.checked,
+                    }))
+                  }
                   className="rounded text-pink-500 border-gray-300 focus:ring-pink-500"
                 />
                 Require verified profiles
               </label>
               <div>
-                <div className="flex justify-between mb-1 font-medium text-gray-700">Must Have ALL Interests
-                  <button type="button" onClick={() => setDealBreakers(db => ({ ...db, mustHaveInterests: '' }))} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Clear</button>
+                <div className="flex justify-between mb-1 font-medium text-gray-700">
+                  Must Have ALL Interests
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDealBreakers((db) => ({
+                        ...db,
+                        mustHaveInterests: "",
+                      }))
+                    }
+                    className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <input
                   type="text"
                   value={dealBreakers.mustHaveInterests}
-                  onChange={e => setDealBreakers(db => ({ ...db, mustHaveInterests: e.target.value }))}
+                  onChange={(e) =>
+                    setDealBreakers((db) => ({
+                      ...db,
+                      mustHaveInterests: e.target.value,
+                    }))
+                  }
                   placeholder="e.g. Hiking, Cooking"
                   className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
                 />
               </div>
               <div>
-                <div className="flex justify-between mb-1 font-medium text-gray-700">Exclude ANY Interests
-                  <button type="button" onClick={() => setDealBreakers(db => ({ ...db, excludeInterests: '' }))} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Clear</button>
+                <div className="flex justify-between mb-1 font-medium text-gray-700">
+                  Exclude ANY Interests
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDealBreakers((db) => ({ ...db, excludeInterests: "" }))
+                    }
+                    className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <input
                   type="text"
                   value={dealBreakers.excludeInterests}
-                  onChange={e => setDealBreakers(db => ({ ...db, excludeInterests: e.target.value }))}
+                  onChange={(e) =>
+                    setDealBreakers((db) => ({
+                      ...db,
+                      excludeInterests: e.target.value,
+                    }))
+                  }
                   placeholder="e.g. Smoking, Gambling"
                   className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
                 />
               </div>
               <div>
-                <div className="flex justify-between mb-1 font-medium text-gray-700">Exclude Smoking
-                  <button type="button" onClick={() => setDealBreakers(db => ({ ...db, excludeSmoking: [] }))} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Clear</button>
+                <div className="flex justify-between mb-1 font-medium text-gray-700">
+                  Exclude Smoking
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDealBreakers((db) => ({ ...db, excludeSmoking: [] }))
+                    }
+                    className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {['no','occasionally','yes'].map(s => {
+                  {["no", "occasionally", "yes"].map((s) => {
                     const active = dealBreakers.excludeSmoking.includes(s);
                     return (
-                      <button key={s} type="button" onClick={() => setDealBreakers(db => ({ ...db, excludeSmoking: active ? db.excludeSmoking.filter(x=>x!==s) : [...db.excludeSmoking, s] }))} className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${active ? 'bg-rose-500 border-rose-500 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}>{s === 'no' ? 'Non-smoker' : s === 'yes' ? 'Smoker' : 'Occasional'}</button>
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() =>
+                          setDealBreakers((db) => ({
+                            ...db,
+                            excludeSmoking: active
+                              ? db.excludeSmoking.filter((x) => x !== s)
+                              : [...db.excludeSmoking, s],
+                          }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${
+                          active
+                            ? "bg-rose-500 border-rose-500 text-white"
+                            : "border-gray-300 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        {s === "no"
+                          ? "Non-smoker"
+                          : s === "yes"
+                          ? "Smoker"
+                          : "Occasional"}
+                      </button>
                     );
                   })}
                 </div>
               </div>
               <div>
-                <div className="flex justify-between mb-1 font-medium text-gray-700">Exclude Marital Status
-                  <button type="button" onClick={() => setDealBreakers(db => ({ ...db, excludeMaritalStatuses: [] }))} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Clear</button>
+                <div className="flex justify-between mb-1 font-medium text-gray-700">
+                  Exclude Marital Status
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDealBreakers((db) => ({
+                        ...db,
+                        excludeMaritalStatuses: [],
+                      }))
+                    }
+                    className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {['single','divorced','widowed','separated'].map(m => {
-                    const active = dealBreakers.excludeMaritalStatuses.includes(m);
+                  {["single", "divorced", "widowed", "separated"].map((m) => {
+                    const active =
+                      dealBreakers.excludeMaritalStatuses.includes(m);
                     return (
-                      <button key={m} type="button" onClick={() => setDealBreakers(db => ({ ...db, excludeMaritalStatuses: active ? db.excludeMaritalStatuses.filter(x=>x!==m) : [...db.excludeMaritalStatuses, m] }))} className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${active ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}>{m}</button>
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() =>
+                          setDealBreakers((db) => ({
+                            ...db,
+                            excludeMaritalStatuses: active
+                              ? db.excludeMaritalStatuses.filter((x) => x !== m)
+                              : [...db.excludeMaritalStatuses, m],
+                          }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${
+                          active
+                            ? "bg-indigo-500 border-indigo-500 text-white"
+                            : "border-gray-300 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        {m}
+                      </button>
                     );
                   })}
                 </div>
               </div>
               <div>
-                <div className="flex justify-between mb-1 font-medium text-gray-700">Has Kids Preference
-                  <button type="button" onClick={() => setDealBreakers(db => ({ ...db, requireHasKids: null }))} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Any</button>
+                <div className="flex justify-between mb-1 font-medium text-gray-700">
+                  Has Kids Preference
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDealBreakers((db) => ({ ...db, requireHasKids: null }))
+                    }
+                    className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Any
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    {label: 'Any', val: null},
-                    {label: 'Must Have', val: true},
-                    {label: 'Must Not Have', val: false},
-                  ].map(opt => {
+                    { label: "Any", val: null },
+                    { label: "Must Have", val: true },
+                    { label: "Must Not Have", val: false },
+                  ].map((opt) => {
                     const active = dealBreakers.requireHasKids === opt.val;
                     return (
-                      <button key={String(opt.val)} type="button" onClick={() => setDealBreakers(db => ({ ...db, requireHasKids: opt.val }))} className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${active ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}>{opt.label}</button>
+                      <button
+                        key={String(opt.val)}
+                        type="button"
+                        onClick={() =>
+                          setDealBreakers((db) => ({
+                            ...db,
+                            requireHasKids: opt.val,
+                          }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${
+                          active
+                            ? "bg-emerald-500 border-emerald-500 text-white"
+                            : "border-gray-300 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
                     );
                   })}
                 </div>
@@ -1011,7 +1311,7 @@ export default function ProfilePage() {
                               "success"
                             );
                             logout();
-                          } catch (error) {
+                          } catch {
                             showNotification(
                               "Failed to delete account. Please try again.",
                               "error"

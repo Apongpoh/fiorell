@@ -83,7 +83,8 @@ const signupSchema = z
     path: ["confirmPassword"],
   });
 
-export async function OPTIONS(request: NextRequest) {
+// CORS preflight handler (no request object needed)
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
@@ -94,10 +95,10 @@ export async function OPTIONS(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   // Get client IP address
   const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    _request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
   // Rate limiting: max 5 signups per IP per hour
   await connectToDatabase();
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
 
-    const body = await request.json();
+    const body = await _request.json();
     // reCAPTCHA logic disabled for local/dev
     // const recaptchaToken = body.recaptchaToken;
     // if (!recaptchaToken) {

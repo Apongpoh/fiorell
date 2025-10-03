@@ -1,19 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/mongodb';
-import Match from '@/models/Match';
-import Message from '@/models/Message';
-import User from '@/models/User';
-import { verifyAuth } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import connectToDatabase from "@/lib/mongodb";
+import Match from "@/models/Match";
+import Message from "@/models/Message";
+import { verifyAuth } from "@/lib/auth";
 
 // Simple in-memory throttle & duplicate cache (best-effort, per process)
-const recentMessageHashes: Map<string, { contentHash: string; ts: number }> = new Map();
+const recentMessageHashes: Map<string, { contentHash: string; ts: number }> =
+  new Map();
 const RATE_WINDOW_MS = 3500; // minimum gap between messages from same user in same match (soft throttle)
 
 // Very small profanity placeholder list (extend or replace with dedicated service)
-const BANNED_WORDS = ['badword1','badword2'];
+const BANNED_WORDS = ["badword1", "badword2"];
 const hasBannedWord = (text: string) => {
   const lower = text.toLowerCase();
-  return BANNED_WORDS.some(w => lower.includes(w));
+  return BANNED_WORDS.some((w) => lower.includes(w));
 };
 
 // Get messages for a specific match
@@ -25,13 +25,13 @@ export async function GET(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const { searchParams } = new URL(request.url);
-    const matchId = searchParams.get('matchId');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const matchId = searchParams.get("matchId");
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const offset = parseInt(searchParams.get("offset") || "0");
 
     if (!matchId) {
       return NextResponse.json(
-        { error: 'Match ID is required' },
+        { error: "Match ID is required" },
         { status: 400 }
       );
     }
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     // Check if matchId is valid MongoDB ObjectId
     if (!matchId.match(/^[0-9a-fA-F]{24}$/)) {
       return NextResponse.json(
-        { error: 'Invalid match ID format' },
+        { error: "Invalid match ID format" },
         { status: 400 }
       );
     }
@@ -49,50 +49,54 @@ export async function GET(request: NextRequest) {
     const match = await Match.findOne({
       _id: matchId,
       $or: [{ user1: userId }, { user2: userId }],
-      status: 'matched',
-      isActive: true
-    }).populate('user1 user2', '_id firstName photos lastSeen');
-    
+      status: "matched",
+      isActive: true,
+    }).populate("user1 user2", "_id firstName photos lastSeen");
+
     if (!match?.user1 || !match?.user2) {
       return NextResponse.json(
-        { error: 'Match data is incomplete' },
+        { error: "Match data is incomplete" },
         { status: 500 }
       );
     }
 
     if (!match) {
       return NextResponse.json(
-        { error: 'Match not found or you are not authorized to view these messages' },
+        {
+          error:
+            "Match not found or you are not authorized to view these messages",
+        },
         { status: 404 }
       );
     }
 
     // Get messages for this match
-    const messages = await Message.find({
-      match: matchId,
-      isDeleted: false
-    })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .skip(offset)
-    .populate('sender', 'firstName') || [];
+    const messages =
+      (await Message.find({
+        match: matchId,
+        isDeleted: false,
+      })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(offset)
+        .populate("sender", "firstName")) || [];
 
     // Mark messages as read if they were sent to the current user
     await Message.updateMany(
       {
         match: matchId,
         recipient: userId,
-        'readStatus.isRead': false,
-        isDeleted: false
+        "readStatus.isRead": false,
+        isDeleted: false,
       },
       {
-        'readStatus.isRead': true,
-        'readStatus.readAt': new Date()
+        "readStatus.isRead": true,
+        "readStatus.readAt": new Date(),
       }
     );
 
     // Format messages for response
-    const formattedMessages = messages.reverse().map(message => ({
+    const formattedMessages = messages.reverse().map((message) => ({
       id: message._id,
       content: message.content,
       type: message.type,
@@ -100,10 +104,10 @@ export async function GET(request: NextRequest) {
       sender: {
         id: message.sender._id,
         firstName: message.sender.firstName,
-        isCurrentUser: message.sender._id.toString() === userId
+        isCurrentUser: message.sender._id.toString() === userId,
       },
       readStatus: message.readStatus,
-      createdAt: message.createdAt
+      createdAt: message.createdAt,
     }));
 
     // Format match data for response
@@ -115,22 +119,22 @@ export async function GET(request: NextRequest) {
           _id: match.user1._id,
           firstName: match.user1.firstName,
           photos: match.user1.photos || [],
-          lastSeen: match.user1.lastSeen
+          lastSeen: match.user1.lastSeen,
         },
         user2: {
           _id: match.user2._id,
           firstName: match.user2.firstName,
           photos: match.user2.photos || [],
-          lastSeen: match.user2.lastSeen
+          lastSeen: match.user2.lastSeen,
         },
         status: match.status,
         matchedAt: match.matchedAt,
-        lastMessageAt: match.lastMessageAt
+        lastMessageAt: match.lastMessageAt,
       };
     } catch (error) {
-      console.error('Error formatting match data:', error);
+      console.error("Error formatting match data:", error);
       return NextResponse.json(
-        { error: 'Failed to process match data' },
+        { error: "Failed to process match data" },
         { status: 500 }
       );
     }
@@ -139,23 +143,26 @@ export async function GET(request: NextRequest) {
       {
         messages: formattedMessages,
         match: formattedMatch,
-        hasMore: messages.length === limit
+        hasMore: messages.length === limit,
       },
       { status: 200 }
     );
+  } catch (error: unknown) {
+    console.error("Get messages error:", error);
 
-  } catch (error: any) {
-    console.error('Get messages error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -170,48 +177,49 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const body = await request.json();
-    let { matchId, content, type = 'text' } = body;
+    const { matchId, content: rawContent, type = "text" } = body;
+    let content = rawContent;
 
     // Basic normalization
-    if (typeof content === 'string') {
+    if (typeof content === "string") {
       // Collapse internal excessive whitespace & trim
-      content = content.replace(/\s+/g, ' ').trim();
+      content = content.replace(/\s+/g, " ").trim();
     }
 
     // Validation
     if (!matchId) {
       return NextResponse.json(
-        { error: 'Match ID is required' },
+        { error: "Match ID is required" },
         { status: 400 }
       );
     }
 
-    if (type === 'text' && (!content || content.length === 0)) {
+    if (type === "text" && (!content || content.length === 0)) {
       return NextResponse.json(
-        { error: 'Message content is required' },
+        { error: "Message content is required" },
         { status: 400 }
       );
     }
 
     if (content && content.length > 1000) {
       return NextResponse.json(
-        { error: 'Message cannot exceed 1000 characters' },
+        { error: "Message cannot exceed 1000 characters" },
         { status: 400 }
       );
     }
 
-    if (type === 'text' && content) {
+    if (type === "text" && content) {
       // Reject messages that are only punctuation/emojis repeated (low-signal spam heuristic)
-      const noAlphaNum = content.replace(/[^a-z0-9]+/gi, '');
+      const noAlphaNum = content.replace(/[^a-z0-9]+/gi, "");
       if (noAlphaNum.length === 0 && content.length > 10) {
         return NextResponse.json(
-          { error: 'Message appears to contain no meaningful content' },
+          { error: "Message appears to contain no meaningful content" },
           { status: 400 }
         );
       }
       if (hasBannedWord(content)) {
         return NextResponse.json(
-          { error: 'Message contains prohibited language' },
+          { error: "Message contains prohibited language" },
           { status: 400 }
         );
       }
@@ -221,13 +229,13 @@ export async function POST(request: NextRequest) {
     const match = await Match.findOne({
       _id: matchId,
       $or: [{ user1: userId }, { user2: userId }],
-      status: 'matched',
-      isActive: true
+      status: "matched",
+      isActive: true,
     });
 
     if (!match) {
       return NextResponse.json(
-        { error: 'Match not found or you are not authorized to send messages' },
+        { error: "Match not found or you are not authorized to send messages" },
         { status: 404 }
       );
     }
@@ -236,17 +244,23 @@ export async function POST(request: NextRequest) {
     const key = `${userId}:${matchId}`;
     const now = Date.now();
     const last = recentMessageHashes.get(key);
-    const contentHash = type === 'text' && content ? `${content.length}:${content.slice(0,32)}` : `${type}:${now}`;
+    const contentHash =
+      type === "text" && content
+        ? `${content.length}:${content.slice(0, 32)}`
+        : `${type}:${now}`;
     if (last) {
       if (now - last.ts < RATE_WINDOW_MS) {
         return NextResponse.json(
-          { error: 'You are sending messages too quickly. Please wait a moment.' },
+          {
+            error:
+              "You are sending messages too quickly. Please wait a moment.",
+          },
           { status: 429 }
         );
       }
       if (last.contentHash === contentHash) {
         return NextResponse.json(
-          { error: 'Duplicate message detected' },
+          { error: "Duplicate message detected" },
           { status: 409 }
         );
       }
@@ -254,8 +268,8 @@ export async function POST(request: NextRequest) {
     recentMessageHashes.set(key, { contentHash, ts: now });
 
     // Determine recipient
-    const recipientId = match.user1._id.toString() === userId ? 
-      match.user2._id : match.user1._id;
+    const recipientId =
+      match.user1._id.toString() === userId ? match.user2._id : match.user1._id;
 
     // Create message
     const message = new Message({
@@ -263,7 +277,7 @@ export async function POST(request: NextRequest) {
       sender: userId,
       recipient: recipientId,
       content: content,
-      type
+      type,
     });
 
     await message.save();
@@ -273,7 +287,7 @@ export async function POST(request: NextRequest) {
     await match.save();
 
     // Populate sender info for response
-    await message.populate('sender', 'firstName');
+    await message.populate("sender", "firstName");
 
     // Format response
     const formattedMessage = {
@@ -284,32 +298,35 @@ export async function POST(request: NextRequest) {
       sender: {
         id: message.sender._id,
         firstName: message.sender.firstName,
-        isCurrentUser: true
+        isCurrentUser: true,
       },
       readStatus: message.readStatus,
-      createdAt: message.createdAt
+      createdAt: message.createdAt,
     };
 
     return NextResponse.json(
       {
-        message: 'Message sent successfully',
-        data: formattedMessage
+        message: "Message sent successfully",
+        data: formattedMessage,
       },
       { status: 201 }
     );
+  } catch (error: unknown) {
+    console.error("Send message error:", error);
 
-  } catch (error: any) {
-    console.error('Send message error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -324,11 +341,11 @@ export async function DELETE(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const { searchParams } = new URL(request.url);
-    const messageId = searchParams.get('messageId');
+    const messageId = searchParams.get("messageId");
 
     if (!messageId) {
       return NextResponse.json(
-        { error: 'Message ID is required' },
+        { error: "Message ID is required" },
         { status: 400 }
       );
     }
@@ -337,12 +354,12 @@ export async function DELETE(request: NextRequest) {
     const message = await Message.findOne({
       _id: messageId,
       sender: userId,
-      isDeleted: false
+      isDeleted: false,
     });
 
     if (!message) {
       return NextResponse.json(
-        { error: 'Message not found or you are not authorized to delete it' },
+        { error: "Message not found or you are not authorized to delete it" },
         { status: 404 }
       );
     }
@@ -353,22 +370,25 @@ export async function DELETE(request: NextRequest) {
     await message.save();
 
     return NextResponse.json(
-      { message: 'Message deleted successfully' },
+      { message: "Message deleted successfully" },
       { status: 200 }
     );
+  } catch (error: unknown) {
+    console.error("Delete message error:", error);
 
-  } catch (error: any) {
-    console.error('Delete message error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

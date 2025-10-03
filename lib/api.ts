@@ -25,10 +25,10 @@ const removeAuthToken = (): void => {
 export const apiRequest = async (
   endpoint: string,
   options: RequestInit = {}
-): Promise<any> => {
+): Promise<unknown> => {
   const token = getAuthToken();
   
-  let defaultHeaders: HeadersInit = {};
+  const defaultHeaders: HeadersInit = {};
   // Only set Content-Type if not FormData
   if (!(options.body instanceof FormData)) {
     defaultHeaders['Content-Type'] = 'application/json';
@@ -89,12 +89,15 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
-    
-    if (response.token) {
-      setAuthToken(response.token);
+    if (
+      response &&
+      typeof response === 'object' &&
+      'token' in response &&
+      typeof (response as { token?: unknown }).token === 'string'
+    ) {
+      setAuthToken((response as { token: string }).token);
     }
-    
-    return response;
+    return response as { token?: string };
   },
 
   // Logout
@@ -191,7 +194,7 @@ export const userAPI = {
   // Upload photos
   uploadPhotos: async (files: FileList) => {
     const formData = new FormData();
-    Array.from(files).forEach((file, index) => {
+    Array.from(files).forEach((file) => {
       formData.append('photos', file);
     });
 

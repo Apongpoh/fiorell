@@ -1,22 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth, verifyToken } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const matchId = searchParams.get('matchId');
-    const token = searchParams.get('token');
+    const matchId = searchParams.get("matchId");
+    const token = searchParams.get("token");
 
     // Verify token manually since it's in query params for SSE
     if (!token) {
-      throw new Error('Authentication token is required');
+      throw new Error("Authentication token is required");
     }
-
-    const { userId } = verifyToken(token);
 
     if (!matchId) {
       return NextResponse.json(
-        { error: 'Match ID is required' },
+        { error: "Match ID is required" },
         { status: 400 }
       );
     }
@@ -25,7 +22,9 @@ export async function GET(request: NextRequest) {
     const stream = new ReadableStream({
       start(controller) {
         // Send initial connection message
-        controller.enqueue(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+        controller.enqueue(
+          `data: ${JSON.stringify({ type: "connected" })}\n\n`
+        );
 
         // Handle new messages
         // You would implement your message queue or pub/sub system here
@@ -35,29 +34,32 @@ export async function GET(request: NextRequest) {
         return () => {
           // Clean up subscriptions
         };
-      }
+      },
     });
 
     return new Response(stream, {
       headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
     });
+  } catch (error: unknown) {
+    console.error("SSE error:", error);
 
-  } catch (error: any) {
-    console.error('SSE error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

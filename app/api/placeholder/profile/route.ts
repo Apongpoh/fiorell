@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
-const placeholderProfile = (background = '#E5E7EB', text = '#94A3B8') => {
+const placeholderProfile = (background = "#E5E7EB", text = "#94A3B8") => {
   return `
     <svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="400" height="400" fill="${background}"/>
@@ -10,13 +10,14 @@ const placeholderProfile = (background = '#E5E7EB', text = '#94A3B8') => {
   `;
 };
 
-export async function GET(request: NextRequest) {
+// Placeholder profile SVG endpoint (no request object needed)
+export async function GET() {
   const svg = placeholderProfile();
-  
+
   return new NextResponse(svg, {
     headers: {
-      'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=31536000, immutable'
-    }
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
   });
 }

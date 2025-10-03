@@ -12,3 +12,8 @@ declare module '*.css' {
   const content: Record<string, string>;
   export default content;
 }
+
+// Allow importing global CSS for side effects (no exported bindings required)
+declare module '*.css?global';
+// Explicit declaration for the root layout side-effect import path
+declare module './globals.css';

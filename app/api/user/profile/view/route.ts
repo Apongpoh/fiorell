@@ -1,22 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import connectToDatabase from '@/lib/mongodb';
-import ProfileView from '@/models/ProfileView';
-import { verifyAuth } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
+import connectToDatabase from "@/lib/mongodb";
+import ProfileView from "@/models/ProfileView";
+import { verifyAuth } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
-    
+
     // Verify authentication
     const { userId } = verifyAuth(request);
-    
+
     const body = await request.json();
     const { targetUserId } = body;
 
     if (!targetUserId) {
       return NextResponse.json(
-        { error: 'Missing targetUserId' },
+        { error: "Missing targetUserId" },
         { status: 400 }
       );
     }
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Don't record self-views
     if (userId === targetUserId) {
       return NextResponse.json(
-        { message: 'Self view not recorded' },
+        { message: "Self view not recorded" },
         { status: 200 }
       );
     }
@@ -41,43 +41,50 @@ export async function POST(request: NextRequest) {
       const existingView = await ProfileView.findOne({
         userId,
         targetUserId,
-        createdAt: { $gte: today }
+        createdAt: { $gte: today },
       }).session(session);
 
       if (!existingView) {
         // Create new profile view
-        await ProfileView.create([{
-          userId,
-          targetUserId,
-          createdAt: new Date()
-        }], { session });
+        await ProfileView.create(
+          [
+            {
+              userId,
+              targetUserId,
+              createdAt: new Date(),
+            },
+          ],
+          { session }
+        );
       }
 
       await session.commitTransaction();
       return NextResponse.json(
-        { message: 'Profile view recorded' },
+        { message: "Profile view recorded" },
         { status: 200 }
       );
-
     } catch (error) {
       await session.abortTransaction();
       throw error;
     } finally {
       session.endSession();
     }
+  } catch (error: unknown) {
+    console.error("Profile view error:", error);
 
-  } catch (error: any) {
-    console.error('Profile view error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (
+      (typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        (error as { message: string }).message ===
+          "Authentication token is required") ||
+      (error as { message: string }).message === "Invalid or expired token"
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

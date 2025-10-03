@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
-import mongoose from 'mongoose';
 import connectToDatabase from "@/lib/mongodb";
 import Interaction from "@/models/Interaction";
-import Match from "@/models/Match";
 import Message from "@/models/Message";
 import User from "@/models/User";
 import ProfileView from "@/models/ProfileView";
@@ -35,52 +33,52 @@ export async function GET(request: NextRequest) {
     // Get active matches (has messages in last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const activeMatches = await Interaction.countDocuments({
       userId,
       isMatch: true,
-      updatedAt: { $gte: thirtyDaysAgo }
+      updatedAt: { $gte: thirtyDaysAgo },
     });
 
     // Get unread messages (match Message schema: recipient + readStatus.isRead)
     const unreadMessages = await Message.countDocuments({
       recipient: userId,
-      'readStatus.isRead': false,
-      isDeleted: false
+      "readStatus.isRead": false,
+      isDeleted: false,
     });
 
     // Get today's profile views from unique viewers
     const viewsToday = await ProfileView.countDocuments({
       targetUserId: userId,
-      createdAt: { $gte: today }
+      createdAt: { $gte: today },
     });
 
     // Get total profile views
     const totalViews = await ProfileView.countDocuments({
-      targetUserId: userId
+      targetUserId: userId,
     });
 
     // Comprehensive stats response
     const stats = {
       today: {
         likes: likesToday,
-        views: viewsToday
+        views: viewsToday,
       },
       totals: {
         receivedLikes: user?.stats?.totalLikesReceived || 0,
         receivedSuperLikes: user?.stats?.totalSuperLikesReceived || 0,
         matches: user?.stats?.totalMatches || 0,
-        profileViews: totalViews
+        profileViews: totalViews,
       },
       active: {
         matches: activeMatches,
-        unreadMessages: unreadMessages
-      }
+        unreadMessages: unreadMessages,
+      },
     };
 
     return NextResponse.json(stats);
   } catch (error) {
-    console.error('Stats error:', error);
+    console.error("Stats error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

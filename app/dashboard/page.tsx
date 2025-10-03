@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,19 +10,12 @@ import {
   MapPin,
   Users,
   MessageCircle,
-  Settings,
   Filter,
   Camera,
   Info,
 } from "lucide-react";
 import { useAuth, withAuth } from "@/contexts/AuthContext";
-import {
-  discoveryAPI,
-  interactionsAPI,
-  matchesAPI,
-  userAPI,
-  statsAPI,
-} from "@/lib/api";
+import { discoveryAPI, interactionsAPI, userAPI, statsAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 interface Profile {
@@ -131,9 +125,9 @@ function DashboardPage() {
   // Gesture refs
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const gestureTriggeredRef = useRef(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
-  const [currentMatch, setCurrentMatch] = useState<Profile | null>(null);
+  const [, setCurrentPhotoIndex] = useState(0);
+  const [matchedProfile] = useState<Profile | null>(null);
+  const [, setCurrentMatch] = useState<Profile | null>(null);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [stats, setStats] = useState({
     today: { likes: 0, views: 0 },
@@ -145,16 +139,18 @@ function DashboardPage() {
     },
     active: { matches: 0, unreadMessages: 0 },
   });
-  const [statsLoading, setStatsLoading] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
+  interface CurrentUser {
+    id: string;
+    firstName?: string;
+    // add other fields as needed
+  }
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [, setUserLoading] = useState(true);
   const { user, logout } = useAuth();
   const router = useRouter();
   const [swipeError, setSwipeError] = useState<string | null>(null);
   const swipeErrorTimeoutRef = useRef<number | null>(null);
-
-  // Deal breakers hydration no longer needed here
 
   const safeSetSwipeError = (msg: string) => {
     setSwipeError(msg);
@@ -172,10 +168,28 @@ function DashboardPage() {
       try {
         setUserLoading(true);
         const response = await userAPI.getProfile();
-        setCurrentUser(response.user);
-      } catch (error: any) {
+        if (response && typeof response === 'object' && 'user' in response) {
+          const userField = (response as { user?: unknown }).user;
+          if (userField && typeof userField === 'object') {
+            const u = userField as { id?: unknown; firstName?: unknown };
+            setCurrentUser({
+              id: typeof u.id === 'string' ? u.id : '',
+              firstName: typeof u.firstName === 'string' ? u.firstName : undefined,
+            });
+          } else {
+            throw new Error('Invalid user shape');
+          }
+        } else {
+          throw new Error('Invalid profile response');
+        }
+      } catch (error: unknown) {
         // If auth fails, redirect to login
-        if (error.message.includes("Unauthorized")) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          (error as { message?: string }).message?.includes("Unauthorized")
+        ) {
           logout();
         } else {
           setError("Failed to load user profile");
@@ -205,7 +219,71 @@ function DashboardPage() {
           .filter(Boolean),
         maxDistance: filters.maxDistance,
       });
-      setProfiles(response.matches || []);
+      if (response && typeof response === 'object' && 'matches' in response) {
+        const matchesVal = (response as { matches?: unknown }).matches;
+        if (Array.isArray(matchesVal)) {
+          // Map minimally to Profile[] ensuring required fields exist
+          const safeProfiles = matchesVal
+            .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+            .map((p) => {
+              const obj = p as Record<string, unknown>;
+              const fallbackId = (): string => {
+                if (typeof obj.id === 'string') return obj.id;
+                const possible = (obj as { _id?: unknown })._id;
+                return typeof possible === 'string' ? possible : '';
+              };
+              const photosParsed = Array.isArray(obj.photos)
+                ? (obj.photos as unknown[])
+                    .filter((ph): ph is { url?: unknown; isMain?: unknown } => typeof ph === 'object' && ph !== null)
+                    .map((ph) => {
+                      const phObj = ph as { url?: unknown; isMain?: unknown };
+                      return {
+                        url: typeof phObj.url === 'string' ? phObj.url : '/api/placeholder/profile',
+                        isMain: phObj.isMain === true,
+                      };
+                    })
+                : [];
+              const compatibility = ((): number => {
+                const val = (obj as { compatibilityScore?: unknown }).compatibilityScore;
+                return typeof val === 'number' ? val : 0;
+              })();
+              const commonInterests = ((): string[] => {
+                const ci = (obj as { commonInterests?: unknown }).commonInterests;
+                return Array.isArray(ci)
+                  ? ci.filter((x): x is string => typeof x === 'string')
+                  : [];
+              })();
+              const defaultPhoto = ((): string | undefined => {
+                const dp = (obj as { defaultPhoto?: unknown }).defaultPhoto;
+                return typeof dp === 'string' ? dp : undefined;
+              })();
+              return {
+                id: fallbackId(),
+                firstName: typeof obj.firstName === 'string' ? obj.firstName : 'Unknown',
+                age: typeof obj.age === 'number' ? obj.age : 0,
+                location: ((): { city: string } => {
+                  const loc = obj.location as { city?: unknown } | undefined;
+                  return { city: loc && typeof loc.city === 'string' ? loc.city : '' };
+                })(),
+                bio: typeof obj.bio === 'string' ? obj.bio : '',
+                interests: Array.isArray(obj.interests) ? (obj.interests as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+                photos: photosParsed,
+                verification: ((): { isVerified: boolean } => {
+                  const ver = obj.verification as { isVerified?: unknown } | undefined;
+                  return { isVerified: ver?.isVerified === true };
+                })(),
+                compatibilityScore: compatibility,
+                commonInterests,
+                defaultPhoto,
+              } as Profile;
+            });
+          setProfiles(safeProfiles);
+        } else {
+          setProfiles([]);
+        }
+      } else {
+        throw new Error('Invalid matches response');
+      }
       setCurrentProfileIndex(0);
       setPhotoIndex(0);
       setAppliedFiltersSignature(
@@ -218,8 +296,14 @@ function DashboardPage() {
             .sort(),
         })
       );
-    } catch (error: any) {
-      setError(error.message || "Failed to load matches");
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "message" in error) {
+        setError(
+          (error as { message?: string }).message || "Failed to load matches"
+        );
+      } else {
+        setError("Failed to load matches");
+      }
     } finally {
       setLoading(false);
       setIsFiltering(false);
@@ -295,11 +379,12 @@ function DashboardPage() {
         preferences: {
           ageRange: { min: filters.minAge, max: filters.maxAge },
           maxDistance: filters.maxDistance,
-          genderPreference: filters.gender === "all" ? undefined : filters.gender,
-        } as any,
+          genderPreference:
+            filters.gender === "all" ? undefined : filters.gender,
+        },
       });
       safeSetSwipeError("Preferences saved");
-    } catch (e) {
+    } catch {
       safeSetSwipeError("Failed to save");
     } finally {
       setSavingPrefs(false);
@@ -315,7 +400,11 @@ function DashboardPage() {
           return;
         }
         const data = await statsAPI.getUserStats(currentUser.id);
-        setStats(data);
+        if (data && typeof data === 'object' && 'today' in data && 'totals' in data && 'active' in data) {
+          setStats(data as typeof stats);
+        } else {
+          throw new Error('Invalid stats response');
+        }
       } catch (error) {
         console.error("Error fetching stats:", error);
         setStats({
@@ -413,6 +502,7 @@ function DashboardPage() {
     showMatchModal,
     isPaused,
     nextPhoto,
+    currentProfile,
   ]);
 
   const beginPause = () => {
@@ -479,8 +569,9 @@ function DashboardPage() {
       const reduced =
         window.matchMedia &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const mem = (navigator as any).deviceMemory;
-      const lowMem = mem && mem <= 4;
+      const mem = (navigator as Navigator & { deviceMemory?: number })
+        .deviceMemory;
+      const lowMem = mem !== undefined && mem <= 4;
       const lowCores =
         navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
       if (reduced || lowMem || lowCores) setLiteMode(true);
@@ -531,10 +622,13 @@ function DashboardPage() {
             profileSnapshot.id,
             action
           );
-          if (response?.match) {
+          if (response && typeof response === 'object' && 'match' in response) {
+            const matchField = (response as { match?: unknown }).match;
+            if (matchField) {
             // Show match modal on the profile just swiped
             setCurrentMatch(profileSnapshot);
             setShowMatchModal(true);
+            }
           }
           if (action === "like" || action === "super_like") {
             setStats((prev) => ({
@@ -542,8 +636,14 @@ function DashboardPage() {
               today: { ...prev.today, likes: prev.today.likes + 1 },
             }));
           }
-        } catch (err: any) {
-          const msg = err?.message || String(err);
+        } catch (err) {
+          const msg =
+            err &&
+            typeof err === "object" &&
+            "message" in err &&
+            typeof (err as { message?: unknown }).message === "string"
+              ? (err as { message: string }).message
+              : String(err);
           if (/already performed/i.test(msg)) {
             // Duplicate – silently ignore (user already moved on)
             return;
@@ -552,27 +652,6 @@ function DashboardPage() {
           console.warn("Swipe API error (ignored, UI already advanced):", msg);
         }
       });
-  };
-
-  const loadMoreProfiles = async () => {
-    try {
-      const response = await discoveryAPI.getMatches({
-        limit: 10,
-        offset: profiles.length,
-        minAge: filters.minAge,
-        maxAge: filters.maxAge,
-        gender: filters.gender,
-        verifiedOnly: filters.verifiedOnly,
-        interests: filters.interests
-          .split(",")
-          .map((i) => i.trim())
-          .filter(Boolean),
-        maxDistance: filters.maxDistance,
-      });
-      setProfiles((prev) => [...prev, ...(response.matches || [])]);
-    } catch {
-      throw new Error("Failed to load more profiles");
-    }
   };
 
   const handleLike = () => handleSwipe("right");
@@ -666,9 +745,9 @@ function DashboardPage() {
               title="Profile"
             >
               <span className="text-white font-semibold text-sm">
-                {(currentUser?.firstName || user?.firstName)
-                  ?.charAt(0)
-                  ?.toUpperCase() || "U"}
+                {(currentUser?.firstName ?? user?.firstName ?? "U")
+                  .charAt(0)
+                  .toUpperCase()}
               </span>
             </button>
           </div>
@@ -1160,7 +1239,7 @@ function DashboardPage() {
                   onPointerUp={handlePointerUp}
                   onPointerLeave={handlePointerLeave}
                 >
-                  <img
+                  <Image
                     src={
                       currentProfile.photos?.[photoIndex]?.url ||
                       currentProfile.photos?.[0]?.url ||
@@ -1170,10 +1249,8 @@ function DashboardPage() {
                     alt={currentProfile.firstName}
                     className="w-full h-full object-cover"
                     draggable={false}
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = "/api/placeholder/profile";
-                    }}
+                    width={600}
+                    height={800}
                   />
 
                   {/* Story-style progress bars */}
@@ -1337,8 +1414,8 @@ function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center mx-4">
             <Star className="h-12 w-12 text-pink-500 mx-auto mb-4" />
-            <h3 className="text-2xl font-semibold mb-2">It's a Match!</h3>
-            <img
+            <h3 className="text-2xl font-semibold mb-2">It&apos;s a Match!</h3>
+            <Image
               src={
                 matchedProfile.photos.find((p) => p.isMain)?.url ||
                 matchedProfile.photos[0]?.url ||
@@ -1347,10 +1424,8 @@ function DashboardPage() {
               }
               alt={matchedProfile.firstName}
               className="w-24 h-24 rounded-full object-cover mx-auto mb-3 border-4 border-pink-100"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = "/api/placeholder/profile";
-              }}
+              width={96}
+              height={96}
             />
             <p className="text-sm text-gray-600 mb-6">
               You and {matchedProfile.firstName} liked each other. Start a

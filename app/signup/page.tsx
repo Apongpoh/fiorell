@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import ReCAPTCHA from "react-google-recaptcha";
+// import ReCAPTCHA from "react-google-recaptcha";
 import { motion } from "framer-motion";
 import { Heart, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -121,11 +121,21 @@ export default function SignupPage() {
       setSuccess(
         "Account created! Please check your email to verify your account."
       );
-    } catch (error: any) {
-      if (error?.response?.error) {
-        setError(error.response.error);
-      } else if (error?.message) {
-        setError(error.message);
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        (error as { response?: { error?: string } }).response?.error
+      ) {
+        setError((error as { response: { error: string } }).response.error);
+      } else if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message?: unknown }).message === "string"
+      ) {
+        setError((error as { message: string }).message);
       } else {
         setError("Signup failed. Please try again.");
       }
@@ -363,7 +373,10 @@ export default function SignupPage() {
                   <span className="text-gray-500">(Select at least 3)</span>
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
-                  {(showAllInterests ? availableInterests : availableInterests.slice(0, INTERESTS_COLLAPSED_COUNT)).map((interest) => {
+                  {(showAllInterests
+                    ? availableInterests
+                    : availableInterests.slice(0, INTERESTS_COLLAPSED_COUNT)
+                  ).map((interest) => {
                     const isSelected = selectedInterests.includes(interest);
                     return (
                       <button
@@ -383,10 +396,15 @@ export default function SignupPage() {
                   {availableInterests.length > INTERESTS_COLLAPSED_COUNT && (
                     <button
                       type="button"
-                      onClick={() => setShowAllInterests(v => !v)}
+                      onClick={() => setShowAllInterests((v) => !v)}
                       className="px-3 py-2 rounded-full text-sm font-medium border border-dashed border-pink-400 text-pink-600 bg-white hover:bg-pink-50 transition-colors"
                     >
-                      {showAllInterests ? 'Show Less' : `Show ${availableInterests.length - INTERESTS_COLLAPSED_COUNT} More`}
+                      {showAllInterests
+                        ? "Show Less"
+                        : `Show ${
+                            availableInterests.length -
+                            INTERESTS_COLLAPSED_COUNT
+                          } More`}
                     </button>
                   )}
                 </div>

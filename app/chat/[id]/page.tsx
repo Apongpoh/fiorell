@@ -3,14 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Image, Send, MoreVertical } from "lucide-react";
+import {
+  ArrowLeft,
+  Image as ImageIcon,
+  Send,
+  MoreVertical,
+} from "lucide-react";
+import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
 interface Message {
   _id: string;
-  sender: string | { _id: string; [key: string]: any };
+  sender: string | { _id: string; [key: string]: unknown };
   recipient: string;
   match: string;
   content: string;
@@ -63,22 +69,7 @@ const formatMessageTime = (timestamp: string) => {
   }
 };
 
-const useClickOutside = (handler: () => void) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        handler();
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [handler]);
-
-  return ref;
-};
+// Removed unused useClickOutside
 
 export default function ChatPage() {
   const { id } = useParams();
@@ -110,25 +101,46 @@ export default function ChatPage() {
 
   // Load initial messages and setup real-time updates
   useEffect(() => {
-    let retryTimeout: NodeJS.Timeout;
+    // Removed unused retryTimeout
 
     const loadMessages = async () => {
       try {
         setLoading(true);
         const data = await apiRequest(`/messages?matchId=${id}`);
-        setMessages(data.messages);
-        setMatch(data.match);
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          !('messages' in data) ||
+          !('match' in data)
+        ) {
+          throw new Error('Invalid messages response');
+        }
+        const messagesVal = (data as { messages?: unknown; match?: unknown }).messages;
+        const matchVal = (data as { messages?: unknown; match?: unknown }).match;
+        if (!Array.isArray(messagesVal) || typeof matchVal !== 'object' || matchVal === null) {
+          throw new Error('Invalid messages data');
+        }
+        setMessages(messagesVal as Message[]);
+        setMatch(matchVal as MatchData);
 
         // Mark messages as read
-        if (data.messages.length > 0) {
+        const hasMessagesArray = Array.isArray((data as { messages?: unknown[] }).messages);
+        if (hasMessagesArray && (data as { messages?: unknown[] }).messages!.length > 0) {
           await apiRequest("/messages/read", {
             method: "POST",
             body: JSON.stringify({ matchId: id }),
           });
         }
-      } catch (error: any) {
-        const errorMessage =
-          error.message || "Failed to load messages. Please try again.";
+      } catch (error: unknown) {
+        let errorMessage = "Failed to load messages. Please try again.";
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message: unknown }).message === "string"
+        ) {
+          errorMessage = (error as { message: string }).message;
+        }
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -175,44 +187,109 @@ export default function ChatPage() {
           type: "text",
         }),
       });
-
-      let newMsg = data.message;
+      interface ServerMessageShape {
+        _id?: string;
+        content?: string;
+        type?: Message["type"];
+        media?: { url?: string; key?: string; mimeType?: string; size?: number };
+        createdAt?: string;
+        readStatus?: { isRead?: boolean; readAt?: string };
+      }
+      const rawMsg: unknown = (data && typeof data === 'object' && 'message' in data)
+        ? (data as { message?: unknown }).message
+        : undefined;
+      let newMsg: Message | (ServerMessageShape & { sender?: unknown }) | undefined =
+        rawMsg && typeof rawMsg === 'object'
+          ? (rawMsg as ServerMessageShape & { sender?: unknown })
+          : undefined;
       // Fallback: reconstruct message if missing required fields
-      if (!newMsg || !newMsg.content) {
-        newMsg = {
+      const hasContent = (obj: unknown): obj is { content: string } =>
+        typeof obj === 'object' && obj !== null && 'content' in obj && typeof (obj as { content: unknown }).content === 'string';
+      if (!newMsg || !hasContent(newMsg)) {
+        const fallback: Message = {
           _id: Math.random().toString(36).slice(2),
-          sender: {
-            id: user?.id,
-            firstName: user?.firstName || "",
-            isCurrentUser: true,
-          },
+          sender: user?.id || "",
           recipient:
-            match?.user1._id === user?.id ? match?.user2._id : match?.user1._id,
-          match: id,
+            (match?.user1._id === user?.id ? match?.user2._id : match?.user1._id) || "",
+          match: String(id),
           content: newMessage.trim(),
           type: "text",
           createdAt: new Date().toISOString(),
           readStatus: { isRead: false },
           isDeleted: false,
         };
+        newMsg = fallback;
       } else {
-        newMsg = {
-          ...newMsg,
-          sender: {
-            id: user?.id,
-            firstName: user?.firstName || "",
-            isCurrentUser: true,
-          },
+        const enriched: Message = {
+          _id: ((): string => {
+            const maybe = (newMsg as { _id?: unknown })?._id;
+            return typeof maybe === 'string' && maybe.trim() ? maybe : Math.random().toString(36).slice(2);
+          })(),
+          sender: user?.id || "",
+          recipient:
+            (match?.user1._id === user?.id
+              ? match?.user2._id
+              : match?.user1._id) || "",
+          match: String(id),
           content: newMessage.trim(),
+          type: ((): Message['type'] => {
+            const t = (newMsg as { type?: unknown })?.type;
+            return t === 'image' || t === 'video' || t === 'audio' || t === 'location' ? t : 'text';
+          })(),
+          media: ((): Message['media'] => {
+            const media = (newMsg as { media?: unknown })?.media;
+            if (media && typeof media === 'object') {
+              interface MediaShape { url?: string; key?: string; mimeType?: string; size?: number }
+              const raw = media as { url?: unknown; key?: unknown; mimeType?: unknown; size?: unknown };
+              const shaped: MediaShape = {
+                url: typeof raw.url === 'string' ? raw.url : undefined,
+                key: typeof raw.key === 'string' ? raw.key : undefined,
+                mimeType: typeof raw.mimeType === 'string' ? raw.mimeType : undefined,
+                size: typeof raw.size === 'number' ? raw.size : undefined,
+              };
+              if (shaped.url || shaped.key || shaped.mimeType) {
+                return {
+                  url: shaped.url ?? '',
+                  key: shaped.key ?? '',
+                  mimeType: shaped.mimeType ?? '',
+                  size: shaped.size ?? 0,
+                };
+              }
+            }
+            return undefined;
+          })(),
+          createdAt: ((): string => {
+            const c = (newMsg as { createdAt?: unknown })?.createdAt;
+            return typeof c === 'string' && c ? c : new Date().toISOString();
+          })(),
+          readStatus: ((): Message['readStatus'] => {
+            const rs = (newMsg as { readStatus?: unknown })?.readStatus;
+            if (rs && typeof rs === 'object' && 'isRead' in rs) {
+              const ir = (rs as { isRead?: unknown }).isRead;
+              return { isRead: typeof ir === 'boolean' ? ir : false };
+            }
+            return { isRead: false };
+          })(),
+          isDeleted: false,
         };
+        newMsg = enriched;
       }
-      setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => [...prev, newMsg as Message]);
       setNewMessage("");
       scrollToBottom();
       // Add small delay to ensure scroll happens after render
       setTimeout(scrollToBottom, 100);
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to send message.";
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message: unknown }).message === "string"
+      ) {
+        errorMessage = (error as { message: string }).message;
+      }
+      setError(errorMessage);
     } finally {
       setSending(false);
     }
@@ -287,27 +364,45 @@ export default function ChatPage() {
           body: formData,
           headers: {}, // Allow browser to set multipart boundary
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Mark placeholder as failed
+        let errorMessage = "Upload failed";
+        if (
+          typeof err === "object" &&
+          err !== null &&
+          "message" in err &&
+          typeof (err as { message: unknown }).message === "string"
+        ) {
+          errorMessage = (err as { message: string }).message;
+        }
         setMessages((prev) =>
           prev.map((m) =>
             m._id === tempId
               ? {
                   ...m,
                   uploading: false,
-                  error: err.message || "Upload failed",
+                  error: errorMessage,
                 }
               : m
           )
         );
-        throw err; // rethrow to surface error UI
+        throw err;
       }
 
       // Replace optimistic message with server message
       setMessages((prev) =>
         prev.map((m) => {
           if (m._id !== tempId) return m;
-          const serverMsg = data.message || {};
+          interface ServerMessageShape {
+            _id?: string;
+            media?: { url?: string; key?: string; mimeType?: string; size?: number };
+            createdAt?: string;
+          }
+            const serverRaw: unknown = (data && typeof data === 'object' && 'message' in data)
+              ? (data as { message?: unknown }).message
+              : undefined;
+            const serverMsg: ServerMessageShape =
+              serverRaw && typeof serverRaw === 'object' ? (serverRaw as ServerMessageShape) : {};
           return {
             ...m,
             _id: serverMsg._id || m._id,
@@ -321,13 +416,23 @@ export default function ChatPage() {
 
       // Release object URL now that we have server URL (if different)
       if (
-        data?.message?.media?.url &&
-        data.message.media.url !== optimistic.media?.url
+        data && typeof data === 'object' && 'message' in data &&
+        (data as { message?: { media?: { url?: string } } }).message?.media?.url &&
+        (data as { message?: { media?: { url?: string } } }).message?.media?.url !== optimistic.media?.url
       ) {
         URL.revokeObjectURL(objectUrl);
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to upload media.";
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message: unknown }).message === "string"
+      ) {
+        errorMessage = (error as { message: string }).message;
+      }
+      setError(errorMessage);
     } finally {
       setUploadingMedia(false);
       if (fileInputRef.current) {
@@ -391,10 +496,13 @@ export default function ChatPage() {
               href={`/profile/${otherUser?._id}`}
               className="flex items-center space-x-3"
             >
-              <img
+              <NextImage
                 src={otherUser?.photos?.[0]?.url || "/api/placeholder/profile"}
-                alt={otherUser?.firstName}
+                alt={otherUser?.firstName || "Profile photo"}
+                width={40}
+                height={40}
                 className="h-10 w-10 rounded-full object-cover"
+                priority
               />
               <div>
                 <h2 className="font-medium text-gray-900">
@@ -485,17 +593,20 @@ export default function ChatPage() {
                         </p>
                       ) : message.type === "image" ? (
                         <div className="relative">
-                          <img
+                          <NextImage
                             key={message._id + "-img"}
-                            src={message.media?.url}
+                            src={message.media?.url || ""}
                             alt={
                               message.uploading
                                 ? "Uploading image"
                                 : "Shared image"
                             }
+                            width={400}
+                            height={400}
                             className={`rounded-lg max-w-full ${
                               message.uploading ? "opacity-70" : ""
                             }`}
+                            priority={!message.uploading}
                           />
                           {message.uploading && (
                             <div className="absolute inset-0 flex items-center justify-center">
@@ -561,7 +672,7 @@ export default function ChatPage() {
             disabled={uploadingMedia}
             className="p-2 rounded-full text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
-            <Image className="h-6 w-6" />
+            <ImageIcon className="h-6 w-6" />
           </button>
           <input
             type="file"

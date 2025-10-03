@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/mongodb';
-import User from '@/models/User';
-import { verifyAuth } from '@/lib/auth';
-import { computeProfileCompletion } from '@/lib/profileCompletion';
-import { sanitizeBio, sanitizeCity, validateInterests } from '@/lib/validators';
+import { NextRequest, NextResponse } from "next/server";
+import connectToDatabase from "@/lib/mongodb";
+import User, { IUser } from "@/models/User";
+import { verifyAuth } from "@/lib/auth";
+import { computeProfileCompletion } from "@/lib/profileCompletion";
+import { sanitizeBio, sanitizeCity, validateInterests } from "@/lib/validators";
 
 // Get user profile
 export async function GET(request: NextRequest) {
@@ -16,13 +16,10 @@ export async function GET(request: NextRequest) {
     // Find user
     const user = await User.findById(userId);
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const completion = computeProfileCompletion(user as any);
+    const completion = computeProfileCompletion(user as Partial<IUser>);
 
     // Return user data with profile completion
     const userResponse = {
@@ -37,7 +34,7 @@ export async function GET(request: NextRequest) {
       interests: user.interests,
       photos: user.photos,
       preferences: user.preferences,
-  lifestyle: user.lifestyle,
+      lifestyle: user.lifestyle,
       verification: user.verification,
       privacy: user.privacy,
       subscription: user.subscription,
@@ -45,30 +42,30 @@ export async function GET(request: NextRequest) {
         ...user.stats,
         profileCompleteness: completion.percentage,
         profileScore: completion.score,
-        profileBreakdown: completion.breakdown
+        profileBreakdown: completion.breakdown,
       },
       isActive: user.isActive,
       lastSeen: user.lastSeen,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     };
 
-    return NextResponse.json(
-      { user: userResponse },
-      { status: 200 }
-    );
+    return NextResponse.json({ user: userResponse }, { status: 200 });
+  } catch (error: unknown) {
+    console.error("Get profile error:", error);
 
-  } catch (error: any) {
-    console.error('Get profile error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -86,7 +83,6 @@ export async function PUT(request: NextRequest) {
     const {
       firstName,
       lastName,
-  age,
       gender,
       dateOfBirth,
       bio,
@@ -94,31 +90,39 @@ export async function PUT(request: NextRequest) {
       interests,
       preferences,
       privacy,
-      lifestyle
+      lifestyle,
     } = body;
 
     // Find user
     const user = await User.findById(userId);
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Update fields if provided
     if (firstName !== undefined) user.firstName = firstName.trim();
     if (lastName !== undefined) user.lastName = lastName.trim();
-  // Age is computed from dateOfBirth; ignore direct age assignment
+    // Age is computed from dateOfBirth; ignore direct age assignment
     if (gender !== undefined) user.gender = gender;
-  if (dateOfBirth !== undefined && dateOfBirth !== '') user.dateOfBirth = new Date(dateOfBirth);
-  if (bio !== undefined) user.bio = sanitizeBio(String(bio));
+    if (dateOfBirth !== undefined && dateOfBirth !== "")
+      user.dateOfBirth = new Date(dateOfBirth);
+    if (bio !== undefined) user.bio = sanitizeBio(String(bio));
     if (location !== undefined) {
       if (!user.location) {
-        user.location = { city: '', country: '', coordinates: { type: 'Point', coordinates: [0,0] } } as any;
+        user.location = {
+          city: "",
+          country: "",
+          coordinates: { type: "Point", coordinates: [0, 0] },
+        } as {
+          city: string;
+          country?: string;
+          coordinates: { type: string; coordinates: number[] };
+        };
       }
-      if (location.city !== undefined) user.location.city = sanitizeCity(String(location.city || ''));
-      if (location.country !== undefined) user.location.country = String(location.country).slice(0,56);
+      if (location.city !== undefined)
+        user.location.city = sanitizeCity(String(location.city || ""));
+      if (location.country !== undefined)
+        user.location.country = String(location.country).slice(0, 56);
     }
     if (interests !== undefined) {
       user.interests = validateInterests(interests);
@@ -137,22 +141,22 @@ export async function PUT(request: NextRequest) {
         user.preferences.dealBreakers = {
           ...(user.preferences.dealBreakers || {}),
           ...preferences.dealBreakers,
-        } as any;
+        } as IUser["preferences"]["dealBreakers"];
       }
     }
     if (lifestyle !== undefined) {
       // Merge lifestyle while allowing clearing (null/empty string removes field)
-      const current = (user.lifestyle || {}) as any;
-      const next: any = { ...current };
+      const current = (user.lifestyle || {}) as Record<string, unknown>;
+      const next: Record<string, unknown> = { ...current };
       for (const key of Object.keys(lifestyle)) {
-        const val = (lifestyle as any)[key];
-        if (val === null || val === '' || typeof val === 'undefined') {
+        const val = (lifestyle as Record<string, unknown>)[key];
+        if (val === null || val === "" || typeof val === "undefined") {
           delete next[key];
         } else {
           next[key] = val;
         }
       }
-      user.lifestyle = next;
+      user.lifestyle = next as IUser["lifestyle"];
     }
     if (privacy !== undefined) {
       user.privacy = { ...user.privacy, ...privacy };
@@ -160,7 +164,7 @@ export async function PUT(request: NextRequest) {
 
     await user.save();
 
-    const completion = computeProfileCompletion(user as any);
+    const completion = computeProfileCompletion(user as Partial<IUser>);
 
     // Return updated user data with profile completion
     const userResponse = {
@@ -175,7 +179,7 @@ export async function PUT(request: NextRequest) {
       interests: user.interests,
       photos: user.photos,
       preferences: user.preferences,
-  lifestyle: user.lifestyle,
+      lifestyle: user.lifestyle,
       verification: user.verification,
       privacy: user.privacy,
       subscription: user.subscription,
@@ -183,42 +187,46 @@ export async function PUT(request: NextRequest) {
         ...user.stats,
         profileCompleteness: completion.percentage,
         profileScore: completion.score,
-        profileBreakdown: completion.breakdown
+        profileBreakdown: completion.breakdown,
       },
       isActive: user.isActive,
       lastSeen: user.lastSeen,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     };
 
     return NextResponse.json(
       {
-        message: 'Profile updated successfully',
-        user: userResponse
+        message: "Profile updated successfully",
+        user: userResponse,
       },
       { status: 200 }
     );
-
-  } catch (error: any) {
-    console.error('Update profile error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+  } catch (error: unknown) {
+    const message = "Internal server error";
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    if (error.name === 'ValidationError') {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      (error as { name: string }).name === "ValidationError" &&
+      "message" in error &&
+      typeof (error as { message: unknown }).message === "string"
+    ) {
       return NextResponse.json(
-        { error: error.message },
+        { error: (error as { message: string }).message },
         { status: 400 }
       );
     }
-
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -233,30 +241,25 @@ export async function DELETE(request: NextRequest) {
     // Find and delete user (hard delete)
     const result = await User.findByIdAndDelete(userId);
     if (!result) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json(
-      { message: 'Account deleted successfully' },
+      { message: "Account deleted successfully" },
       { status: 200 }
     );
-
-  } catch (error: any) {
-    console.error('Delete profile error:', error);
-
-    if (error.message === 'Authentication token is required' || error.message === 'Invalid or expired token') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+  } catch (error: unknown) {
+    const message = "Internal server error";
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      ((error as { message: string }).message ===
+        "Authentication token is required" ||
+        (error as { message: string }).message === "Invalid or expired token")
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

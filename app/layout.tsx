@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-// @ts-ignore
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
@@ -18,7 +17,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Fiorell - Find Your Perfect Match",
-  description: "Modern dating app to connect hearts and build meaningful relationships",
+  description:
+    "Modern dating app to connect hearts and build meaningful relationships",
   icons: {
     icon: "/favicon.svg",
   },

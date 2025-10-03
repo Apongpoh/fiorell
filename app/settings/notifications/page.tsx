@@ -210,7 +210,7 @@ export default function NotificationSettings() {
           <div className="bg-white rounded-2xl p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Quiet Hours</h2>
             <p className="text-gray-600 text-sm mb-4">
-              Set hours when you don't want to receive notifications
+              Set hours when you don&apos;t want to receive notifications
             </p>
             
             <div className="space-y-4">
