@@ -1251,6 +1251,7 @@ function DashboardPage() {
                     draggable={false}
                     width={600}
                     height={800}
+                    unoptimized
                   />
 
                   {/* Story-style progress bars */}

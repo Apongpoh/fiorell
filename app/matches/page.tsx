@@ -188,11 +188,14 @@ export default function MatchesPage() {
                         "/api/placeholder/profile"
                       }
                       alt={match.user?.firstName || "User"}
+                      width={400}
+                      height={192}
                       className="w-full h-48 object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.src = "/api/placeholder/profile";
                       }}
+                      unoptimized
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     <div className="absolute bottom-3 left-3 right-3">
@@ -245,7 +248,10 @@ export default function MatchesPage() {
                           "/api/placeholder/profile"
                         }
                         alt={match.user.firstName}
+                        width={48}
+                        height={48}
                         className="w-12 h-12 rounded-full object-cover"
+                        unoptimized
                       />
                       {match.user.lastSeen &&
                         Date.now() - new Date(match.user.lastSeen).getTime() <
@@ -304,7 +310,10 @@ export default function MatchesPage() {
                       match.user.photos[0]?.url || "/api/placeholder/profile"
                     }
                     alt={match.user.firstName}
+                    width={48}
+                    height={48}
                     className="w-12 h-12 rounded-full object-cover"
+                    unoptimized
                   />
                   {match.user.lastSeen &&
                     Date.now() - new Date(match.user.lastSeen).getTime() <

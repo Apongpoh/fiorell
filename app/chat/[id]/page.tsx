@@ -37,6 +37,8 @@ interface Message {
   uploading?: boolean;
   progress?: number; // future use if we implement xhr progress
   error?: string;
+  // internal flag to avoid multiple refresh attempts for a single media asset
+  _refreshed?: boolean;
 }
 
 interface MatchData {
@@ -497,12 +499,23 @@ export default function ChatPage() {
               className="flex items-center space-x-3"
             >
               <NextImage
-                src={otherUser?.photos?.[0]?.url || "/api/placeholder/profile"}
+                src={
+                  otherUser?.photos?.[0]?.url ||
+                  "/api/placeholder/profile"
+                }
                 alt={otherUser?.firstName || "Profile photo"}
                 width={40}
                 height={40}
                 className="h-10 w-10 rounded-full object-cover"
                 priority
+                unoptimized
+                onError={(e) => {
+                  // Fallback to tiny transparent PNG if SVG blocked
+                  const target = e.target as HTMLImageElement;
+                  if (target.src.includes('/api/placeholder/profile')) {
+                    target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAMElEQVR4nO3OsQkAIBDDwPT/p62hC0KCSDiZ3STb2WIAAAAAAAAAAAD4G8t2Ajy5Yjw7m0n2AQBRS9iQAAAAAElFTkSuQmCC';
+                  }
+                }}
               />
               <div>
                 <h2 className="font-medium text-gray-900">
@@ -607,6 +620,28 @@ export default function ChatPage() {
                               message.uploading ? "opacity-70" : ""
                             }`}
                             priority={!message.uploading}
+                            unoptimized
+                            onError={async () => {
+                              // Attempt one refresh for expired/403 signed URLs
+                              if (!message.media?.key || message._refreshed) return;
+                              try {
+                                const token = typeof window !== 'undefined' ? localStorage.getItem('fiorell_auth_token') : null;
+                                const res = await fetch(`/api/messages/media/refresh?key=${encodeURIComponent(message.media.key)}${token ? `&token=${encodeURIComponent(token)}` : ''}`);
+                                if (res.ok) {
+                                  const json = await res.json();
+                                  if (json && json.url) {
+                                    setMessages((prev) => prev.map((m): Message => m._id === message._id
+                                      ? {
+                                          ...m,
+                                          media: m.media ? { ...m.media, url: json.url } : m.media,
+                                          _refreshed: true,
+                                        }
+                                      : m
+                                    ));
+                                  }
+                                }
+                              } catch {}
+                            }}
                           />
                           {message.uploading && (
                             <div className="absolute inset-0 flex items-center justify-center">
