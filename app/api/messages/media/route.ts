@@ -7,6 +7,12 @@ import Match from '@/models/Match';
 import Message from '@/models/Message';
 import { verifyAuth } from '@/lib/auth';
 
+// Basic per-match media throttle & duplicate detection
+const recentMedia: Map<string, { size: number; mime: string; ts: number }> = new Map();
+const MEDIA_RATE_WINDOW_MS = 5000; // at most one media every 5s per user per match
+const ALLOWED_IMAGE_TYPES = ['image/jpeg','image/png','image/webp','image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4','video/quicktime','video/webm'];
+
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
@@ -47,22 +53,47 @@ export async function POST(request: NextRequest) {
     const fileType = file.type;
     const fileSize = file.size;
 
-    // Validate file
-    if (!fileType.startsWith('image/') && !fileType.startsWith('video/')) {
+    // Validate file type strictly
+    const isImage = ALLOWED_IMAGE_TYPES.includes(fileType);
+    const isVideo = ALLOWED_VIDEO_TYPES.includes(fileType);
+    if (!isImage && !isVideo) {
       return NextResponse.json(
-        { error: 'Invalid file type. Only images and videos are allowed.' },
+        { error: 'Unsupported media type. Allowed images: jpg, png, webp, gif. Allowed video: mp4, mov, webm.' },
         { status: 400 }
       );
     }
 
-    // Maximum file size (10MB)
-    const maxSize = 10 * 1024 * 1024;
+    // Maximum file size (10MB images, 25MB videos)
+    const maxSize = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
     if (fileSize > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 10MB.' },
+        { error: `File too large. Maximum size is ${isVideo ? '25MB for video' : '10MB for images'}.` },
         { status: 400 }
       );
     }
+
+    // Rate limiting & duplicate guard
+  const throttleKey = `${userId}:${matchId}`;
+    const now = Date.now();
+  const last = recentMedia.get(throttleKey);
+    if (last) {
+      if (now - last.ts < MEDIA_RATE_WINDOW_MS) {
+        return NextResponse.json(
+          { error: 'You are sending media too quickly. Please wait a few seconds.' },
+          { status: 429 }
+        );
+      }
+      if (last.size === fileSize && last.mime === fileType && (now - last.ts) < 60_000) {
+        return NextResponse.json(
+          { error: 'Duplicate media upload detected' },
+          { status: 409 }
+        );
+      }
+    }
+  recentMedia.set(throttleKey, { size: fileSize, mime: fileType, ts: now });
+
+    // (Optional) basic heuristic dimension check for images (skip for videos)
+    // Could parse via sharp if added, but keep lightweight for now.
 
     // Ensure bucket env var exists (align with aws.ts usage AWS_S3_BUCKET_NAME)
     const bucket = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME;
@@ -77,19 +108,19 @@ export async function POST(request: NextRequest) {
     // Generate unique key for S3 (handle files without extension)
     const originalParts = file.name ? file.name.split('.') : [];
     const extension = originalParts.length > 1 ? originalParts.pop() : 'bin';
-    const key = `messages/${matchId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+  const objectKey = `messages/${matchId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
 
     // Upload to S3
     const putCommand = new PutObjectCommand({
       Bucket: bucket,
-      Key: key,
+      Key: objectKey,
       Body: buffer,
       ContentType: fileType
     });
     await s3Client.send(putCommand);
 
     // Generate a GET signed URL (so client can display the media). Use GetObjectCommand.
-    const getCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const getCommand = new GetObjectCommand({ Bucket: bucket, Key: objectKey });
     const url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
 
     // Create message record
@@ -100,7 +131,7 @@ export async function POST(request: NextRequest) {
       type: fileType.startsWith('image/') ? 'image' : 'video',
       media: {
         url, // temporary signed URL (expires). Consider storing key and generating on demand client-side.
-        key,
+        key: objectKey,
         mimeType: fileType,
         size: fileSize
       },

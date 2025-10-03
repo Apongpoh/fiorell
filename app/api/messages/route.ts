@@ -5,6 +5,17 @@ import Message from '@/models/Message';
 import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
 
+// Simple in-memory throttle & duplicate cache (best-effort, per process)
+const recentMessageHashes: Map<string, { contentHash: string; ts: number }> = new Map();
+const RATE_WINDOW_MS = 3500; // minimum gap between messages from same user in same match (soft throttle)
+
+// Very small profanity placeholder list (extend or replace with dedicated service)
+const BANNED_WORDS = ['badword1','badword2'];
+const hasBannedWord = (text: string) => {
+  const lower = text.toLowerCase();
+  return BANNED_WORDS.some(w => lower.includes(w));
+};
+
 // Get messages for a specific match
 export async function GET(request: NextRequest) {
   try {
@@ -159,7 +170,13 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const body = await request.json();
-    const { matchId, content, type = 'text' } = body;
+    let { matchId, content, type = 'text' } = body;
+
+    // Basic normalization
+    if (typeof content === 'string') {
+      // Collapse internal excessive whitespace & trim
+      content = content.replace(/\s+/g, ' ').trim();
+    }
 
     // Validation
     if (!matchId) {
@@ -169,7 +186,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (type === 'text' && (!content || content.trim().length === 0)) {
+    if (type === 'text' && (!content || content.length === 0)) {
       return NextResponse.json(
         { error: 'Message content is required' },
         { status: 400 }
@@ -181,6 +198,23 @@ export async function POST(request: NextRequest) {
         { error: 'Message cannot exceed 1000 characters' },
         { status: 400 }
       );
+    }
+
+    if (type === 'text' && content) {
+      // Reject messages that are only punctuation/emojis repeated (low-signal spam heuristic)
+      const noAlphaNum = content.replace(/[^a-z0-9]+/gi, '');
+      if (noAlphaNum.length === 0 && content.length > 10) {
+        return NextResponse.json(
+          { error: 'Message appears to contain no meaningful content' },
+          { status: 400 }
+        );
+      }
+      if (hasBannedWord(content)) {
+        return NextResponse.json(
+          { error: 'Message contains prohibited language' },
+          { status: 400 }
+        );
+      }
     }
 
     // Verify user is part of this match
@@ -198,6 +232,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Rate limiting / duplicate suppression
+    const key = `${userId}:${matchId}`;
+    const now = Date.now();
+    const last = recentMessageHashes.get(key);
+    const contentHash = type === 'text' && content ? `${content.length}:${content.slice(0,32)}` : `${type}:${now}`;
+    if (last) {
+      if (now - last.ts < RATE_WINDOW_MS) {
+        return NextResponse.json(
+          { error: 'You are sending messages too quickly. Please wait a moment.' },
+          { status: 429 }
+        );
+      }
+      if (last.contentHash === contentHash) {
+        return NextResponse.json(
+          { error: 'Duplicate message detected' },
+          { status: 409 }
+        );
+      }
+    }
+    recentMessageHashes.set(key, { contentHash, ts: now });
+
     // Determine recipient
     const recipientId = match.user1._id.toString() === userId ? 
       match.user2._id : match.user1._id;
@@ -207,7 +262,7 @@ export async function POST(request: NextRequest) {
       match: matchId,
       sender: userId,
       recipient: recipientId,
-      content: content?.trim(),
+      content: content,
       type
     });
 
