@@ -3,6 +3,7 @@ import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { computeProfileCompletion } from '@/lib/profileCompletion';
 
 type ProfileParams = {
   params: { id: string };
@@ -22,7 +23,7 @@ export async function GET(
     const { id } = context.params;
 
     const user = await User.findById(id)
-      .select('firstName dateOfBirth photos location bio interests verification lastSeen');
+      .select('firstName dateOfBirth photos location bio interests verification lastSeen lifestyle stats');
 
     if (!user) {
       return NextResponse.json(
@@ -36,7 +37,27 @@ export async function GET(
       ? Math.floor((Date.now() - new Date(user.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
       : null;
 
-    // Format the response
+    const completion = computeProfileCompletion(user as any);
+
+    // Compute mutual interests with viewer (if different user)
+    let mutualInterests: string[] = [];
+    if (userId && userId.toString() !== id.toString()) {
+      try {
+        const viewer = await User.findById(userId).select('interests');
+        if (viewer?.interests && user.interests) {
+          const viewerSet = new Set(viewer.interests.map((i: string) => i.toLowerCase()));
+          mutualInterests = user.interests.filter((i: string) => viewerSet.has(i.toLowerCase()));
+        }
+      } catch {}
+    }
+
+    // Derive aggregate like counts
+    const totalLikes = (user as any).stats?.totalLikesReceived || 0;
+    const totalSuperLikes = (user as any).stats?.totalSuperLikesReceived || 0;
+    const totalMatches = (user as any).stats?.totalMatches || 0;
+    const profileViews = (user as any).stats?.profileViews || 0;
+
+    // Format the response including completion & score
     const formattedUser = {
       id: user._id,
       firstName: user.firstName,
@@ -46,7 +67,19 @@ export async function GET(
       bio: user.bio,
       interests: user.interests || [],
       verification: user.verification || { isVerified: false },
-      lastSeen: user.lastSeen
+      lastSeen: user.lastSeen,
+      lifestyle: user.lifestyle || null,
+      stats: {
+        profileCompleteness: completion.percentage,
+        profileScore: completion.score,
+        profileBreakdown: completion.breakdown,
+        totalLikes,
+        totalSuperLikes,
+        totalMatches,
+        profileViews,
+        mutualInterests,
+        mutualInterestsCount: mutualInterests.length
+      }
     };
 
     return NextResponse.json({ user: formattedUser });

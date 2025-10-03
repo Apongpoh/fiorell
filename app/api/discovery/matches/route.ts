@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
   const verifiedOnly = searchParams.get('verifiedOnly') === 'true';
   const interestsParam = searchParams.get('interests');
   const maxDistance = searchParams.get('maxDistance');
+  const diagnostics = searchParams.get('diag') === '1';
 
     // Build filter based on user preferences
     const filter: any = {
@@ -63,11 +64,12 @@ export async function GET(request: NextRequest) {
       filter['verification.isVerified'] = true;
     }
 
-    // Interest filtering (must include at least one requested interest)
+    // Build interest filter object separately so we can merge $in/$all/$nin safely
+    const interestFilter: any = {};
     if (interestsParam) {
       const interests = interestsParam.split(',').map(i => i.trim()).filter(Boolean);
       if (interests.length) {
-        filter.interests = { $in: interests };
+        interestFilter.$in = interests;
       }
     }
 
@@ -80,16 +82,11 @@ export async function GET(request: NextRequest) {
       }
       // Candidate must include ALL of mustHaveInterests
       if (Array.isArray(dealBreakers.mustHaveInterests) && dealBreakers.mustHaveInterests.length) {
-        filter.interests = {
-          ...(filter.interests || {}),
-          $all: dealBreakers.mustHaveInterests,
-        };
+        interestFilter.$all = dealBreakers.mustHaveInterests;
       }
       // Candidate must include NONE of excludeInterests
       if (Array.isArray(dealBreakers.excludeInterests) && dealBreakers.excludeInterests.length) {
-        // If we already have an interests filter object, merge; else start a new object
-        if (!filter.interests) filter.interests = {};
-        filter.interests.$nin = dealBreakers.excludeInterests;
+        interestFilter.$nin = dealBreakers.excludeInterests;
       }
       // Lifestyle exclusions
       if (Array.isArray(dealBreakers.excludeSmoking) && dealBreakers.excludeSmoking.length) {
@@ -131,12 +128,56 @@ export async function GET(request: NextRequest) {
       filter._id = { ...filter._id, $nin: interactedUserIds };
     }
 
-    // Get potential matches from database
-    const users = await User.find(filter)
-      .select('firstName age location bio interests photos verification')
+    // Resolve interest filter conflicts (intersection between $all and $nin makes query unsatisfiable)
+    if (interestFilter.$all && interestFilter.$nin) {
+      const conflicts = interestFilter.$all.filter((x: string) => interestFilter.$nin.includes(x));
+      if (conflicts.length) {
+        // Remove conflicting values from $nin first (more user-friendly: still enforce must-have)
+        interestFilter.$nin = interestFilter.$nin.filter((x: string) => !conflicts.includes(x));
+        // If $nin emptied, delete it
+        if (Array.isArray(interestFilter.$nin) && interestFilter.$nin.length === 0) delete interestFilter.$nin;
+      }
+    }
+
+    if (Object.keys(interestFilter).length) {
+      filter.interests = { ...(filter.interests || {}), ...interestFilter };
+    }
+
+    // Optionally gather baseline (for diagnostics or zero-result fallback)
+    let baselineCount: number | undefined;
+    if (diagnostics) {
+      baselineCount = await User.countDocuments({ _id: { $ne: userId }, isActive: true });
+    }
+
+    // Execute main query
+    let users = await User.find(filter)
+      .select('firstName dateOfBirth location bio interests photos verification lifestyle')
       .skip(offset)
       .limit(limit)
       .lean();
+
+    // If no results and we have strong deal breakers, attempt a relaxed count to help client adjust
+    let relaxedCount: number | undefined;
+    if (users.length === 0 && dealBreakers) {
+      const relaxedFilter = { ...filter } as any;
+      // Remove hard deal breaker clauses progressively
+      delete relaxedFilter['verification.isVerified']; // from deal breaker requirement
+      if (relaxedFilter.interests) {
+        // keep $in (soft) but drop $all/$nin deal breaker components
+        const { $in } = relaxedFilter.interests;
+        if ($in) {
+          relaxedFilter.interests = { $in };
+        } else {
+          delete relaxedFilter.interests;
+        }
+      }
+      delete relaxedFilter['lifestyle.smoking'];
+      delete relaxedFilter['lifestyle.maritalStatus'];
+      delete relaxedFilter['lifestyle.hasKids'];
+      try {
+        relaxedCount = await User.countDocuments(relaxedFilter);
+      } catch {}
+    }
 
     // Calculate compatibility based on shared interests
     const currentUserInterests = Array.isArray(currentUser.interests) ? currentUser.interests : [];
@@ -164,7 +205,13 @@ export async function GET(request: NextRequest) {
       {
         matches: formattedUsers,
         hasMore: users.length === limit,
-        totalShown: offset + users.length
+        totalShown: offset + users.length,
+        diagnostics: diagnostics ? {
+          appliedFilter: filter,
+          baselineCount,
+          relaxedCount: relaxedCount ?? null,
+          dealBreakersApplied: !!dealBreakers
+        } : undefined
       },
       {
         status: 200,

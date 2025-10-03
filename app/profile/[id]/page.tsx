@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   ArrowLeft, Heart, MessageCircle, Clock, MapPin, Shield, Star,
-  Share2, MoreVertical, Flag, UserX, Users, Sparkles, ChevronRight
+  Share2, MoreVertical, Flag, UserX, Users, Sparkles, ChevronRight, Info
 } from "lucide-react";
 import Link from "next/link";
 
@@ -358,6 +358,30 @@ export default function ViewProfilePage() {
             </div>
           )}
 
+          {/* Lifestyle Section (if any) */}
+          {(profile.lifestyle?.smoking || profile.lifestyle?.maritalStatus || (profile.lifestyle?.hasKids !== undefined)) && (
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Lifestyle</h2>
+              <div className="flex flex-wrap gap-2">
+                {profile.lifestyle?.smoking && (
+                  <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm">
+                    {profile.lifestyle.smoking === 'no' ? 'Non-smoker' : profile.lifestyle.smoking === 'yes' ? 'Smoker' : 'Occasional Smoker'}
+                  </span>
+                )}
+                {profile.lifestyle?.maritalStatus && (
+                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm capitalize">
+                    {profile.lifestyle.maritalStatus}
+                  </span>
+                )}
+                {profile.lifestyle?.hasKids !== undefined && (
+                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-sm">
+                    {profile.lifestyle.hasKids ? 'Has Kids' : 'No Kids'}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Social Proof Section */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -370,20 +394,59 @@ export default function ViewProfilePage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
-                <Users className="h-5 w-5 text-gray-600" />
-                <div>
-                  <div className="font-medium">{profile.stats?.mutualConnections || 0}</div>
-                  <div className="text-sm text-gray-600">Mutual Friends</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl relative group">
                 <Sparkles className="h-5 w-5 text-yellow-500" />
                 <div>
-                  <div className="font-medium">{Math.round((profile.stats?.profileCompleteness || 0) * 100)}%</div>
-                  <div className="text-sm text-gray-600">Profile Score</div>
+                  <div className="font-medium flex items-center gap-2">
+                    {Math.round((profile.stats?.profileCompleteness || 0) * 100)}%
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-600 font-semibold">{profile.stats?.profileScore ?? Math.round((profile.stats?.profileCompleteness||0)*80)}</span>
+                  </div>
+                  <div className="text-sm text-gray-600 flex items-center gap-1">Profile Score
+                    <Info className="h-3 w-3 text-gray-400 group-hover:text-gray-600" />
+                  </div>
+                </div>
+                {/* Tooltip */}
+                <div className="absolute hidden group-hover:block top-full left-0 mt-2 w-64 z-20 bg-white border border-gray-200 rounded-lg shadow p-3">
+                  <p className="text-xs font-semibold text-gray-700 mb-1">Breakdown</p>
+                  <ul className="text-[11px] space-y-0.5 text-gray-600">
+                    {profile.stats?.profileBreakdown && Object.entries(profile.stats.profileBreakdown).map(([k,v]: any) => (
+                      <li key={k} className="flex justify-between"><span className="capitalize">{k}</span><span>{v}</span></li>
+                    ))}
+                  </ul>
+                  {profile.stats?.profileCompleteness < 1 && (
+                    <p className="text-[10px] text-pink-600 mt-2">Add more photos, a longer bio, lifestyle details or verify to increase score.</p>
+                  )}
                 </div>
               </div>
+              {profile.lifestyle?.smoking && (
+                <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                  <div className="h-5 w-5 text-gray-600 flex items-center justify-center font-semibold">🚭</div>
+                  <div>
+                    <div className="font-medium">
+                      {profile.lifestyle.smoking === 'no' ? 'Non-smoker' : profile.lifestyle.smoking === 'yes' ? 'Smoker' : 'Occasional Smoker'}
+                    </div>
+                    <div className="text-sm text-gray-600">Smoking</div>
+                  </div>
+                </div>
+              )}
+              {profile.lifestyle?.maritalStatus && (
+                <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                  <div className="h-5 w-5 text-gray-600 flex items-center justify-center font-semibold">💍</div>
+                  <div>
+                    <div className="font-medium capitalize">{profile.lifestyle.maritalStatus}</div>
+                    <div className="text-sm text-gray-600">Marital Status</div>
+                  </div>
+                </div>
+              )}
+              {profile.lifestyle?.hasKids !== undefined && (
+                <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                  <div className="h-5 w-5 text-gray-600 flex items-center justify-center font-semibold">{profile.lifestyle.hasKids ? '👨‍👧' : '🚫'}</div>
+                  <div>
+                    <div className="font-medium">{profile.lifestyle.hasKids ? 'Has Kids' : 'No Kids'}</div>
+                    <div className="text-sm text-gray-600">Family</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Profile Completion */}
@@ -398,33 +461,45 @@ export default function ViewProfilePage() {
                   style={{ width: `${Math.round((profile.stats?.profileCompleteness || 0) * 100)}%` }}
                 />
               </div>
-              {profile.stats?.profileCompleteness < 1 && (
-                <button className="w-full mt-3 text-sm text-pink-600 flex items-center justify-center gap-1 hover:text-pink-700 transition-colors">
-                  Complete Your Profile
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              )}
             </div>
           </div>
 
           {/* Stats Section */}
           {profile.stats && (
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Profile Stats</h2>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Users className="h-5 w-5 text-pink-500" /> Profile Stats
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
                 <div className="bg-gray-50 p-4 rounded-xl">
-                  <div className="text-2xl font-bold text-pink-600">
-                    {profile.stats.profileViews || 0}
-                  </div>
-                  <div className="text-sm text-gray-600">Profile Views</div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Views</div>
+                  <div className="text-2xl font-bold text-pink-600">{profile.stats.profileViews || 0}</div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl">
-                  <div className="text-2xl font-bold text-pink-600">
-                    {profile.stats.totalLikes || 0}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Likes</div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Likes</div>
+                  <div className="text-2xl font-bold text-pink-600">{(profile.stats.totalLikes || profile.stats.totalLikesReceived || 0) + (profile.stats.totalSuperLikes || profile.stats.totalSuperLikesReceived || 0)}</div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Matches</div>
+                  <div className="text-2xl font-bold text-pink-600">{profile.stats.totalMatches || 0}</div>
                 </div>
               </div>
+              {(profile.stats.mutualInterests?.length > 0) && (
+                <div className="bg-white border border-gray-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-800">Mutual Interests ({profile.stats.mutualInterestsCount})</span>
+                    <span className="text-[10px] text-gray-500">Shared</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.stats.mutualInterests.slice(0,8).map((i: string) => (
+                      <span key={i} className="px-2 py-1 bg-pink-100 text-pink-700 rounded-full text-[11px]">{i}</span>
+                    ))}
+                    {profile.stats.mutualInterests.length > 8 && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-[11px]">+{profile.stats.mutualInterests.length - 8} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

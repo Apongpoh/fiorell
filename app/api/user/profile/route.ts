@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
 import { verifyAuth } from '@/lib/auth';
+import { computeProfileCompletion } from '@/lib/profileCompletion';
 
 // Get user profile
 export async function GET(request: NextRequest) {
@@ -20,7 +21,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return user data
+    const completion = computeProfileCompletion(user as any);
+
+    // Return user data with profile completion
     const userResponse = {
       id: user._id.toString(),
       firstName: user.firstName,
@@ -37,7 +40,12 @@ export async function GET(request: NextRequest) {
       verification: user.verification,
       privacy: user.privacy,
       subscription: user.subscription,
-      stats: user.stats,
+      stats: {
+        ...user.stats,
+        profileCompleteness: completion.percentage,
+        profileScore: completion.score,
+        profileBreakdown: completion.breakdown
+      },
       isActive: user.isActive,
       lastSeen: user.lastSeen,
       createdAt: user.createdAt
@@ -128,7 +136,18 @@ export async function PUT(request: NextRequest) {
       }
     }
     if (lifestyle !== undefined) {
-      user.lifestyle = { ...(user.lifestyle || {}), ...lifestyle } as any;
+      // Merge lifestyle while allowing clearing (null/empty string removes field)
+      const current = (user.lifestyle || {}) as any;
+      const next: any = { ...current };
+      for (const key of Object.keys(lifestyle)) {
+        const val = (lifestyle as any)[key];
+        if (val === null || val === '' || typeof val === 'undefined') {
+          delete next[key];
+        } else {
+          next[key] = val;
+        }
+      }
+      user.lifestyle = next;
     }
     if (privacy !== undefined) {
       user.privacy = { ...user.privacy, ...privacy };
@@ -136,7 +155,9 @@ export async function PUT(request: NextRequest) {
 
     await user.save();
 
-    // Return updated user data
+    const completion = computeProfileCompletion(user as any);
+
+    // Return updated user data with profile completion
     const userResponse = {
       id: user._id,
       firstName: user.firstName,
@@ -153,7 +174,12 @@ export async function PUT(request: NextRequest) {
       verification: user.verification,
       privacy: user.privacy,
       subscription: user.subscription,
-      stats: user.stats,
+      stats: {
+        ...user.stats,
+        profileCompleteness: completion.percentage,
+        profileScore: completion.score,
+        profileBreakdown: completion.breakdown
+      },
       isActive: user.isActive,
       lastSeen: user.lastSeen,
       createdAt: user.createdAt
