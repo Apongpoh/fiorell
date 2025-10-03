@@ -26,6 +26,18 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Ensure interactive controls show pointer cursor by default */
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+/* Disabled state feedback */
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Global animation & utility additions */
 @keyframes ping-slow-custom { 0% { transform: scale(.9); opacity:.65;} 70% { transform: scale(1.4); opacity:0;} 100% { transform: scale(1.5); opacity:0;} }
 .animate-ping-slow { animation: ping-slow-custom .9s ease-out forwards; }
