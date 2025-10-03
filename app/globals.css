@@ -5,11 +5,12 @@
   --foreground: #171717;
 }
 
-@theme inline {
+/* Theme tokens (removed @theme inline for compatibility) */
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans, Arial, sans-serif);
+  --font-mono: var(--font-geist-mono, monospace);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,3 +25,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Global animation & utility additions */
+@keyframes ping-slow-custom { 0% { transform: scale(.9); opacity:.65;} 70% { transform: scale(1.4); opacity:0;} 100% { transform: scale(1.5); opacity:0;} }
+.animate-ping-slow { animation: ping-slow-custom .9s ease-out forwards; }
+
+@keyframes shimmer { 0% { background-position:-800px 0;} 100% { background-position:800px 0;} }
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.4) 50%, rgba(255,255,255,0) 100%);
+  background-size: 1600px 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+/* Focus ring utility for better a11y */
+.focus-ring:focus-visible { outline: 2px solid #ec4899; outline-offset: 2px; }

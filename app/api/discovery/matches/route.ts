@@ -21,9 +21,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const offset = parseInt(searchParams.get('offset') || '0');
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const minAge = searchParams.get('minAge');
+  const maxAge = searchParams.get('maxAge');
+  const gender = searchParams.get('gender');
+  const verifiedOnly = searchParams.get('verifiedOnly') === 'true';
+  const interestsParam = searchParams.get('interests');
+  const maxDistance = searchParams.get('maxDistance');
 
     // Build filter based on user preferences
     const filter: any = {
@@ -31,21 +37,54 @@ export async function GET(request: NextRequest) {
       isActive: true
     };
 
-    // Filter by gender preference
-    if (currentUser.preferences?.genderPreference && currentUser.preferences.genderPreference !== 'all') {
-      filter.gender = currentUser.preferences.genderPreference;
+    // Gender priority: explicit query overrides stored preference
+    const effectiveGender = gender && gender !== 'all' ? gender : (currentUser.preferences?.genderPreference && currentUser.preferences.genderPreference !== 'all' ? currentUser.preferences.genderPreference : null);
+    if (effectiveGender) {
+      filter.gender = effectiveGender;
     }
 
     // Filter by age range
-    if (currentUser.preferences?.ageRange) {
+    const ageRange = {
+      min: minAge ? parseInt(minAge) : currentUser.preferences?.ageRange?.min,
+      max: maxAge ? parseInt(maxAge) : currentUser.preferences?.ageRange?.max,
+    };
+    if (ageRange.min && ageRange.max) {
       const currentYear = new Date().getFullYear();
-      const minBirthYear = currentYear - currentUser.preferences.ageRange.max;
-      const maxBirthYear = currentYear - currentUser.preferences.ageRange.min;
-      
+      const minBirthYear = currentYear - ageRange.max; // older
+      const maxBirthYear = currentYear - ageRange.min; // younger
       filter.dateOfBirth = {
         $gte: new Date(minBirthYear, 0, 1),
         $lte: new Date(maxBirthYear, 11, 31)
       };
+    }
+
+    // Verified only
+    if (verifiedOnly) {
+      filter['verification.isVerified'] = true;
+    }
+
+    // Interest filtering (must include at least one requested interest)
+    if (interestsParam) {
+      const interests = interestsParam.split(',').map(i => i.trim()).filter(Boolean);
+      if (interests.length) {
+        filter.interests = { $in: interests };
+      }
+    }
+
+    // Distance filtering (if user + candidate have coordinates)
+    if (maxDistance && currentUser.location?.coordinates?.length === 2) {
+      const distKm = parseInt(maxDistance);
+      if (!isNaN(distKm) && distKm > 0) {
+        filter['location.coordinates'] = {
+          $near: {
+            $geometry: {
+              type: 'Point',
+              coordinates: currentUser.location.coordinates // [lng, lat]
+            },
+            $maxDistance: distKm * 1000
+          }
+        };
+      }
     }
 
     // Get users who haven't been liked/passed by current user

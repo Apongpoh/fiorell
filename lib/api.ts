@@ -213,9 +213,39 @@ export const userAPI = {
 
 // Discovery API calls
 export const discoveryAPI = {
-  // Get potential matches
-  getMatches: async (limit: number = 10, offset: number = 0) => {
-    return await apiRequest(`/discovery/matches?limit=${limit}&offset=${offset}`);
+  // Get potential matches with optional filters
+  getMatches: async (
+    params: {
+      limit?: number;
+      offset?: number;
+      minAge?: number;
+      maxAge?: number;
+      gender?: string; // male|female|non-binary|prefer-not-to-say|all
+      verifiedOnly?: boolean;
+      interests?: string[];
+      maxDistance?: number; // km
+    } = {}
+  ) => {
+    const {
+      limit = 10,
+      offset = 0,
+      minAge,
+      maxAge,
+      gender,
+      verifiedOnly,
+      interests,
+      maxDistance,
+    } = params;
+    const search = new URLSearchParams();
+    search.set('limit', String(limit));
+    search.set('offset', String(offset));
+    if (minAge !== undefined) search.set('minAge', String(minAge));
+    if (maxAge !== undefined) search.set('maxAge', String(maxAge));
+    if (gender && gender !== 'all') search.set('gender', gender);
+    if (verifiedOnly) search.set('verifiedOnly', 'true');
+    if (maxDistance !== undefined) search.set('maxDistance', String(maxDistance));
+    if (interests && interests.length) search.set('interests', interests.join(','));
+    return await apiRequest(`/discovery/matches?${search.toString()}`);
   },
 };
 

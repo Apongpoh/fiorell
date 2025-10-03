@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
@@ -38,12 +38,72 @@ interface Profile {
   defaultPhoto?: string;
 }
 
+// Static curated interest taxonomy (requested) – keep alphabetical-ish for UX discoverability
+// NOTE: Adjust freely; UI will automatically paginate via the show more/less toggle.
+const CURATED_INTERESTS: string[] = [
+  "Photography",
+  "Travel",
+  "Cooking",
+  "Yoga",
+  "Music",
+  "Technology",
+  "Food",
+  "Rock Climbing",
+  "Art",
+  "Design",
+  "Dogs",
+  "Wine Tasting",
+  "Hiking",
+  "Reading",
+  "Movies",
+  "Dancing",
+  "Sports",
+  "Gaming",
+  "Fitness",
+  "Nature",
+  "Fashion",
+  "Coffee",
+  "Beach",
+  "Adventure",
+];
+
 function DashboardPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
   const [dragDirection, setDragDirection] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    minAge: 18,
+    maxAge: 60,
+    gender: "all",
+    verifiedOnly: false,
+    interests: "" as string,
+    maxDistance: 50,
+  });
+  const [isFiltering, setIsFiltering] = useState(false);
+  const filterDebounceRef = useRef<number | null>(null);
+  const [autoApply, setAutoApply] = useState(true); // enable debounce apply
+  const [appliedFiltersSignature, setAppliedFiltersSignature] = useState("");
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
+  // Persist filters (A)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("fiorell_filters");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setFilters((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("fiorell_filters", JSON.stringify(filters));
+    } catch {}
+  }, [filters]);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [photoProgress, setPhotoProgress] = useState(0); // 0-100 progress for current photo
   const [isPaused, setIsPaused] = useState(false); // long-press pause state
@@ -55,12 +115,17 @@ function DashboardPage() {
 
   // Visual drag feedback state (point 1)
   const [dragFeedback, setDragFeedback] = useState<{
-    direction: 'left' | 'right' | 'up' | null;
+    direction: "left" | "right" | "up" | null;
     strength: number;
   }>({ direction: null, strength: 0 });
-  const [pulseDirection, setPulseDirection] = useState<'left' | 'right' | 'up' | null>(null); // transient pulse when threshold crossed
+  const [pulseDirection, setPulseDirection] = useState<
+    "left" | "right" | "up" | null
+  >(null); // transient pulse when threshold crossed
   const lastDragFeedbackTsRef = useRef(0);
-  const lastDragFeedbackRef = useRef<{direction: 'left' | 'right' | 'up' | null; strength: number}>({direction: null, strength: 0});
+  const lastDragFeedbackRef = useRef<{
+    direction: "left" | "right" | "up" | null;
+    strength: number;
+  }>({ direction: null, strength: 0 });
 
   // Gesture refs
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -120,22 +185,124 @@ function DashboardPage() {
     loadUserProfile();
   }, [logout]);
 
-  // Load potential matches
-  useEffect(() => {
-    const loadMatches = async () => {
-      try {
-        setLoading(true);
-        const response = await discoveryAPI.getMatches(10, 0);
-        setProfiles(response.matches || []);
-      } catch (error: any) {
-        setError(error.message || "Failed to load matches");
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Load potential matches (with current filters)
+  const fetchMatches = async () => {
+    try {
+      setLoading(true);
+      const response = await discoveryAPI.getMatches({
+        limit: 10,
+        offset: 0,
+        minAge: filters.minAge,
+        maxAge: filters.maxAge,
+        gender: filters.gender,
+        verifiedOnly: filters.verifiedOnly,
+        interests: filters.interests
+          .split(",")
+          .map((i) => i.trim())
+          .filter(Boolean),
+        maxDistance: filters.maxDistance,
+      });
+      setProfiles(response.matches || []);
+      setCurrentProfileIndex(0);
+      setPhotoIndex(0);
+      setAppliedFiltersSignature(
+        JSON.stringify({
+          ...filters,
+          interests: filters.interests
+            .split(",")
+            .map((i) => i.trim())
+            .filter(Boolean)
+            .sort(),
+        })
+      );
+    } catch (error: any) {
+      setError(error.message || "Failed to load matches");
+    } finally {
+      setLoading(false);
+      setIsFiltering(false);
+    }
+  };
 
-    loadMatches();
+  useEffect(() => {
+    fetchMatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Debounce apply on filter change (B)
+  useEffect(() => {
+    if (!autoApply) return; // manual mode
+    if (loading) return; // avoid spamming while initial load
+    if (filterDebounceRef.current)
+      window.clearTimeout(filterDebounceRef.current);
+    filterDebounceRef.current = window.setTimeout(() => {
+      setIsFiltering(true);
+      fetchMatches();
+    }, 500); // 500ms debounce
+    return () => {
+      if (filterDebounceRef.current)
+        window.clearTimeout(filterDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.minAge,
+    filters.maxAge,
+    filters.gender,
+    filters.verifiedOnly,
+    filters.interests,
+    filters.maxDistance,
+    autoApply,
+  ]);
+  // Static curated interests handling
+  const [showAllInterests, setShowAllInterests] = useState(false);
+  const VISIBLE_INTEREST_LIMIT = 12; // initial collapsed count
+  const interestSuggestions = useMemo(() => {
+    return showAllInterests
+      ? CURATED_INTERESTS
+      : CURATED_INTERESTS.slice(0, VISIBLE_INTEREST_LIMIT);
+  }, [showAllInterests]);
+
+  const toggleInterest = (i: string) => {
+    const list = filters.interests
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const exists = list.includes(i);
+    const next = exists ? list.filter((x) => x !== i) : [...list, i];
+    setFilters((f) => ({ ...f, interests: next.join(", ") }));
+  };
+
+  const filtersChanged = useMemo(() => {
+    const sig = JSON.stringify({
+      ...filters,
+      interests: filters.interests
+        .split(",")
+        .map((i) => i.trim())
+        .filter(Boolean)
+        .sort(),
+    });
+    return sig !== appliedFiltersSignature;
+  }, [filters, appliedFiltersSignature]);
+
+  // Save as preference (E)
+  const saveAsPreference = async () => {
+    if (!currentUser?.id) return;
+    setSavingPrefs(true);
+    try {
+      await userAPI.updateProfile({
+        preferences: {
+          ageRange: { min: filters.minAge, max: filters.maxAge },
+          maxDistance: filters.maxDistance,
+          genderPreference:
+            filters.gender === "all" ? undefined : filters.gender,
+        } as any,
+      });
+      safeSetSwipeError("Preferences saved");
+    } catch (e) {
+      safeSetSwipeError("Failed to save");
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
 
   // Fetch stats from backend
   useEffect(() => {
@@ -221,9 +388,11 @@ function DashboardPage() {
       }
       const elapsed =
         elapsedBeforePauseRef.current + (ts - startTimeRef.current);
-  const pct = Math.min(100, (elapsed / PHOTO_DURATION) * 100);
-  // Throttle progress updates (reduce re-renders)
-  setPhotoProgress(prev => (pct < 99 && Math.abs(pct - prev) < 2.5 ? prev : pct));
+      const pct = Math.min(100, (elapsed / PHOTO_DURATION) * 100);
+      // Throttle progress updates (reduce re-renders)
+      setPhotoProgress((prev) =>
+        pct < 99 && Math.abs(pct - prev) < 2.5 ? prev : pct
+      );
       if (pct >= 100) {
         nextPhoto();
         return; // effect will restart for the next photo
@@ -235,14 +404,20 @@ function DashboardPage() {
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [photoIndex, currentProfileIndex, profiles, showMatchModal, isPaused, nextPhoto]);
+  }, [
+    photoIndex,
+    currentProfileIndex,
+    profiles,
+    showMatchModal,
+    isPaused,
+    nextPhoto,
+  ]);
 
   const beginPause = () => {
     if (isPaused) return;
     // accumulate elapsed so far into the ref
     if (startTimeRef.current) {
-      elapsedBeforePauseRef.current +=
-        performance.now() - startTimeRef.current;
+      elapsedBeforePauseRef.current += performance.now() - startTimeRef.current;
     }
     setIsPaused(true);
   };
@@ -255,7 +430,8 @@ function DashboardPage() {
 
   const handlePointerDown = () => {
     longPressActivatedRef.current = false;
-    if (longPressTimeoutRef.current) window.clearTimeout(longPressTimeoutRef.current);
+    if (longPressTimeoutRef.current)
+      window.clearTimeout(longPressTimeoutRef.current);
     longPressTimeoutRef.current = window.setTimeout(() => {
       longPressActivatedRef.current = true;
       beginPause();
@@ -298,10 +474,13 @@ function DashboardPage() {
   // currentProfile constant already declared above
   useEffect(() => {
     try {
-      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const reduced =
+        window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const mem = (navigator as any).deviceMemory;
       const lowMem = mem && mem <= 4;
-      const lowCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+      const lowCores =
+        navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
       if (reduced || lowMem || lowCores) setLiteMode(true);
     } catch {}
   }, []);
@@ -330,7 +509,12 @@ function DashboardPage() {
     const profileSnapshot = profiles[currentProfileIndex];
     if (!profileSnapshot) return;
 
-    const action = direction === 'left' ? 'pass' : direction === 'up' ? 'super_like' : 'like';
+    const action =
+      direction === "left"
+        ? "pass"
+        : direction === "up"
+        ? "super_like"
+        : "like";
 
     // Advance immediately for snappy UI
     moveToNextProfile();
@@ -350,27 +534,39 @@ function DashboardPage() {
             setCurrentMatch(profileSnapshot);
             setShowMatchModal(true);
           }
-          if (action === 'like' || action === 'super_like') {
-            setStats(prev => ({
+          if (action === "like" || action === "super_like") {
+            setStats((prev) => ({
               ...prev,
-              today: { ...prev.today, likes: prev.today.likes + 1 }
+              today: { ...prev.today, likes: prev.today.likes + 1 },
             }));
           }
         } catch (err: any) {
           const msg = err?.message || String(err);
-            if (/already performed/i.test(msg)) {
-              // Duplicate – silently ignore (user already moved on)
-              return;
-            }
+          if (/already performed/i.test(msg)) {
+            // Duplicate – silently ignore (user already moved on)
+            return;
+          }
           // Network or server issue – optional: show small toast
-          console.warn('Swipe API error (ignored, UI already advanced):', msg);
+          console.warn("Swipe API error (ignored, UI already advanced):", msg);
         }
       });
   };
 
   const loadMoreProfiles = async () => {
     try {
-      const response = await discoveryAPI.getMatches(10, profiles.length);
+      const response = await discoveryAPI.getMatches({
+        limit: 10,
+        offset: profiles.length,
+        minAge: filters.minAge,
+        maxAge: filters.maxAge,
+        gender: filters.gender,
+        verifiedOnly: filters.verifiedOnly,
+        interests: filters.interests
+          .split(",")
+          .map((i) => i.trim())
+          .filter(Boolean),
+        maxDistance: filters.maxDistance,
+      });
       setProfiles((prev) => [...prev, ...(response.matches || [])]);
     } catch {
       throw new Error("Failed to load more profiles");
@@ -446,8 +642,15 @@ function DashboardPage() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <button className="p-2 text-gray-600 hover:text-pink-600 transition-colors">
+            <button
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              className="p-2 text-gray-600 hover:text-pink-600 transition-colors relative"
+            >
               <Filter className="h-6 w-6" />
+              {(filters.gender !== "all" || filters.verifiedOnly) && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse" />
+              )}
             </button>
             <button
               onClick={() => router.push("/matches")}
@@ -472,6 +675,261 @@ function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6">
+        {showFilters && (
+          <div className="mb-4 p-4 bg-white rounded-2xl shadow border border-gray-100 space-y-4 relative">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Close
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <label className="space-y-1">
+                <span className="font-medium text-gray-600">Min Age</span>
+                <input
+                  type="number"
+                  min={18}
+                  max={filters.maxAge}
+                  value={filters.minAge}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      minAge: Number(e.target.value),
+                    }))
+                  }
+                  className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
+                />
+              </label>
+              <label className="space-y-1 col-span-2">
+                <span className="font-medium text-gray-600 flex items-center justify-between">
+                  Interests
+                  <button
+                    type="button"
+                    onClick={() => setFilters((f) => ({ ...f, interests: "" }))}
+                    className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Clear
+                  </button>
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {interestSuggestions.map((i) => {
+                    const active = filters.interests
+                      .toLowerCase()
+                      .split(",")
+                      .map((x) => x.trim())
+                      .filter(Boolean)
+                      .includes(i.toLowerCase());
+                    return (
+                      <button
+                        type="button"
+                        key={i}
+                        onClick={() => toggleInterest(i)}
+                        className={`px-2 py-1 rounded-full border text-[10px] ${
+                          active
+                            ? "bg-pink-500 text-white border-pink-500"
+                            : "border-gray-300 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    );
+                  })}
+                  {!interestSuggestions.length && (
+                    <span className="text-[10px] text-gray-400">
+                      No suggestions
+                    </span>
+                  )}
+                  {CURATED_INTERESTS.length > VISIBLE_INTEREST_LIMIT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllInterests((v) => !v)}
+                      className="px-2 py-1 rounded-full border text-[10px] border-dashed border-pink-400 text-pink-600 hover:bg-pink-50"
+                    >
+                      {showAllInterests
+                        ? "Show less"
+                        : `Show ${
+                            CURATED_INTERESTS.length - VISIBLE_INTEREST_LIMIT
+                          } more`}
+                    </button>
+                  )}
+                </div>
+              </label>
+              <label className="space-y-1">
+                <span className="font-medium text-gray-600">Max Age</span>
+                <input
+                  type="number"
+                  min={filters.minAge}
+                  max={99}
+                  value={filters.maxAge}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxAge: Number(e.target.value),
+                    }))
+                  }
+                  className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
+                />
+              </label>
+              <label className="space-y-1 col-span-2">
+                <span className="font-medium text-gray-600">Gender</span>
+                <select
+                  value={filters.gender}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, gender: e.target.value }))
+                  }
+                  className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
+                >
+                  <option value="all">All</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="non-binary">Non-binary</option>
+                  <option value="prefer-not-to-say">Prefer not</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 col-span-2 text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={filters.verifiedOnly}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      verifiedOnly: e.target.checked,
+                    }))
+                  }
+                  className="text-pink-500 rounded border-gray-300 focus:ring-pink-500"
+                />
+                <span className="text-xs">Verified only</span>
+              </label>
+              <label className="space-y-1 col-span-2">
+                <span className="font-medium text-gray-600">
+                  Interests (comma separated)
+                </span>
+                <input
+                  type="text"
+                  value={filters.interests}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, interests: e.target.value }))
+                  }
+                  placeholder="music, travel"
+                  className="w-full rounded-md border-gray-300 focus:ring-pink-500 focus:border-pink-500"
+                />
+              </label>
+              <label className="space-y-1 col-span-2">
+                <span className="font-medium text-gray-600 flex justify-between">
+                  <span>Max Distance (km)</span>
+                  <span className="font-normal text-gray-500">
+                    {filters.maxDistance}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={1}
+                  max={200}
+                  value={filters.maxDistance}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      maxDistance: Number(e.target.value),
+                    }))
+                  }
+                  className="w-full accent-pink-500"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1 items-center">
+              <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoApply}
+                  onChange={(e) => setAutoApply(e.target.checked)}
+                  className="rounded border-gray-300 text-pink-500 focus:ring-pink-500"
+                />
+                Auto Apply
+              </label>
+              <button
+                disabled={isFiltering || autoApply || !filtersChanged}
+                onClick={() => {
+                  setIsFiltering(true);
+                  fetchMatches();
+                }}
+                className="px-3 py-2 text-xs font-medium rounded-md bg-pink-500 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-pink-600"
+              >
+                {isFiltering ? "Applying..." : "Apply"}
+              </button>
+              <button
+                type="button"
+                disabled={isFiltering}
+                onClick={() => {
+                  setFilters({
+                    minAge: 18,
+                    maxAge: 60,
+                    gender: "all",
+                    verifiedOnly: false,
+                    interests: "",
+                    maxDistance: 50,
+                  });
+                  if (!autoApply) {
+                    setIsFiltering(true);
+                    fetchMatches();
+                  }
+                }}
+                className="px-3 py-2 text-xs font-medium rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                disabled={savingPrefs || filters.gender === "all"}
+                onClick={saveAsPreference}
+                className="px-3 py-2 text-xs font-medium rounded-md bg-emerald-500 text-white disabled:opacity-40 hover:bg-emerald-600"
+              >
+                {savingPrefs ? "Saving..." : "Save Prefs"}
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Match count / No results (C) */}
+        {!loading && profiles.length > 0 && (
+          <div className="mb-3 text-[11px] text-gray-500 flex justify-between">
+            <span>
+              {profiles.length} result{profiles.length !== 1 && "s"}
+              {filtersChanged && " (unapplied view)"}
+            </span>
+            {autoApply ? (
+              <span>Auto apply</span>
+            ) : filtersChanged ? (
+              <span className="text-amber-600">Changes pending</span>
+            ) : (
+              <span className="text-emerald-600">Up to date</span>
+            )}
+          </div>
+        )}
+        {!loading && profiles.length === 0 && (
+          <div className="mb-4 p-6 bg-white rounded-xl border text-center">
+            <p className="text-sm font-medium text-gray-700 mb-1">No results</p>
+            <p className="text-xs text-gray-500 mb-3">
+              Try broadening your filters or resetting them.
+            </p>
+            <button
+              onClick={() =>
+                setFilters({
+                  minAge: 18,
+                  maxAge: 60,
+                  gender: "all",
+                  verifiedOnly: false,
+                  interests: "",
+                  maxDistance: 50,
+                })
+              }
+              className="px-3 py-1.5 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600"
+            >
+              Reset Filters
+            </button>
+          </div>
+        )}
         <div className="relative h-[600px] mb-6">
           <AnimatePresence mode="wait">
             {currentProfile && (
@@ -500,7 +958,7 @@ function DashboardPage() {
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.6}
-                style={{ touchAction: 'none' }}
+                style={{ touchAction: "none" }}
                 onPointerDown={(e) => {
                   pointerStartRef.current = { x: e.clientX, y: e.clientY };
                   gestureTriggeredRef.current = false;
@@ -532,7 +990,10 @@ function DashboardPage() {
                   const offsetX = info.offset.x;
                   const velocityX = info.velocity.x || 0;
                   // Reset feedback when drag completes
-                  setTimeout(() => setDragFeedback({ direction: null, strength: 0 }), 120);
+                  setTimeout(
+                    () => setDragFeedback({ direction: null, strength: 0 }),
+                    120
+                  );
                   if (
                     offsetX > SWIPE_OFFSET_THRESHOLD ||
                     velocityX > SWIPE_VELOCITY_THRESHOLD
@@ -568,33 +1029,58 @@ function DashboardPage() {
                   const absX = Math.abs(x);
                   const absY = Math.abs(y);
                   const now = performance.now();
-                  const update = (direction: 'left'|'right'|'up'|null, strength: number) => {
-                    if (direction === lastDragFeedbackRef.current.direction && Math.abs(strength - lastDragFeedbackRef.current.strength) < 0.1 && now - lastDragFeedbackTsRef.current < 60) return;
+                  const update = (
+                    direction: "left" | "right" | "up" | null,
+                    strength: number
+                  ) => {
+                    if (
+                      direction === lastDragFeedbackRef.current.direction &&
+                      Math.abs(
+                        strength - lastDragFeedbackRef.current.strength
+                      ) < 0.1 &&
+                      now - lastDragFeedbackTsRef.current < 60
+                    )
+                      return;
                     lastDragFeedbackRef.current = { direction, strength };
                     lastDragFeedbackTsRef.current = now;
                     setDragFeedback({ direction, strength });
                   };
                   if (absY > absX && y < -10) {
-                    const strength = Math.min(1, Math.abs(y) / SUPERLIKE_VERTICAL_THRESHOLD);
-                    if (strength >= 1 && dragFeedback.direction !== 'up' && !liteMode) {
-                      setPulseDirection('up');
+                    const strength = Math.min(
+                      1,
+                      Math.abs(y) / SUPERLIKE_VERTICAL_THRESHOLD
+                    );
+                    if (
+                      strength >= 1 &&
+                      dragFeedback.direction !== "up" &&
+                      !liteMode
+                    ) {
+                      setPulseDirection("up");
                       setTimeout(() => setPulseDirection(null), 200);
                     }
-                    update('up', strength);
+                    update("up", strength);
                   } else if (absX > 6) {
                     const strength = Math.min(1, absX / SWIPE_OFFSET_THRESHOLD);
                     if (x > 0) {
-                      if (strength >= 1 && dragFeedback.direction !== 'right' && !liteMode) {
-                        setPulseDirection('right');
+                      if (
+                        strength >= 1 &&
+                        dragFeedback.direction !== "right" &&
+                        !liteMode
+                      ) {
+                        setPulseDirection("right");
                         setTimeout(() => setPulseDirection(null), 200);
                       }
-                      update('right', strength);
+                      update("right", strength);
                     } else {
-                      if (strength >= 1 && dragFeedback.direction !== 'left' && !liteMode) {
-                        setPulseDirection('left');
+                      if (
+                        strength >= 1 &&
+                        dragFeedback.direction !== "left" &&
+                        !liteMode
+                      ) {
+                        setPulseDirection("left");
                         setTimeout(() => setPulseDirection(null), 200);
                       }
-                      update('left', strength);
+                      update("left", strength);
                     }
                   } else if (lastDragFeedbackRef.current.direction !== null) {
                     update(null, 0);
@@ -607,14 +1093,14 @@ function DashboardPage() {
                     className="absolute inset-0 pointer-events-none rounded-2xl overflow-hidden"
                     style={{
                       background:
-                        dragFeedback.direction === 'right'
-                          ? 'linear-gradient(to right, rgba(16,185,129,0.25), rgba(5,150,105,0.15))'
-                          : dragFeedback.direction === 'left'
-                          ? 'linear-gradient(to left, rgba(244,63,94,0.28), rgba(225,29,72,0.15))'
-                          : 'linear-gradient(to top, rgba(59,130,246,0.3), rgba(37,99,235,0.15))',
+                        dragFeedback.direction === "right"
+                          ? "linear-gradient(to right, rgba(16,185,129,0.25), rgba(5,150,105,0.15))"
+                          : dragFeedback.direction === "left"
+                          ? "linear-gradient(to left, rgba(244,63,94,0.28), rgba(225,29,72,0.15))"
+                          : "linear-gradient(to top, rgba(59,130,246,0.3), rgba(37,99,235,0.15))",
                       opacity: 0.15 + dragFeedback.strength * 0.55,
-                      mixBlendMode: 'overlay',
-                      transition: 'opacity 120ms ease',
+                      mixBlendMode: "overlay",
+                      transition: "opacity 120ms ease",
                     }}
                   />
                 )}
@@ -622,36 +1108,46 @@ function DashboardPage() {
                 {dragFeedback.direction && (
                   <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-1 select-none">
                     <div
-                      className={`rounded-full backdrop-blur-sm px-4 py-2 flex items-center gap-2 border text-xs font-semibold tracking-wide uppercase shadow-md ${dragFeedback.direction === 'right' ? 'border-emerald-300/70 bg-emerald-500/20 text-emerald-100' : dragFeedback.direction === 'left' ? 'border-rose-300/70 bg-rose-500/25 text-rose-100' : 'border-sky-300/70 bg-sky-500/25 text-sky-100'}`}
+                      className={`rounded-full backdrop-blur-sm px-4 py-2 flex items-center gap-2 border text-xs font-semibold tracking-wide uppercase shadow-md ${
+                        dragFeedback.direction === "right"
+                          ? "border-emerald-300/70 bg-emerald-500/20 text-emerald-100"
+                          : dragFeedback.direction === "left"
+                          ? "border-rose-300/70 bg-rose-500/25 text-rose-100"
+                          : "border-sky-300/70 bg-sky-500/25 text-sky-100"
+                      }`}
                       style={{
-                        transform: `scale(${0.9 + dragFeedback.strength * 0.25})`,
+                        transform: `scale(${
+                          0.9 + dragFeedback.strength * 0.25
+                        })`,
                         opacity: 0.6 + dragFeedback.strength * 0.4,
-                        transition: 'transform 120ms ease, opacity 120ms ease',
+                        transition: "transform 120ms ease, opacity 120ms ease",
                       }}
                     >
-                      {dragFeedback.direction === 'left' && (
+                      {dragFeedback.direction === "left" && (
                         <X className="h-4 w-4" />
                       )}
-                      {dragFeedback.direction === 'right' && (
+                      {dragFeedback.direction === "right" && (
                         <Heart className="h-4 w-4" />
                       )}
-                      {dragFeedback.direction === 'up' && (
+                      {dragFeedback.direction === "up" && (
                         <Star className="h-4 w-4" />
                       )}
                       <span>
-                        {dragFeedback.direction === 'left'
-                          ? 'Pass'
-                          : dragFeedback.direction === 'right'
-                          ? 'Like'
-                          : 'Super Like'}
+                        {dragFeedback.direction === "left"
+                          ? "Pass"
+                          : dragFeedback.direction === "right"
+                          ? "Like"
+                          : "Super Like"}
                       </span>
                     </div>
                     {/* Pulse ring */}
-                    {!liteMode && pulseDirection && pulseDirection === dragFeedback.direction && (
-                      <div className="relative">
-                        <div className="absolute inset-0 -z-10 animate-ping-slow rounded-full bg-white/60" />
-                      </div>
-                    )}
+                    {!liteMode &&
+                      pulseDirection &&
+                      pulseDirection === dragFeedback.direction && (
+                        <div className="relative">
+                          <div className="absolute inset-0 -z-10 animate-ping-slow rounded-full bg-white/60" />
+                        </div>
+                      )}
                   </div>
                 )}
                 {/* Profile Image */}
@@ -678,24 +1174,38 @@ function DashboardPage() {
                   />
 
                   {/* Story-style progress bars */}
-                  {currentProfile.photos && currentProfile.photos.length > 1 && (
-                    <div className="absolute top-2 left-4 right-4 flex gap-1">
-                      {currentProfile.photos.map((_, idx) => {
-                        const filled = idx < photoIndex ? 100 : idx === photoIndex ? photoProgress : 0;
-                        return (
-                          <div
-                            key={idx}
-                            className="h-1 flex-1 rounded-full bg-white/25 overflow-hidden relative"
-                          >
+                  {currentProfile.photos &&
+                    currentProfile.photos.length > 1 && (
+                      <div className="absolute top-2 left-4 right-4 flex gap-1">
+                        {currentProfile.photos.map((_, idx) => {
+                          const filled =
+                            idx < photoIndex
+                              ? 100
+                              : idx === photoIndex
+                              ? photoProgress
+                              : 0;
+                          return (
                             <div
-                              className={`h-full ${liteMode ? 'bg-white' : 'bg-gradient-to-r from-pink-500 via-fuchsia-500 to-purple-500'} transition-[width] duration-150 ${idx === photoIndex && !liteMode ? "shadow-[0_0_4px_rgba(255,255,255,0.8)]" : ""}`}
-                              style={{ width: `${filled}%` }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                              key={idx}
+                              className="h-1 flex-1 rounded-full bg-white/25 overflow-hidden relative"
+                            >
+                              <div
+                                className={`h-full ${
+                                  liteMode
+                                    ? "bg-white"
+                                    : "bg-gradient-to-r from-pink-500 via-fuchsia-500 to-purple-500"
+                                } transition-[width] duration-150 ${
+                                  idx === photoIndex && !liteMode
+                                    ? "shadow-[0_0_4px_rgba(255,255,255,0.8)]"
+                                    : ""
+                                }`}
+                                style={{ width: `${filled}%` }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                   {/* Pause indicator */}
                   {isPaused && (
@@ -903,15 +1413,6 @@ function DashboardPage() {
 
 export default withAuth(DashboardPage);
 
-// Tailwind utility extension (scoped) for pulse animation if not globally defined
-// If you already configure this in tailwind.config, you can remove this <style jsx> block.
-// The class 'animate-ping-slow' is used for the pulse ring when threshold crossed.
-// Using a styled-jsx block keeps it local to this component.
-// On mobile this remains lightweight.
-// (Optional) Move to a global CSS if re-used elsewhere.
-// eslint-disable-next-line @next/next/no-sync-scripts
-// @ts-ignore - styled-jsx types may not be present
-<style jsx global>{`
-  @keyframes ping-slow-custom { 0% { transform: scale(0.9); opacity: 0.65;} 70% { transform: scale(1.4); opacity: 0;} 100% { transform: scale(1.5); opacity:0;} }
-  .animate-ping-slow { animation: ping-slow-custom 0.9s ease-out forwards; }
-`}</style>
+// NOTE: The styled-jsx global animation previously inlined here was removed.
+// If needed across the app, add the keyframes & utility class to globals.css or Tailwind config:
+// @layer utilities { @keyframes ping-slow-custom { 0%{transform:scale(.9);opacity:.65}70%{transform:scale(1.4);opacity:0}100%{transform:scale(1.5);opacity:0} } .animate-ping-slow{animation:ping-slow-custom .9s ease-out forwards} }
