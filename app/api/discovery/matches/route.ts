@@ -9,6 +9,13 @@ export async function GET(request: NextRequest) {
   try {
     await connectToDatabase();
 
+    // Ensure geospatial index exists on GeoJSON location field
+    try {
+      await User.collection.createIndex({ location: "2dsphere" });
+    } catch {
+      // Ignore if index already exists or cannot be created due to permissions
+    }
+
     // Verify authentication
     const { userId } = verifyAuth(request);
 
@@ -130,15 +137,23 @@ export async function GET(request: NextRequest) {
 
     // Distance filtering (if user + candidate have coordinates)
     if (maxDistance && currentUser.location?.coordinates?.length === 2) {
-      const distKm = parseInt(maxDistance);
-      if (!isNaN(distKm) && distKm > 0) {
-        filter["location.coordinates"] = {
+      const rawKm = parseInt(maxDistance);
+      // Guard against invalid or default [0,0] coordinates
+      const [lng, lat] = currentUser.location.coordinates;
+      const hasValidCoords =
+        Array.isArray(currentUser.location.coordinates) &&
+        currentUser.location.coordinates.length === 2 &&
+        !(lng === 0 && lat === 0);
+      // Clamp distance between 1 and 200 km (matches UI slider bounds)
+      const distKm = Math.min(200, Math.max(1, rawKm));
+      if (!isNaN(distKm) && distKm > 0 && hasValidCoords) {
+        filter["location"] = {
           $near: {
             $geometry: {
               type: "Point",
               coordinates: currentUser.location.coordinates, // [lng, lat]
             },
-            $maxDistance: distKm * 1000,
+            $maxDistance: distKm * 1000, // meters
           },
         };
       }
@@ -193,13 +208,36 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute main query
-    const users = await User.find(filter)
+    let users = await User.find(filter)
       .select(
         "firstName dateOfBirth location bio interests photos verification lifestyle"
       )
       .skip(offset)
       .limit(limit)
       .lean();
+
+    // If distance filtering was applied and no results, relax by removing geospatial constraint
+    const appliedDistance =
+      !!(filter as Record<string, unknown>).location &&
+      typeof (filter as Record<string, unknown>).location === "object" &&
+      (filter as Record<string, { $near?: unknown }>).location.$near;
+    let distanceRelaxed: boolean | undefined;
+    if (users.length === 0 && appliedDistance) {
+      const relaxedFilter: typeof filter = { ...filter };
+      delete (relaxedFilter as Record<string, unknown>).location;
+      try {
+        users = await User.find(relaxedFilter)
+          .select(
+            "firstName dateOfBirth location bio interests photos verification lifestyle"
+          )
+          .skip(offset)
+          .limit(limit)
+          .lean();
+        distanceRelaxed = true;
+      } catch {
+        // ignore re-query errors
+      }
+    }
 
     // If no results and we have strong deal breakers, attempt a relaxed count to help client adjust
     let relaxedCount: number | undefined;
@@ -282,6 +320,7 @@ export async function GET(request: NextRequest) {
               baselineCount,
               relaxedCount: relaxedCount ?? null,
               dealBreakersApplied: !!dealBreakers,
+              distanceRelaxed: distanceRelaxed ?? false,
             }
           : undefined,
       },

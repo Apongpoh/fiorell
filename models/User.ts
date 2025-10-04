@@ -40,8 +40,8 @@ export interface IUser extends Document {
   };
   lifestyle?: {
     hasKids?: boolean;
-    smoking?: 'no' | 'occasionally' | 'yes';
-    maritalStatus?: 'single' | 'divorced' | 'widowed' | 'separated';
+    smoking?: "no" | "occasionally" | "yes";
+    maritalStatus?: "single" | "divorced" | "widowed" | "separated";
   };
   verification: {
     isVerified: boolean;
@@ -96,16 +96,16 @@ const UserSchema = new Schema<IUser>(
       ],
     },
     // Password validation
-  password: {
-    type: String,
-    required: true,
-    minlength: 6
-  },
-  // Index on commonly searched fields
-  id: {
-    type: Schema.Types.ObjectId,
-    index: true
-  },
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+    },
+    // Index on commonly searched fields
+    id: {
+      type: Schema.Types.ObjectId,
+      index: true,
+    },
     dateOfBirth: {
       type: Date,
       required: false,
@@ -158,9 +158,9 @@ const UserSchema = new Schema<IUser>(
         createdAt: { type: Date, default: Date.now },
       },
     ],
-    defaultPhoto: { 
-      type: String, 
-      default: "/api/placeholder/profile" 
+    defaultPhoto: {
+      type: String,
+      default: "/api/placeholder/profile",
     },
     preferences: {
       ageRange: {
@@ -175,13 +175,21 @@ const UserSchema = new Schema<IUser>(
         excludeInterests: [{ type: String, trim: true }], // candidate must include NONE
         excludeSmoking: [{ type: String, trim: true }], // values of lifestyle.smoking to exclude
         excludeMaritalStatuses: [{ type: String, trim: true }],
-        requireHasKids: { type: Boolean, required: false, default: null }
-      }
+        requireHasKids: { type: Boolean, required: false, default: null },
+      },
     },
     lifestyle: {
       hasKids: { type: Boolean, required: false },
-      smoking: { type: String, enum: ['no','occasionally','yes'], required: false },
-      maritalStatus: { type: String, enum: ['single','divorced','widowed','separated'], required: false }
+      smoking: {
+        type: String,
+        enum: ["no", "occasionally", "yes"],
+        required: false,
+      },
+      maritalStatus: {
+        type: String,
+        enum: ["single", "divorced", "widowed", "separated"],
+        required: false,
+      },
     },
     verification: {
       isVerified: { type: Boolean, default: false },
@@ -223,7 +231,9 @@ const UserSchema = new Schema<IUser>(
 // Virtual for age calculation
 UserSchema.virtual("age").get(function () {
   if (!this.dateOfBirth) return null;
-  return Math.floor((Date.now() - this.dateOfBirth.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+  return Math.floor(
+    (Date.now() - this.dateOfBirth.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+  );
 });
 
 // Pre-save middleware to hash password
@@ -247,7 +257,8 @@ UserSchema.methods.comparePassword = async function (
 };
 
 // Indexes for better query performance
-UserSchema.index({ "location.coordinates": "2dsphere" });
+// GeoJSON 2dsphere index must be on the field that stores the geometry object
+UserSchema.index({ location: "2dsphere" });
 UserSchema.index({ "preferences.ageRange": 1 });
 UserSchema.index({ isActive: 1 });
 UserSchema.index({ lastSeen: 1 });

@@ -55,9 +55,29 @@ const profileSchema = z.object({
       { message: "You must be at least 18 years old" }
     ),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
-  location: z.object({
-    city: z.string().min(2, "Please enter your city"),
-  }),
+  location: z
+    .object({
+      city: z.string().min(2, "Please enter your city"),
+      coordinatesLng: z
+        .number()
+        .min(-180, "Longitude must be ≥ -180")
+        .max(180, "Longitude must be ≤ 180")
+        .optional(),
+      coordinatesLat: z
+        .number()
+        .min(-90, "Latitude must be ≥ -90")
+        .max(90, "Latitude must be ≤ 90")
+        .optional(),
+    })
+    .refine(
+      (loc) =>
+        (loc.coordinatesLng === undefined && loc.coordinatesLat === undefined) ||
+        (typeof loc.coordinatesLng === "number" && typeof loc.coordinatesLat === "number"),
+      {
+        message: "Provide both longitude and latitude, or leave both empty",
+        path: ["coordinatesLng"],
+      }
+    ),
   interests: z.array(z.string()).min(3, "Please select at least 3 interests"),
 });
 
@@ -240,6 +260,12 @@ export default function ProfilePage() {
         bio: currentUser.bio || "",
         location: {
           city: currentUser.location?.city || "",
+          coordinatesLng: Array.isArray(currentUser.location?.coordinates)
+            ? (currentUser.location!.coordinates as [number, number])[0]
+            : undefined,
+          coordinatesLat: Array.isArray(currentUser.location?.coordinates)
+            ? (currentUser.location!.coordinates as [number, number])[1]
+            : undefined,
         },
         interests: currentUser.interests || [],
       };
@@ -285,11 +311,30 @@ export default function ProfilePage() {
         interests: data.interests,
         location: {
           city: data.location.city,
+          ...(typeof data.location.coordinatesLng === "number" &&
+          typeof data.location.coordinatesLat === "number"
+            ? {
+                coordinates: [
+                  Number(data.location.coordinatesLng),
+                  Number(data.location.coordinatesLat),
+                ] as [number, number],
+              }
+            : {}),
         },
         lifestyle: {
-          hasKids: lifestyle.hasKids,
-          smoking: lifestyle.smoking || undefined,
-          maritalStatus: lifestyle.maritalStatus || undefined,
+          // Send nulls for cleared fields so the API can delete them
+          hasKids:
+            typeof lifestyle.hasKids === "undefined"
+              ? null
+              : lifestyle.hasKids,
+          smoking:
+            typeof lifestyle.smoking === "undefined"
+              ? null
+              : lifestyle.smoking,
+          maritalStatus:
+            typeof lifestyle.maritalStatus === "undefined"
+              ? null
+              : lifestyle.maritalStatus,
         },
       };
 
@@ -346,16 +391,48 @@ export default function ProfilePage() {
   const saveLifestyle = async () => {
     try {
       setSavingLifestyle(true);
-      await userAPI.updateProfile({
+      const updateResp = (await userAPI.updateProfile({
         lifestyle: {
-          hasKids: lifestyle.hasKids,
-          smoking: lifestyle.smoking,
-          maritalStatus: lifestyle.maritalStatus,
+          // Send nulls for cleared fields so the API can delete them
+          hasKids:
+            typeof lifestyle.hasKids === "undefined"
+              ? null
+              : lifestyle.hasKids,
+          smoking:
+            typeof lifestyle.smoking === "undefined"
+              ? null
+              : lifestyle.smoking,
+          maritalStatus:
+            typeof lifestyle.maritalStatus === "undefined"
+              ? null
+              : lifestyle.maritalStatus,
         },
-      });
-      const refreshed = await userAPI.getProfile();
-      if (refreshed && typeof refreshed === "object" && "user" in refreshed) {
-        setCurrentUser((refreshed as { user: typeof currentUser }).user as typeof currentUser);
+      })) as unknown;
+      // Prefer using the update response to avoid race conditions
+      if (updateResp && typeof updateResp === "object" && "user" in updateResp) {
+        const u = (updateResp as { user: typeof currentUser }).user as typeof currentUser;
+        setCurrentUser(u);
+        if (u && u.lifestyle) {
+          setLifestyle({
+            hasKids: u.lifestyle.hasKids,
+            smoking: u.lifestyle.smoking as typeof lifestyle.smoking,
+            maritalStatus: u.lifestyle.maritalStatus as typeof lifestyle.maritalStatus,
+          });
+        }
+      } else {
+        // Fallback to fetching fresh profile if response didn't include user
+        const refreshed = await userAPI.getProfile();
+        if (refreshed && typeof refreshed === "object" && "user" in refreshed) {
+          const u = (refreshed as { user: typeof currentUser }).user as typeof currentUser;
+          setCurrentUser(u);
+          if (u && u.lifestyle) {
+            setLifestyle({
+              hasKids: u.lifestyle.hasKids,
+              smoking: u.lifestyle.smoking as typeof lifestyle.smoking,
+              maritalStatus: u.lifestyle.maritalStatus as typeof lifestyle.maritalStatus,
+            });
+          }
+        }
       }
       showNotification("Lifestyle saved", "success");
     } catch {
@@ -744,12 +821,12 @@ export default function ProfilePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Location
+                  Location <span className="text-gray-500">(City, Country)</span>
                 </label>
                 <input
                   {...register("location.city")}
                   type="text"
-                  placeholder="Enter your city"
+                  placeholder="e.g., Accra, Ghana"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                 />
                 {errors.location?.city && (
@@ -757,6 +834,46 @@ export default function ProfilePage() {
                     {errors.location.city.message}
                   </p>
                 )}
+                <div className="grid md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Longitude (°)</label>
+                    <input
+                      {...register("location.coordinatesLng", { valueAsNumber: true })}
+                      type="number"
+                      step="any"
+                      min={-180}
+                      max={180}
+                      placeholder="e.g., -0.1276"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    />
+                    {errors.location?.coordinatesLng && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {errors.location.coordinatesLng.message as unknown as string}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Latitude (°)</label>
+                    <input
+                      {...register("location.coordinatesLat", { valueAsNumber: true })}
+                      type="number"
+                      step="any"
+                      min={-90}
+                      max={90}
+                      placeholder="e.g., 5.6037"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    />
+                    {errors.location?.coordinatesLat && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {errors.location.coordinatesLat.message as unknown as string}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Enter coordinates to find people near you. Order is Longitude, Latitude.
+                  Example (New York): -74.0060, 40.7128
+                </p>
               </div>
             </div>
 

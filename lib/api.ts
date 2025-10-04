@@ -185,9 +185,9 @@ export const userAPI = {
       coordinates?: [number, number];
     };
     lifestyle?: {
-      hasKids?: boolean;
-      smoking?: "no" | "occasionally" | "yes";
-      maritalStatus?: "single" | "divorced" | "widowed" | "separated";
+      hasKids?: boolean | null;
+      smoking?: "no" | "occasionally" | "yes" | null;
+      maritalStatus?: "single" | "divorced" | "widowed" | "separated" | null;
     };
     privacy?: {
       showAge: boolean;

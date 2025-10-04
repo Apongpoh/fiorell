@@ -1,6 +1,5 @@
 "use client";
 import Image from "next/image";
-
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -78,7 +77,7 @@ function DashboardPage() {
   });
   const [isFiltering, setIsFiltering] = useState(false);
   const filterDebounceRef = useRef<number | null>(null);
-  const [autoApply, setAutoApply] = useState(true); // enable debounce apply
+  const [autoApply, setAutoApply] = useState(false); // manual apply by default
   const [appliedFiltersSignature, setAppliedFiltersSignature] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
   // (Deal breakers removed from inline filters; managed in Profile page)
@@ -168,19 +167,20 @@ function DashboardPage() {
       try {
         setUserLoading(true);
         const response = await userAPI.getProfile();
-        if (response && typeof response === 'object' && 'user' in response) {
+        if (response && typeof response === "object" && "user" in response) {
           const userField = (response as { user?: unknown }).user;
-          if (userField && typeof userField === 'object') {
+          if (userField && typeof userField === "object") {
             const u = userField as { id?: unknown; firstName?: unknown };
             setCurrentUser({
-              id: typeof u.id === 'string' ? u.id : '',
-              firstName: typeof u.firstName === 'string' ? u.firstName : undefined,
+              id: typeof u.id === "string" ? u.id : "",
+              firstName:
+                typeof u.firstName === "string" ? u.firstName : undefined,
             });
           } else {
-            throw new Error('Invalid user shape');
+            throw new Error("Invalid user shape");
           }
         } else {
-          throw new Error('Invalid profile response');
+          throw new Error("Invalid profile response");
         }
       } catch (error: unknown) {
         // If auth fails, redirect to login
@@ -219,57 +219,77 @@ function DashboardPage() {
           .filter(Boolean),
         maxDistance: filters.maxDistance,
       });
-      if (response && typeof response === 'object' && 'matches' in response) {
+      if (response && typeof response === "object" && "matches" in response) {
         const matchesVal = (response as { matches?: unknown }).matches;
         if (Array.isArray(matchesVal)) {
           // Map minimally to Profile[] ensuring required fields exist
           const safeProfiles = matchesVal
-            .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+            .filter(
+              (p): p is Record<string, unknown> =>
+                typeof p === "object" && p !== null
+            )
             .map((p) => {
               const obj = p as Record<string, unknown>;
               const fallbackId = (): string => {
-                if (typeof obj.id === 'string') return obj.id;
+                if (typeof obj.id === "string") return obj.id;
                 const possible = (obj as { _id?: unknown })._id;
-                return typeof possible === 'string' ? possible : '';
+                return typeof possible === "string" ? possible : "";
               };
               const photosParsed = Array.isArray(obj.photos)
                 ? (obj.photos as unknown[])
-                    .filter((ph): ph is { url?: unknown; isMain?: unknown } => typeof ph === 'object' && ph !== null)
+                    .filter(
+                      (ph): ph is { url?: unknown; isMain?: unknown } =>
+                        typeof ph === "object" && ph !== null
+                    )
                     .map((ph) => {
                       const phObj = ph as { url?: unknown; isMain?: unknown };
                       return {
-                        url: typeof phObj.url === 'string' ? phObj.url : '/api/placeholder/profile',
+                        url:
+                          typeof phObj.url === "string"
+                            ? phObj.url
+                            : "/api/placeholder/profile",
                         isMain: phObj.isMain === true,
                       };
                     })
                 : [];
               const compatibility = ((): number => {
-                const val = (obj as { compatibilityScore?: unknown }).compatibilityScore;
-                return typeof val === 'number' ? val : 0;
+                const val = (obj as { compatibilityScore?: unknown })
+                  .compatibilityScore;
+                return typeof val === "number" ? val : 0;
               })();
               const commonInterests = ((): string[] => {
-                const ci = (obj as { commonInterests?: unknown }).commonInterests;
+                const ci = (obj as { commonInterests?: unknown })
+                  .commonInterests;
                 return Array.isArray(ci)
-                  ? ci.filter((x): x is string => typeof x === 'string')
+                  ? ci.filter((x): x is string => typeof x === "string")
                   : [];
               })();
               const defaultPhoto = ((): string | undefined => {
                 const dp = (obj as { defaultPhoto?: unknown }).defaultPhoto;
-                return typeof dp === 'string' ? dp : undefined;
+                return typeof dp === "string" ? dp : undefined;
               })();
               return {
                 id: fallbackId(),
-                firstName: typeof obj.firstName === 'string' ? obj.firstName : 'Unknown',
-                age: typeof obj.age === 'number' ? obj.age : 0,
+                firstName:
+                  typeof obj.firstName === "string" ? obj.firstName : "Unknown",
+                age: typeof obj.age === "number" ? obj.age : 0,
                 location: ((): { city: string } => {
                   const loc = obj.location as { city?: unknown } | undefined;
-                  return { city: loc && typeof loc.city === 'string' ? loc.city : '' };
+                  return {
+                    city: loc && typeof loc.city === "string" ? loc.city : "",
+                  };
                 })(),
-                bio: typeof obj.bio === 'string' ? obj.bio : '',
-                interests: Array.isArray(obj.interests) ? (obj.interests as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+                bio: typeof obj.bio === "string" ? obj.bio : "",
+                interests: Array.isArray(obj.interests)
+                  ? (obj.interests as unknown[]).filter(
+                      (x): x is string => typeof x === "string"
+                    )
+                  : [],
                 photos: photosParsed,
                 verification: ((): { isVerified: boolean } => {
-                  const ver = obj.verification as { isVerified?: unknown } | undefined;
+                  const ver = obj.verification as
+                    | { isVerified?: unknown }
+                    | undefined;
                   return { isVerified: ver?.isVerified === true };
                 })(),
                 compatibilityScore: compatibility,
@@ -282,7 +302,7 @@ function DashboardPage() {
           setProfiles([]);
         }
       } else {
-        throw new Error('Invalid matches response');
+        throw new Error("Invalid matches response");
       }
       setCurrentProfileIndex(0);
       setPhotoIndex(0);
@@ -400,10 +420,16 @@ function DashboardPage() {
           return;
         }
         const data = await statsAPI.getUserStats(currentUser.id);
-        if (data && typeof data === 'object' && 'today' in data && 'totals' in data && 'active' in data) {
+        if (
+          data &&
+          typeof data === "object" &&
+          "today" in data &&
+          "totals" in data &&
+          "active" in data
+        ) {
           setStats(data as typeof stats);
         } else {
-          throw new Error('Invalid stats response');
+          throw new Error("Invalid stats response");
         }
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -622,12 +648,12 @@ function DashboardPage() {
             profileSnapshot.id,
             action
           );
-          if (response && typeof response === 'object' && 'match' in response) {
+          if (response && typeof response === "object" && "match" in response) {
             const matchField = (response as { match?: unknown }).match;
             if (matchField) {
-            // Show match modal on the profile just swiped
-            setCurrentMatch(profileSnapshot);
-            setShowMatchModal(true);
+              // Show match modal on the profile just swiped
+              setCurrentMatch(profileSnapshot);
+              setShowMatchModal(true);
             }
           }
           if (action === "like" || action === "super_like") {

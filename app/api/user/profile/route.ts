@@ -108,21 +108,41 @@ export async function PUT(request: NextRequest) {
       user.dateOfBirth = new Date(dateOfBirth);
     if (bio !== undefined) user.bio = sanitizeBio(String(bio));
     if (location !== undefined) {
+      // Ensure location object is initialized with correct GeoJSON shape
       if (!user.location) {
         user.location = {
+          type: "Point",
+          coordinates: [0, 0],
           city: "",
-          country: "",
-          coordinates: { type: "Point", coordinates: [0, 0] },
-        } as {
-          city: string;
-          country?: string;
-          coordinates: { type: string; coordinates: number[] };
-        };
+        } as IUser["location"];
       }
-      if (location.city !== undefined)
+      if (location.city !== undefined) {
         user.location.city = sanitizeCity(String(location.city || ""));
-      if (location.country !== undefined)
-        user.location.country = String(location.country).slice(0, 56);
+      }
+      // Update coordinates if provided as [lng, lat]
+      const coords = (location as { coordinates?: unknown }).coordinates;
+      if (
+        Array.isArray(coords) &&
+        coords.length === 2 &&
+        typeof coords[0] === "number" &&
+        typeof coords[1] === "number"
+      ) {
+        // Normalize: expected [lng, lat]
+        let lng = coords[0];
+        let lat = coords[1];
+        // Auto-correct common swap: if lng looks like latitude (>90 abs) and lat looks like longitude (>90 abs), swap
+        const absLng = Math.abs(lng);
+        const absLat = Math.abs(lat);
+        if (absLng > 90 && absLat <= 90) {
+          // likely swapped
+          [lng, lat] = [lat, lng];
+        }
+        // Clamp to valid ranges
+        lng = Math.max(-180, Math.min(180, lng));
+        lat = Math.max(-90, Math.min(90, lat));
+        user.location.type = "Point";
+        user.location.coordinates = [lng, lat];
+      }
     }
     if (interests !== undefined) {
       user.interests = validateInterests(interests);

@@ -373,7 +373,14 @@ export default function ViewProfilePage() {
               </>
             ) : (
               <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                <span className="text-gray-400">No photos available</span>
+                <Image
+                  src={profile.defaultPhoto || "/api/placeholder/profile"}
+                  alt={`${profile.firstName}'s placeholder photo`}
+                  width={800}
+                  height={800}
+                  className="w-full h-full object-cover"
+                  priority
+                />
               </div>
             )}
           </div>
@@ -415,14 +422,16 @@ export default function ViewProfilePage() {
           </div>
 
           {/* About Section */}
-          {profile.bio && (
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                About
-              </h2>
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              About
+            </h2>
+            {typeof profile.bio === "string" && profile.bio.trim().length > 0 ? (
               <p className="text-gray-600 whitespace-pre-line">{profile.bio}</p>
-            </div>
-          )}
+            ) : (
+              <p className="text-gray-400 text-sm">No bio yet.</p>
+            )}
+          </div>
 
           {/* Interests Section */}
           {profile.interests && profile.interests.length > 0 && (

@@ -20,7 +20,24 @@ const signupSchema = z
     confirmPassword: z.string(),
     dateOfBirth: z.string().min(1, "Please enter your date of birth"),
     gender: z.string().min(1, "Please select your gender"),
-    location: z.string().min(2, "Please enter your location"),
+    location: z
+      .string()
+      .min(2, "Please enter your location")
+      .refine((val) => /.+,.+/.test(val), {
+        message: "Use the format City, Country",
+      })
+      .refine(
+        (val) => {
+          const [city, country] = val.split(",");
+          return (
+            typeof city === "string" &&
+            typeof country === "string" &&
+            city.trim().length > 0 &&
+            country.trim().length > 1
+          );
+        },
+        { message: "Please enter as City, Country (e.g., Accra, Ghana)" }
+      ),
     interests: z.array(z.string()).min(3, "Please select at least 3 interests"),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -354,13 +371,14 @@ export default function SignupPage() {
               {/* Location */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Location
+                  Location{" "}
+                  <span className="text-gray-500">(City, Country)</span>
                 </label>
                 <input
                   {...register("location")}
                   type="text"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                  placeholder="Enter your city/location"
+                  placeholder="e.g., New York, USA"
                 />
                 {errors.location && (
                   <p className="text-red-500 text-sm mt-1">

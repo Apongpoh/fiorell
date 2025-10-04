@@ -71,7 +71,22 @@ const signupSchema = z
     location: z
       .string()
       .min(2, "Location is required")
-      .max(100, "Location cannot exceed 100 characters"),
+      .max(100, "Location cannot exceed 100 characters")
+      .refine((val) => /.+,.+/.test(val), {
+        message: "Use the format City, Country",
+      })
+      .refine(
+        (val) => {
+          const [city, country] = val.split(",");
+          return (
+            typeof city === "string" &&
+            typeof country === "string" &&
+            city.trim().length > 0 &&
+            country.trim().length > 1
+          );
+        },
+        { message: "Please enter as City, Country (e.g., New York, USA)" }
+      ),
 
     interests: z
       .array(z.string())
@@ -202,6 +217,14 @@ export async function POST(_request: NextRequest) {
     }
 
     // Create new user with validated data
+    // Normalize location "City, Country" into city string and keep coords default [0,0]
+    const [cityPart, countryPartRaw] = location.split(",");
+    const cityTrim = (cityPart || "").trim();
+    const countryTrim = (countryPartRaw || "").trim();
+    const cityCountry = countryTrim
+      ? `${cityTrim || "Unknown"}, ${countryTrim}`
+      : cityTrim || "Unknown";
+
     const newUser = new User({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -212,7 +235,7 @@ export async function POST(_request: NextRequest) {
       location: {
         type: "Point",
         coordinates: [0, 0], // Default coordinates [longitude, latitude]
-        city: location || "Unknown",
+        city: cityCountry || "Unknown",
       },
       bio: "",
       interests: interests,
