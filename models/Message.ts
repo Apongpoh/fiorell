@@ -19,11 +19,9 @@ export interface IMessage extends Document {
   isDeleted: boolean;
   deletedAt?: Date;
   hiddenFrom: mongoose.Types.ObjectId[];
-  // End-to-end encryption fields
-  isEncrypted?: boolean;
-  encryptedContent?: string;
-  iv?: string;
-  keyId?: string;
+  // Encryption fields removed
+  disappearingDuration?: number;
+  disappearsAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,9 +44,7 @@ const MessageSchema = new Schema<IMessage>({
   },
   content: {
     type: String,
-    required: function() {
-      return this.type === 'text';
-    },
+    required: true,
     maxlength: [1000, 'Message cannot exceed 1000 characters'],
     trim: true
   },
@@ -78,20 +74,15 @@ const MessageSchema = new Schema<IMessage>({
     type: Schema.Types.ObjectId,
     ref: 'User'
   }],
-  // End-to-end encryption fields
-  isEncrypted: {
-    type: Boolean,
-    default: false
+  // Encryption fields removed
+  disappearingDuration: {
+    type: Number,
+    default: null
   },
-  encryptedContent: {
-    type: String
+  disappearsAt: {
+    type: Date,
+    default: null
   },
-  iv: {
-    type: String
-  },
-  keyId: {
-    type: String
-  }
 }, {
   timestamps: true
 });

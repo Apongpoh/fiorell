@@ -8,6 +8,7 @@ export interface IMatch extends Document {
   matchedAt?: Date;
   lastMessageAt?: Date;
   isActive: boolean;
+  disappearingMessageDuration?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +43,10 @@ const MatchSchema = new Schema<IMatch>({
   isActive: {
     type: Boolean,
     default: true
+  },
+  disappearingMessageDuration: {
+    type: Number,
+    default: null
   }
 }, {
   timestamps: true

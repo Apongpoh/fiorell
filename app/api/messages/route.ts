@@ -11,7 +11,16 @@ const recentMessageHashes: Map<string, { contentHash: string; ts: number }> =
 const RATE_WINDOW_MS = 3500; // minimum gap between messages from same user in same match (soft throttle)
 
 // Very small profanity placeholder list (extend or replace with dedicated service)
-const BANNED_WORDS = ["badword1", "badword2"];
+const BANNED_WORDS = [
+  // Hate speech/racism
+  "nigger", "faggot", "chink", "spic", "kike", "coon", "gook", "wetback", "slut", "whore", "tranny", "retard", "dyke", "twink", "paki", "terrorist", "isis",
+  // Sexual harassment/explicit
+  "rape", "cum", "dick", "pussy", "cock", "anal", "blowjob", "handjob", "nude", "nudes", "sex", "porn", "xxx", "horny", "milf", "incest", "pedophile", "child porn",
+  // Violence/threats
+  "kill", "murder", "die", "suicide", "hang", "shoot", "stab", "bomb", "attack", "abuse", "beat", "assault",
+  // General offensive
+  "bitch", "asshole", "motherfucker", "cunt", "twat", "douche", "bastard", "jerk", "idiot", "moron", "loser"
+];
 const hasBannedWord = (text: string) => {
   const lower = text.toLowerCase();
   return BANNED_WORDS.some((w) => lower.includes(w));
@@ -133,11 +142,6 @@ export async function GET(request: NextRequest) {
       createdAt: message.createdAt,
       disappearingDuration: message.disappearingDuration,
       disappearsAt: message.disappearsAt,
-      // Include encryption fields
-      isEncrypted: message.isEncrypted,
-      encryptedContent: message.encryptedContent,
-      iv: message.iv,
-      keyId: message.keyId,
     }));
 
     // Format match data for response
@@ -160,9 +164,9 @@ export async function GET(request: NextRequest) {
         status: match.status,
         matchedAt: match.matchedAt,
         lastMessageAt: match.lastMessageAt,
+        disappearingMessageDuration: match.disappearingMessageDuration ?? null,
       };
     } catch (error) {
-      console.error("Error formatting match data:", error);
       return NextResponse.json(
         { error: "Failed to process match data" },
         { status: 500 }
@@ -178,8 +182,6 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Get messages error:", error);
-
     if (
       typeof error === "object" &&
       error !== null &&
@@ -410,8 +412,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "Message sent successfully",
-        data: formattedMessage,
+      message: formattedMessage,
       },
       { status: 201 }
     );

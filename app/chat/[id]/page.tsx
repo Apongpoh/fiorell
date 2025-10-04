@@ -16,14 +16,6 @@ import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import {
-  initializeEncryption,
-  encryptMessage,
-  decryptMessage,
-  getRecipientPublicKey,
-  userHasEncryption,
-  KeyPair,
-} from "@/lib/encryption";
 
 interface Message {
   id: string;
@@ -46,11 +38,7 @@ interface Message {
   isDeleted: boolean;
   disappearsAt?: string;
   disappearingDuration?: number;
-  // End-to-end encryption fields
-  isEncrypted?: boolean;
-  encryptedContent?: string;
-  iv?: string;
-  keyId?: string;
+  // Encryption fields removed
   // Optimistic / client-only state extensions
   uploading?: boolean;
   progress?: number; // future use if we implement xhr progress
@@ -76,9 +64,10 @@ interface MatchData {
   status: string;
   matchedAt: string;
   lastMessageAt?: string;
+  disappearingMessageDuration?: number;
 }
 
-const formatMessageTime = (timestamp: string) => {
+const formatMessageTime = (timestamp: string | null) => {
   if (!timestamp) return "Just now";
   try {
     const date = new Date(timestamp);
@@ -113,17 +102,24 @@ export default function ChatPage() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false);
   const [disappearingTime, setDisappearingTime] = useState<number | null>(null);
+  // (already declared below)
+  // ...existing code...
+  const [match, setMatch] = useState<MatchData | null>(null);
+  // Load persistent disappearing message duration from match data
+  useEffect(() => {
+    if (typeof match?.disappearingMessageDuration === "number") {
+      setDisappearingTime(match.disappearingMessageDuration);
+    }
+  }, [match]);
   const [showDisappearingModal, setShowDisappearingModal] = useState(false);
-  const [userKeyPair, setUserKeyPair] = useState<KeyPair | null>(null);
-  const [encryptionInitialized, setEncryptionInitialized] = useState(false);
-  const [, setOtherUserHasEncryption] = useState(false);
+  // Encryption state removed
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [match, setMatch] = useState<MatchData | null>(null);
+  // (already declared above)
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -146,56 +142,20 @@ export default function ChatPage() {
 
   // Initialize encryption for the user
   useEffect(() => {
-    const initEncryption = async () => {
-      if (!user?.id) return;
-
-      try {
-        const keyPair = await initializeEncryption(user.id);
-        setUserKeyPair(keyPair);
-        setEncryptionInitialized(true);
-        // encryptionEnabled is always true for all users
-      } catch (error) {
-        console.error("Failed to initialize encryption:", error);
-        showNotification("Encryption initialization failed", "error");
-      }
-    };
-
-    initEncryption();
+    // Encryption initialization removed
   }, [user?.id, id, showNotification]);
 
   // Decrypt messages when they are loaded
   const decryptMessages = useCallback(async (messages: Message[]): Promise<Message[]> => {
-    if (!userKeyPair) return messages;
-
-    const decryptedMessages = await Promise.all(
-      messages.map(async (message) => {
-        if (message.isEncrypted && message.encryptedContent && message.iv) {
-          try {
-            const decryptedContent = await decryptMessage(
-              {
-                encryptedContent: message.encryptedContent,
-                iv: message.iv,
-                keyId: message.keyId,
-              },
-              userKeyPair.privateKey
-            );
-            return { ...message, content: decryptedContent };
-          } catch {
-            return { ...message, content: "[Failed to decrypt message]" };
-          }
-        }
-        return message;
-      })
-    );
-
-    return decryptedMessages;
-  }, [userKeyPair]);
+    // Encryption removed, just return messages as-is
+    return messages;
+  }, [user]);
 
   // Load initial messages and setup real-time updates
   useEffect(() => {
     // Removed unused retryTimeout
 
-    const loadMessages = async () => {
+    const loadMessages = async (): Promise<void> => {
       try {
         setLoading(true);
         const data = await apiRequest(`/messages?matchId=${id}`);
@@ -219,28 +179,12 @@ export default function ChatPage() {
           throw new Error("Invalid messages data");
         }
 
-        // Decrypt messages if encryption is initialized
-        const rawMessages = messagesVal as Message[];
-        const decryptedMessages = encryptionInitialized
-          ? await decryptMessages(rawMessages)
-          : rawMessages;
-
-        setMessages(decryptedMessages);
+        // Just set messages as-is
+        setMessages(messagesVal as Message[]);
         setMatch(matchVal as MatchData);
 
         // Check if other user has encryption enabled
-        if (encryptionInitialized && matchVal) {
-          const otherUserId = (matchVal as MatchData).user1._id === user?.id 
-            ? (matchVal as MatchData).user2._id 
-            : (matchVal as MatchData).user1._id;
-          
-          try {
-            const hasEncryption = await userHasEncryption(otherUserId);
-            setOtherUserHasEncryption(hasEncryption);
-          } catch {
-            setOtherUserHasEncryption(false);
-          }
-        }
+        // Encryption check removed
 
         // Mark messages as read
         const hasMessagesArray = Array.isArray(
@@ -283,42 +227,15 @@ export default function ChatPage() {
       eventSource.onmessage = async (event) => {
         const message = JSON.parse(event.data);
 
-        // Decrypt the message if it's encrypted and we have keys
-        let decryptedMessage = message;
-        if (
-          encryptionInitialized &&
-          userKeyPair &&
-          message.isEncrypted &&
-          message.encryptedContent &&
-          message.iv
-        ) {
-          try {
-            const decryptedContent = await decryptMessage(
-              {
-                encryptedContent: message.encryptedContent,
-                iv: message.iv,
-                keyId: message.keyId,
-              },
-              userKeyPair.privateKey
-            );
-            decryptedMessage = { ...message, content: decryptedContent };
-          } catch (error) {
-            console.error("Failed to decrypt incoming message:", error);
-            decryptedMessage = {
-              ...message,
-              content: "[Failed to decrypt message]",
-            };
-          }
-        }
-
-        setMessages((prev) => [...prev, decryptedMessage]);
+        // Just add message as-is
+        setMessages((prev) => [...prev, message]);
       };
 
       return () => {
         eventSource.close();
       };
     }
-  }, [id, retryCount, encryptionInitialized, userKeyPair, decryptMessages]);
+  }, [id, retryCount, decryptMessages]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -337,20 +254,28 @@ export default function ChatPage() {
           }
           return true;
         });
-
-        // Only update if there's a difference to prevent infinite loops
-        return filtered.length !== prev.length ? filtered : prev;
+        return filtered;
       });
     };
 
-    // Check every 30 seconds for expired messages
-    const interval = setInterval(checkExpiredMessages, 30000);
+    // Check every 5 seconds for expired messages
+    const interval = setInterval(checkExpiredMessages, 5000);
 
-    // Also check immediately
+    // Also check immediately on mount
     checkExpiredMessages();
 
     return () => clearInterval(interval);
-  }, []); // Remove messages dependency to prevent infinite loop
+  }, []);
+
+  // Immediately remove expired messages on render
+  useEffect(() => {
+    setMessages((prev) => prev.filter((message) => {
+      if (message.disappearsAt) {
+        return new Date(message.disappearsAt).getTime() > Date.now();
+      }
+      return true;
+    }));
+  }, []);
 
   // Send text message
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -378,45 +303,11 @@ export default function ChatPage() {
         type: "text",
         ...(disappearingTime && {
           disappearingDuration: disappearingTime,
-          disappearsAt: new Date(
-            Date.now() + disappearingTime * 1000
-          ).toISOString(),
+          disappearsAt: new Date(Date.now() + disappearingTime * 1000).toISOString(),
         }),
       };
 
-      // Always attempt encryption (automatic for all users)
-      if (encryptionInitialized && userKeyPair && match) {
-        try {
-          const otherUserId =
-            match.user1._id === user?.id ? match.user2._id : match.user1._id;
-          const recipientPublicKey = await getRecipientPublicKey(otherUserId);
-
-          const encryptedMessage = await encryptMessage(
-            newMessage.trim(),
-            recipientPublicKey
-          );
-
-          messagePayload = {
-            ...messagePayload,
-            content: "", // Clear plaintext content
-            isEncrypted: true,
-            encryptedContent: encryptedMessage.encryptedContent,
-            iv: encryptedMessage.iv,
-            keyId: encryptedMessage.keyId,
-          };
-        } catch (encryptionError) {
-          console.log("Encryption not available, sending unencrypted:", encryptionError);
-          // Check if it's specifically because the recipient doesn't have encryption
-          if (encryptionError instanceof Error && encryptionError.name === "RECIPIENT_NO_ENCRYPTION") {
-            // This is expected - recipient hasn't set up encryption yet
-            console.log("Recipient hasn't enabled encryption yet, sending unencrypted message");
-          } else {
-            // Other encryption errors might need attention
-            console.warn("Encryption failed for unexpected reason:", encryptionError);
-          }
-          // Silently fall back to unencrypted messaging
-        }
-      }
+      // Encryption logic removed; always send plaintext
 
       const data = await apiRequest("/messages", {
         method: "POST",
@@ -818,12 +709,7 @@ export default function ChatPage() {
                         )} ago`
                       : "Offline"}
                   </p>
-                  {encryptionInitialized && (
-                    <div className="flex items-center gap-1" title="Messages are end-to-end encrypted">
-                      <Shield className="h-3 w-3 text-green-600" />
-                      <span className="text-xs text-green-600">Encrypted</span>
-                    </div>
-                  )}
+                  {/* Encryption UI removed */}
                 </div>
               </div>
             </Link>
@@ -1350,24 +1236,33 @@ export default function ChatPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setShowDisappearingModal(false);
-                  if (disappearingTime) {
-                    const timeText =
-                      disappearingTime < 3600
-                        ? `${disappearingTime / 60} minutes`
-                        : disappearingTime < 86400
-                        ? `${disappearingTime / 3600} hours`
-                        : `${disappearingTime / 86400} days`;
-                    showNotification(
-                      `Disappearing messages enabled. Messages will delete after ${timeText}.`,
-                      "success"
-                    );
-                  } else {
-                    showNotification(
-                      "Disappearing messages disabled.",
-                      "success"
-                    );
+                  // Persist setting to backend
+                  try {
+                    await apiRequest(`/matches/${id}/disappearing`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ disappearingMessageDuration: disappearingTime ?? 0 }),
+                    });
+                    if (disappearingTime) {
+                      const timeText =
+                        disappearingTime < 3600
+                          ? `${disappearingTime / 60} minutes`
+                          : disappearingTime < 86400
+                          ? `${disappearingTime / 3600} hours`
+                          : `${disappearingTime / 86400} days`;
+                      showNotification(
+                        `Disappearing messages enabled. Messages will delete after ${timeText}.`,
+                        "success"
+                      );
+                    } else {
+                      showNotification(
+                        "Disappearing messages disabled.",
+                        "success"
+                      );
+                    }
+                  } catch {
+                    showNotification("Failed to save disappearing message setting.", "error");
                   }
                 }}
                 className="inline-flex items-center justify-center rounded-full font-semibold transition-all duration-200 px-6 py-3 text-base bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 focus:ring-2 focus:ring-indigo-500"
@@ -1570,6 +1465,29 @@ export default function ChatPage() {
                             </div>
                           )}
                         </div>
+                      ) : message.type === "video" ? (
+                        <div className="relative">
+                          <video
+                            key={message.id + "-video"}
+                            src={message.media?.url || ""}
+                            controls
+                            width={400}
+                            height={400}
+                            className={`rounded-lg max-w-full ${
+                              message.uploading ? "opacity-70" : ""
+                            }`}
+                          />
+                          {message.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="h-10 w-10 border-4 border-white/40 border-t-white rounded-full animate-spin" />
+                            </div>
+                          )}
+                          {message.error && !message.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs text-white font-medium rounded-lg">
+                              Upload failed
+                            </div>
+                          )}
+                        </div>
                       ) : null}
                       <div
                         key={message.id + "-meta"}
@@ -1608,14 +1526,7 @@ export default function ChatPage() {
                             </span>
                           </div>
                         )}
-                        {message.isEncrypted && (
-                          <div
-                            className="flex items-center gap-1"
-                            title="End-to-end encrypted"
-                          >
-                            <Shield className="h-3 w-3" />
-                          </div>
-                        )}
+                        {/* Encryption indicator removed */}
                         {isSender && (
                           <span className="ml-1">
                             {message.readStatus &&

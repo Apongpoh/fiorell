@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
       sender: userId,
       recipient: match.user1.toString() === userId ? match.user2 : match.user1,
       type: fileType.startsWith("image/") ? "image" : "video",
+      content: "media",
       media: {
         url, // temporary signed URL (expires). Consider storing key and generating on demand client-side.
         key: objectKey,
