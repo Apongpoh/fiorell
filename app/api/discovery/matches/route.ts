@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
+import Block from "@/models/Block";
 import Like from "@/models/Like";
 import { verifyAuth } from "@/lib/auth";
 
@@ -205,6 +206,30 @@ export async function GET(request: NextRequest) {
         _id: { $ne: userId },
         isActive: true,
       });
+    }
+
+    // Exclude blocked relationships
+    const blockedRels = await Block.find({
+      active: true,
+      $or: [{ blocker: userId }, { blocked: userId }],
+    }).select("blocker blocked");
+    const excludeIds = new Set<string>();
+    blockedRels.forEach((b) => {
+      if (b.blocker?.toString() === userId.toString() && b.blocked) {
+        excludeIds.add(b.blocked.toString());
+      }
+      if (b.blocked?.toString() === userId.toString() && b.blocker) {
+        excludeIds.add(b.blocker.toString());
+      }
+    });
+    if (excludeIds.size > 0) {
+      const origId =
+        typeof filter._id === "object" && filter._id !== null ? filter._id : {};
+        const idFilter: { [key: string]: unknown; $nin: string[] } = {
+          ...origId,
+          $nin: Array.from(excludeIds),
+        };
+        filter._id = idFilter as object;
     }
 
     // Execute main query

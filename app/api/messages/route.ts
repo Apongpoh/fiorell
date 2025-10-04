@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import Match from "@/models/Match";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
+import Block from "@/models/Block";
 
 // Simple in-memory throttle & duplicate cache (best-effort, per process)
 const recentMessageHashes: Map<string, { contentHash: string; ts: number }> =
@@ -52,6 +53,22 @@ export async function GET(request: NextRequest) {
       status: "matched",
       isActive: true,
     }).populate("user1 user2", "_id firstName photos lastSeen");
+    // Block checks: if either party has blocked the other, prevent message access
+    const otherUserId =
+      match.user1._id.toString() === userId ? match.user2._id.toString() : match.user1._id.toString();
+    const blockedRel = await Block.findOne({
+      active: true,
+      $or: [
+        { blocker: userId, blocked: otherUserId },
+        { blocker: otherUserId, blocked: userId },
+      ],
+    });
+    if (blockedRel) {
+      return NextResponse.json(
+        { error: "Messaging is disabled due to a block between users" },
+        { status: 403 }
+      );
+    }
 
     if (!match?.user1 || !match?.user2) {
       return NextResponse.json(
@@ -232,6 +249,22 @@ export async function POST(request: NextRequest) {
       status: "matched",
       isActive: true,
     });
+    // Block checks before sending messages
+    const otherUserId =
+      match.user1.toString() === userId ? match.user2.toString() : match.user1.toString();
+    const blockedRel = await Block.findOne({
+      active: true,
+      $or: [
+        { blocker: userId, blocked: otherUserId },
+        { blocker: otherUserId, blocked: userId },
+      ],
+    });
+    if (blockedRel) {
+      return NextResponse.json(
+        { error: "Messaging is disabled due to a block between users" },
+        { status: 403 }
+      );
+    }
 
     if (!match) {
       return NextResponse.json(

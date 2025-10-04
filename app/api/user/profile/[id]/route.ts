@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User, { IUser } from "@/models/User";
+import Block from "@/models/Block";
 import { verifyAuth } from "@/lib/auth";
 import { computeProfileCompletion } from "@/lib/profileCompletion";
 
@@ -36,6 +37,25 @@ export async function GET(
       : null;
 
     const completion = computeProfileCompletion(user as Partial<IUser>);
+
+    // Check block relationship between viewer and profile
+    let blockedByYou = false;
+    let blockedYou = false;
+    try {
+      const blockRel = await Block.find({
+        active: true,
+        $or: [
+          { blocker: userId, blocked: id },
+          { blocker: id, blocked: userId },
+        ],
+      }).lean();
+      blockedByYou = blockRel.some(
+        (b) => b.blocker.toString() === userId.toString() && b.blocked.toString() === id.toString()
+      );
+      blockedYou = blockRel.some(
+        (b) => b.blocker.toString() === id.toString() && b.blocked.toString() === userId.toString()
+      );
+    } catch {}
 
     // Compute mutual interests with viewer (if different user)
     let mutualInterests: string[] = [];
@@ -80,6 +100,8 @@ export async function GET(
       verification: user.verification || { isVerified: false },
       lastSeen: user.lastSeen,
       lifestyle: user.lifestyle || null,
+      blockedByYou,
+      blockedYou,
       stats: {
         profileCompleteness: completion.percentage,
         profileScore: completion.score,

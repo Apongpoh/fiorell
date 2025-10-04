@@ -20,6 +20,8 @@ interface Match {
     verification: {
       isVerified: boolean;
     };
+    blockedByYou?: boolean;
+    blockedYou?: boolean;
   };
   lastMessage?: {
     _id: string;
@@ -206,6 +208,9 @@ export default function MatchesPage() {
                         {match.user.verification.isVerified && (
                           <Shield className="h-4 w-4 text-blue-400" />
                         )}
+                        {(match.user.blockedByYou || match.user.blockedYou) && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-red-500 text-white">Blocked</span>
+                        )}
                       </div>
                       <p className="text-white/90 text-xs">
                         Matched {formatDistanceToNow(new Date(match.matchedAt))}{" "}
@@ -219,10 +224,14 @@ export default function MatchesPage() {
                   </div>
                   <div className="p-3">
                     <button
-                      onClick={() => router.push(`/chat/${match._id}`)}
+                      onClick={() => {
+                        if (match.user.blockedByYou || match.user.blockedYou) return;
+                        router.push(`/chat/${match._id}`);
+                      }}
+                      disabled={!!(match.user.blockedByYou || match.user.blockedYou)}
                       className="w-full bg-pink-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-pink-600 transition-colors"
                     >
-                      Say Hello
+                      {match.user.blockedByYou || match.user.blockedYou ? "Blocked" : "Say Hello"}
                     </button>
                   </div>
                 </motion.div>
@@ -238,7 +247,10 @@ export default function MatchesPage() {
                 {matches.slice(0, 3).map((match) => (
                   <div
                     key={match._id}
-                    onClick={() => router.push(`/chat/${match._id}`)}
+                    onClick={() => {
+                      if (match.user.blockedByYou || match.user.blockedYou) return;
+                      router.push(`/chat/${match._id}`);
+                    }}
                     className="flex items-center space-x-3 bg-white rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition-colors"
                   >
                     <div className="relative">
@@ -329,6 +341,9 @@ export default function MatchesPage() {
                     {match.user.verification.isVerified && (
                       <Shield className="h-4 w-4 text-blue-500" />
                     )}
+                      {(match.user.blockedByYou || match.user.blockedYou) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700">Blocked</span>
+                      )}
                   </div>
                   {match.lastMessage && (
                     <p className="text-sm text-gray-600 truncate">
