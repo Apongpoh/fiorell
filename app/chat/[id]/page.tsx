@@ -11,7 +11,6 @@ import {
   MoreVertical,
   Timer,
   Shield,
-  ShieldOff,
 } from "lucide-react";
 import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
@@ -22,6 +21,7 @@ import {
   encryptMessage,
   decryptMessage,
   getRecipientPublicKey,
+  userHasEncryption,
   KeyPair,
 } from "@/lib/encryption";
 
@@ -114,10 +114,9 @@ export default function ChatPage() {
   const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false);
   const [disappearingTime, setDisappearingTime] = useState<number | null>(null);
   const [showDisappearingModal, setShowDisappearingModal] = useState(false);
-  // Encryption state
-  const [encryptionEnabled, setEncryptionEnabled] = useState(false);
   const [userKeyPair, setUserKeyPair] = useState<KeyPair | null>(null);
   const [encryptionInitialized, setEncryptionInitialized] = useState(false);
+  const [, setOtherUserHasEncryption] = useState(false);
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
@@ -154,16 +153,7 @@ export default function ChatPage() {
         const keyPair = await initializeEncryption(user.id);
         setUserKeyPair(keyPair);
         setEncryptionInitialized(true);
-
-        // Enable encryption by default for new conversations
-        const savedPreference = localStorage.getItem(
-          `encryption_enabled_${id}`
-        );
-        if (savedPreference !== null) {
-          setEncryptionEnabled(savedPreference === "true");
-        } else {
-          setEncryptionEnabled(true); // Default to enabled
-        }
+        // encryptionEnabled is always true for all users
       } catch (error) {
         console.error("Failed to initialize encryption:", error);
         showNotification("Encryption initialization failed", "error");
@@ -190,8 +180,7 @@ export default function ChatPage() {
               userKeyPair.privateKey
             );
             return { ...message, content: decryptedContent };
-          } catch (error) {
-            console.error("Failed to decrypt message:", error);
+          } catch {
             return { ...message, content: "[Failed to decrypt message]" };
           }
         }
@@ -238,6 +227,20 @@ export default function ChatPage() {
 
         setMessages(decryptedMessages);
         setMatch(matchVal as MatchData);
+
+        // Check if other user has encryption enabled
+        if (encryptionInitialized && matchVal) {
+          const otherUserId = (matchVal as MatchData).user1._id === user?.id 
+            ? (matchVal as MatchData).user2._id 
+            : (matchVal as MatchData).user1._id;
+          
+          try {
+            const hasEncryption = await userHasEncryption(otherUserId);
+            setOtherUserHasEncryption(hasEncryption);
+          } catch {
+            setOtherUserHasEncryption(false);
+          }
+        }
 
         // Mark messages as read
         const hasMessagesArray = Array.isArray(
@@ -381,8 +384,8 @@ export default function ChatPage() {
         }),
       };
 
-      // Encrypt message if encryption is enabled and initialized
-      if (encryptionEnabled && encryptionInitialized && userKeyPair && match) {
+      // Always attempt encryption (automatic for all users)
+      if (encryptionInitialized && userKeyPair && match) {
         try {
           const otherUserId =
             match.user1._id === user?.id ? match.user2._id : match.user1._id;
@@ -402,12 +405,16 @@ export default function ChatPage() {
             keyId: encryptedMessage.keyId,
           };
         } catch (encryptionError) {
-          console.error("Encryption failed:", encryptionError);
-          showNotification(
-            "Failed to encrypt message. Sending unencrypted.",
-            "error"
-          );
-          // Continue with unencrypted message
+          console.log("Encryption not available, sending unencrypted:", encryptionError);
+          // Check if it's specifically because the recipient doesn't have encryption
+          if (encryptionError instanceof Error && encryptionError.name === "RECIPIENT_NO_ENCRYPTION") {
+            // This is expected - recipient hasn't set up encryption yet
+            console.log("Recipient hasn't enabled encryption yet, sending unencrypted message");
+          } else {
+            // Other encryption errors might need attention
+            console.warn("Encryption failed for unexpected reason:", encryptionError);
+          }
+          // Silently fall back to unencrypted messaging
         }
       }
 
@@ -803,13 +810,21 @@ export default function ChatPage() {
                 <h2 className="font-medium text-gray-900">
                   {otherUser?.firstName}
                 </h2>
-                <p className="text-sm text-gray-500">
-                  {otherUser?.lastSeen
-                    ? `Last seen ${formatDistanceToNow(
-                        new Date(otherUser.lastSeen)
-                      )} ago`
-                    : "Offline"}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-500">
+                    {otherUser?.lastSeen
+                      ? `Last seen ${formatDistanceToNow(
+                          new Date(otherUser.lastSeen)
+                        )} ago`
+                      : "Offline"}
+                  </p>
+                  {encryptionInitialized && (
+                    <div className="flex items-center gap-1" title="Messages are end-to-end encrypted">
+                      <Shield className="h-3 w-3 text-green-600" />
+                      <span className="text-xs text-green-600">Encrypted</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </Link>
           </div>
@@ -878,47 +893,6 @@ export default function ChatPage() {
                 >
                   <div className="flex items-center gap-2">
                     Disappearing Messages
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    if (encryptionInitialized) {
-                      const newState = !encryptionEnabled;
-                      setEncryptionEnabled(newState);
-                      localStorage.setItem(
-                        `encryption_enabled_${id}`,
-                        newState.toString()
-                      );
-                      showNotification(
-                        newState
-                          ? "End-to-end encryption enabled"
-                          : "End-to-end encryption disabled",
-                        "success"
-                      );
-                    } else {
-                      showNotification(
-                        "Encryption is still initializing...",
-                        "error"
-                      );
-                    }
-                    setShowMenu(false);
-                  }}
-                  className={`w-full px-4 py-2 text-left hover:bg-gray-50 text-sm ${
-                    encryptionEnabled ? "text-blue-600" : "text-gray-600"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    {encryptionEnabled ? (
-                      <Shield className="h-4 w-4" />
-                    ) : (
-                      <ShieldOff className="h-4 w-4" />
-                    )}
-                    {encryptionEnabled ? "Encryption: ON" : "Encryption: OFF"}
-                    {!encryptionInitialized && (
-                      <span className="text-xs text-gray-400">
-                        (Initializing...)
-                      </span>
-                    )}
                   </div>
                 </button>
               </div>
@@ -1699,64 +1673,6 @@ export default function ChatPage() {
             placeholder="Type a message..."
             className="flex-1 bg-gray-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
           />
-          <button
-            type="button"
-            onClick={() => setShowDisappearingModal(true)}
-            className={`p-2 rounded-full transition-all ${
-              disappearingTime
-                ? "bg-green-100 text-green-600"
-                : "text-gray-400 hover:text-green-600 hover:bg-gray-50"
-            }`}
-            title={
-              disappearingTime
-                ? `Disappearing after ${
-                    disappearingTime < 60
-                      ? `${disappearingTime}s`
-                      : disappearingTime < 3600
-                      ? `${Math.floor(disappearingTime / 60)}m`
-                      : `${Math.floor(disappearingTime / 3600)}h`
-                  }`
-                : "Set disappearing messages"
-            }
-          >
-            <Timer className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (encryptionInitialized) {
-                const newState = !encryptionEnabled;
-                setEncryptionEnabled(newState);
-                localStorage.setItem(
-                  `encryption_enabled_${id}`,
-                  newState.toString()
-                );
-                showNotification(
-                  newState
-                    ? "End-to-end encryption enabled"
-                    : "End-to-end encryption disabled",
-                  "success"
-                );
-              }
-            }}
-            className={`p-2 rounded-full transition-all ${
-              encryptionEnabled && encryptionInitialized
-                ? "bg-blue-100 text-blue-600"
-                : "text-gray-400 hover:text-blue-600 hover:bg-gray-50"
-            }`}
-            title={
-              encryptionEnabled
-                ? "End-to-end encryption enabled"
-                : "End-to-end encryption disabled"
-            }
-            disabled={!encryptionInitialized}
-          >
-            {encryptionEnabled ? (
-              <Shield className="h-5 w-5" />
-            ) : (
-              <ShieldOff className="h-5 w-5" />
-            )}
-          </button>
           <button
             type="submit"
             disabled={!newMessage.trim() || sending}

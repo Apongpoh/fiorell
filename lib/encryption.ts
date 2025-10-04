@@ -233,19 +233,20 @@ export function getStoredPublicKey(userId: string): string | null {
 }
 
 // Initialize encryption for a user (generates keys if not exists)
+// This is now automatic for all users
 export async function initializeEncryption(userId: string): Promise<KeyPair> {
   let storedKeyPair = getStoredKeyPair(userId);
   
   if (!storedKeyPair) {
-    // Generate new key pair
+    // Generate new key pair automatically
     const keyPair = await generateKeyPair();
     storedKeyPair = await exportKeyPair(keyPair);
     storeKeyPair(userId, storedKeyPair);
     
-    // Also upload public key to server for other users
+    // Upload public key to server automatically
     try {
       const token = localStorage.getItem("fiorell_auth_token");
-      await fetch("/api/user/public-key", {
+      const response = await fetch("/api/user/public-key", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -255,6 +256,13 @@ export async function initializeEncryption(userId: string): Promise<KeyPair> {
           publicKey: storedKeyPair.publicKey,
         }),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.warn("Failed to upload public key to server:", errorData);
+      } else {
+        console.log("Public key uploaded successfully");
+      }
     } catch (error) {
       console.warn("Failed to upload public key to server:", error);
     }
@@ -263,6 +271,16 @@ export async function initializeEncryption(userId: string): Promise<KeyPair> {
   }
   
   return await importKeyPair(storedKeyPair);
+}
+
+// Check if a user has encryption enabled (has a public key)
+export async function userHasEncryption(userId: string): Promise<boolean> {
+  try {
+    await getRecipientPublicKey(userId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Get recipient's public key (from cache or server)
@@ -288,9 +306,16 @@ export async function getRecipientPublicKey(recipientId: string): Promise<Crypto
         if (publicKeyBase64) {
           storePublicKey(recipientId, publicKeyBase64);
         }
+      } else if (response.status === 404) {
+        throw new Error("RECIPIENT_NO_ENCRYPTION");
+      } else {
+        throw new Error(`Failed to fetch public key: ${response.status}`);
       }
     } catch (error) {
       console.error("Failed to fetch recipient public key:", error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error("Unable to encrypt message: recipient public key not available");
     }
   }
