@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User, { IUser } from "@/models/User";
 import { verifyAuth } from "@/lib/auth";
 import { computeProfileCompletion } from "@/lib/profileCompletion";
+import ProfileView from "@/models/ProfileView";
 import { sanitizeBio, sanitizeCity, validateInterests } from "@/lib/validators";
 
 // Get user profile
@@ -21,7 +22,22 @@ export async function GET(request: NextRequest) {
 
     const completion = computeProfileCompletion(user as Partial<IUser>);
 
-    // Return user data with profile completion
+    // Calculate real-time views
+    let profileViews = 0;
+    let viewsToday = 0;
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      profileViews = await ProfileView.countDocuments({
+        targetUserId: user._id.toString(),
+      });
+      viewsToday = await ProfileView.countDocuments({
+        targetUserId: user._id.toString(),
+        createdAt: { $gte: startOfDay },
+      });
+    } catch {}
+
+    // Return user data with profile completion and real-time views
     const userResponse = {
       id: user._id.toString(),
       firstName: user.firstName,
@@ -43,6 +59,8 @@ export async function GET(request: NextRequest) {
         profileCompleteness: completion.percentage,
         profileScore: completion.score,
         profileBreakdown: completion.breakdown,
+        profileViews,
+        viewsToday,
       },
       isActive: user.isActive,
       lastSeen: user.lastSeen,

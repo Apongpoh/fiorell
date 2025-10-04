@@ -87,11 +87,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get messages for this match
+    // Get messages for this match, excluding deleted, hidden, and expired disappearing messages
     const messages =
       (await Message.find({
         match: matchId,
         isDeleted: false,
+        hiddenFrom: { $ne: userId },
+        $or: [
+          { disappearsAt: { $exists: false } }, // Regular messages
+          { disappearsAt: null }, // Regular messages with null value
+          { disappearsAt: { $gt: new Date() } }, // Non-expired disappearing messages
+        ],
       })
         .sort({ createdAt: -1 })
         .limit(limit)
@@ -125,6 +131,13 @@ export async function GET(request: NextRequest) {
       },
       readStatus: message.readStatus,
       createdAt: message.createdAt,
+      disappearingDuration: message.disappearingDuration,
+      disappearsAt: message.disappearsAt,
+      // Include encryption fields
+      isEncrypted: message.isEncrypted,
+      encryptedContent: message.encryptedContent,
+      iv: message.iv,
+      keyId: message.keyId,
     }));
 
     // Format match data for response
@@ -194,7 +207,18 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const body = await request.json();
-    const { matchId, content: rawContent, type = "text" } = body;
+    const { 
+      matchId, 
+      content: rawContent, 
+      type = "text", 
+      disappearingDuration, 
+      disappearsAt,
+      // Encryption fields
+      isEncrypted = false,
+      encryptedContent,
+      iv,
+      keyId
+    } = body;
     let content = rawContent;
 
     // Basic normalization
@@ -211,9 +235,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (type === "text" && (!content || content.length === 0)) {
+    if (type === "text" && !isEncrypted && (!content || content.length === 0)) {
       return NextResponse.json(
         { error: "Message content is required" },
+        { status: 400 }
+      );
+    }
+
+    if (type === "text" && isEncrypted && (!encryptedContent || !iv)) {
+      return NextResponse.json(
+        { error: "Encrypted message requires encryptedContent and iv" },
         { status: 400 }
       );
     }
@@ -225,7 +256,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (type === "text" && content) {
+    // Skip content validation for encrypted messages
+    if (type === "text" && content && !isEncrypted) {
       // Reject messages that are only punctuation/emojis repeated (low-signal spam heuristic)
       const noAlphaNum = content.replace(/[^a-z0-9]+/gi, "");
       if (noAlphaNum.length === 0 && content.length > 10) {
@@ -305,13 +337,45 @@ export async function POST(request: NextRequest) {
       match.user1._id.toString() === userId ? match.user2._id : match.user1._id;
 
     // Create message
-    const message = new Message({
+    interface MessageData {
+      match: string;
+      sender: string;
+      recipient: string;
+      content: string;
+      type: string;
+      isEncrypted?: boolean;
+      encryptedContent?: string;
+      iv?: string;
+      keyId?: string;
+      disappearingDuration?: number;
+      disappearsAt?: Date;
+    }
+
+    const messageData: MessageData = {
       match: matchId,
       sender: userId,
       recipient: recipientId,
-      content: content,
+      content: isEncrypted ? "" : content, // Store empty content for encrypted messages
       type,
-    });
+    };
+
+    // Add encryption fields if this is an encrypted message
+    if (isEncrypted) {
+      messageData.isEncrypted = true;
+      messageData.encryptedContent = encryptedContent;
+      messageData.iv = iv;
+      if (keyId) {
+        messageData.keyId = keyId;
+      }
+    }
+
+    // Add disappearing message fields if provided
+    if (disappearingDuration && disappearsAt) {
+      messageData.disappearingDuration = disappearingDuration;
+      messageData.disappearsAt = new Date(disappearsAt);
+    }
+
+    const message = new Message(messageData);
 
     await message.save();
 
@@ -335,6 +399,13 @@ export async function POST(request: NextRequest) {
       },
       readStatus: message.readStatus,
       createdAt: message.createdAt,
+      disappearingDuration: message.disappearingDuration,
+      disappearsAt: message.disappearsAt,
+      // Include encryption fields in response
+      isEncrypted: message.isEncrypted,
+      encryptedContent: message.encryptedContent,
+      iv: message.iv,
+      keyId: message.keyId,
     };
 
     return NextResponse.json(

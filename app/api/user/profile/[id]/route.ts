@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User, { IUser } from "@/models/User";
 import Block from "@/models/Block";
+import ProfileView from "@/models/ProfileView";
 import { verifyAuth } from "@/lib/auth";
 import { computeProfileCompletion } from "@/lib/profileCompletion";
 
@@ -77,6 +78,37 @@ export async function GET(
       } catch {}
     }
 
+    // Count profile view once per day if viewer is not the profile owner and neither is blocked
+    if (
+      userId &&
+      userId.toString() !== id.toString() &&
+      !blockedByYou &&
+      !blockedYou
+    ) {
+      try {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const existingView = await ProfileView.findOne({
+          userId: userId.toString(),
+          targetUserId: id.toString(),
+          createdAt: { $gte: startOfDay },
+        }).lean();
+        if (!existingView) {
+          await ProfileView.create({
+            userId: userId.toString(),
+            targetUserId: id.toString(),
+          });
+          // Increment stats counter
+          await User.updateOne(
+            { _id: id },
+            { $inc: { "stats.profileViews": 1 } }
+          );
+        }
+      } catch {
+        // Non-blocking: ignore view counting errors
+      }
+    }
+
     // Derive aggregate like counts
     const stats = (user.stats ?? {}) as Record<string, unknown>;
     const totalLikes =
@@ -89,8 +121,21 @@ export async function GET(
         : 0;
     const totalMatches =
       typeof stats.totalMatches === "number" ? stats.totalMatches : 0;
-    const profileViews =
-      typeof stats.profileViews === "number" ? stats.profileViews : 0;
+
+    // Views today and total views from ProfileView collection
+    let profileViews = 0;
+    let viewsToday = 0;
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      profileViews = await ProfileView.countDocuments({
+        targetUserId: id.toString(),
+      });
+      viewsToday = await ProfileView.countDocuments({
+        targetUserId: id.toString(),
+        createdAt: { $gte: startOfDay },
+      });
+    } catch {}
 
     // Format the response including completion & score
     const formattedUser = {
@@ -114,6 +159,7 @@ export async function GET(
         totalSuperLikes,
         totalMatches,
         profileViews,
+        viewsToday,
         mutualInterests,
         mutualInterestsCount: mutualInterests.length,
       },

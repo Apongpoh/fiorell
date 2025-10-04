@@ -18,6 +18,12 @@ export interface IMessage extends Document {
   };
   isDeleted: boolean;
   deletedAt?: Date;
+  hiddenFrom: mongoose.Types.ObjectId[];
+  // End-to-end encryption fields
+  isEncrypted?: boolean;
+  encryptedContent?: string;
+  iv?: string;
+  keyId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +73,24 @@ const MessageSchema = new Schema<IMessage>({
   },
   deletedAt: {
     type: Date
+  },
+  hiddenFrom: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  // End-to-end encryption fields
+  isEncrypted: {
+    type: Boolean,
+    default: false
+  },
+  encryptedContent: {
+    type: String
+  },
+  iv: {
+    type: String
+  },
+  keyId: {
+    type: String
   }
 }, {
   timestamps: true

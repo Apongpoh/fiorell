@@ -172,11 +172,20 @@ export default function ProfilePage() {
     totalSuperLikesReceived?: number;
     totalMatches?: number;
     profileViews?: number;
+    viewsToday?: number;
+    totalLikes?: number;
+    profileCompleteness?: number;
+    profileScore?: number;
+    profileBreakdown?: Record<string, number>;
+    mutualInterests?: string[];
+    mutualInterestsCount?: number;
   };
 
   interface Profile extends Omit<import("@/models/User").IUser, "stats"> {
     age?: number;
     stats: ProfileStats;
+    blockedByYou?: boolean;
+    blockedYou?: boolean;
   }
 
   // (parsePhotos moved above)
@@ -189,6 +198,7 @@ export default function ProfilePage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmDeleteName, setConfirmDeleteName] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [hardDelete, setHardDelete] = useState(false);
   const [dealBreakers, setDealBreakers] = useState({
     requireVerified: false,
     mustHaveInterests: "",
@@ -549,7 +559,7 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-pink-500">
                   {(currentUser?.stats?.totalLikesReceived ?? 0) +
@@ -565,9 +575,21 @@ export default function ProfilePage() {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-pink-500">
-                  {currentUser?.stats?.profileViews || 0}
+                  {/* Calculate total views from stats or fallback to 0 */}
+                  {typeof currentUser?.stats?.profileViews === "number"
+                    ? currentUser.stats.profileViews
+                    : 0}
                 </div>
-                <div className="text-sm text-gray-600">Views</div>
+                <div className="text-sm text-gray-600">Total Views</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-pink-500">
+                  {/* Calculate views today from stats or fallback to 0 */}
+                  {typeof currentUser?.stats?.viewsToday === "number"
+                    ? currentUser.stats.viewsToday
+                    : 0}
+                </div>
+                <div className="text-sm text-gray-600">Views Today</div>
               </div>
             </div>
           </div>
@@ -1468,10 +1490,30 @@ export default function ProfilePage() {
                       Delete Account
                     </h3>
                     <p className="text-gray-600 mb-6">
-                      Are you sure you want to delete your account? This action
-                      cannot be undone and all your data will be permanently
-                      deleted.
+                      Are you sure you want to delete your account?
+                      <br />
+                      You can either deactivate your account (soft delete) so your
+                      profile no longer appears anywhere, or permanently delete it.
+                      Permanent deletion cannot be undone and will remove your
+                      messages, matches, likes, and other related data.
                     </p>
+                    <div className="mb-4">
+                      <label className="flex items-center space-x-2 text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={hardDelete}
+                          onChange={(e) => setHardDelete(e.target.checked)}
+                          className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                        />
+                        <span>
+                          Permanently delete my account (cannot be undone)
+                        </span>
+                      </label>
+                      <p className="mt-2 text-xs text-gray-500">
+                        If unchecked, your account will be deactivated. You can
+                        contact support later to request permanent deletion.
+                      </p>
+                    </div>
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Type your first name to confirm
@@ -1505,6 +1547,7 @@ export default function ProfilePage() {
                               },
                               body: JSON.stringify({
                                 confirmName: confirmDeleteName,
+                                hardDelete,
                               }),
                             });
                             const data = await resp.json();
@@ -1513,7 +1556,9 @@ export default function ProfilePage() {
                                 data.error || "Failed to delete account"
                               );
                             showNotification(
-                              "Account deactivated. You will be logged out.",
+                              hardDelete
+                                ? "Account permanently deleted. Logging out."
+                                : "Account deactivated. You will be logged out.",
                               "success"
                             );
                             // Log out and redirect
@@ -1542,7 +1587,11 @@ export default function ProfilePage() {
                         }
                         className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-50"
                       >
-                        {deleteSubmitting ? "Processing..." : "Delete Account"}
+                        {deleteSubmitting
+                          ? "Processing..."
+                          : hardDelete
+                          ? "Delete Permanently"
+                          : "Deactivate Account"}
                       </button>
                     </div>
                   </div>

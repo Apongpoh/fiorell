@@ -33,6 +33,7 @@ type ProfileStats = {
   profileScore?: number;
   profileBreakdown?: Record<string, number>;
   profileViews?: number;
+  viewsToday?: number;
   totalLikes?: number;
   totalLikesReceived?: number;
   totalSuperLikes?: number;
@@ -124,8 +125,22 @@ export default function ProfilePage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <p className="text-red-500">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Go Back
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -134,8 +149,14 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <p className="text-gray-600">Profile not found</p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
+          >
+            Go Back
+          </button>
         </div>
       </div>
     );
@@ -745,6 +766,28 @@ export default function ProfilePage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                <Users className="h-5 w-5 text-pink-500" />
+                <div>
+                  <div className="font-medium text-lg text-gray-900">
+                    {typeof profile.stats.viewsToday === "number"
+                      ? profile.stats.viewsToday
+                      : 0}
+                  </div>
+                  <div className="text-xs text-gray-500">Views today</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                <Users className="h-5 w-5 text-gray-400" />
+                <div>
+                  <div className="font-medium text-lg text-gray-900">
+                    {typeof profile.stats.profileViews === "number"
+                      ? profile.stats.profileViews
+                      : 0}
+                  </div>
+                  <div className="text-xs text-gray-500">Total views</div>
+                </div>
+              </div>
               <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl relative group">
                 <Sparkles className="h-5 w-5 text-yellow-500" />
                 <div>
@@ -861,13 +904,21 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <Users className="h-5 w-5 text-pink-500" /> Profile Stats
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                 <div className="bg-gray-50 p-4 rounded-xl">
                   <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
                     Views
                   </div>
                   <div className="text-2xl font-bold text-pink-600">
                     {profile.stats.profileViews || 0}
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                    Views Today
+                  </div>
+                  <div className="text-2xl font-bold text-pink-600">
+                    {profile.stats.viewsToday || 0}
                   </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl">

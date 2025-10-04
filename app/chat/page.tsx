@@ -169,14 +169,22 @@ export default function MessagesPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <p className="text-red-500 mb-4">{error}</p>
-          <button
-            onClick={handleRetry}
-            className="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors"
-          >
-            Try Again
-          </button>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Go Back
+            </button>
+            <button
+              onClick={handleRetry}
+              className="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
