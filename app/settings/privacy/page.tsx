@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { useNotification } from "@/contexts/NotificationContext";
 
 interface PrivacySetting {
   id: string;
@@ -27,6 +28,8 @@ interface PrivacySetting {
 }
 
 export default function PrivacySettings() {
+  const { showNotification } = useNotification();
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<PrivacySetting[]>([
     {
       id: "profile_visibility",
@@ -72,10 +75,84 @@ export default function PrivacySettings() {
     },
   ]);
 
-  const [blockedUsers] = useState([
-    { id: 1, name: "John Smith", photo: "/api/placeholder/50/50" },
-    { id: 2, name: "Mike Johnson", photo: "/api/placeholder/50/50" },
-  ]);
+  const [blockedUsers, setBlockedUsers] = useState<
+    { id: string; name: string; photo: string }[]
+  >([]);
+
+  const mapVisibilityToOption = (v: "everyone" | "mutual" | "hidden") => {
+    switch (v) {
+      case "mutual":
+        return "Mutual connections only";
+      case "hidden":
+        return "Hidden";
+      default:
+        return "Everyone";
+    }
+  };
+
+  const mapOptionToVisibility = (
+    o: string
+  ): "everyone" | "mutual" | "hidden" => {
+    if (o === "Mutual connections only") return "mutual";
+    if (o === "Hidden") return "hidden";
+    return "everyone";
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem("fiorell_auth_token");
+        // Load privacy settings
+        const privacyResp = await fetch("/api/user/privacy", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (privacyResp.ok) {
+          const pdata = await privacyResp.json();
+          const p = pdata.privacy as {
+            showAge?: boolean;
+            showLocation?: boolean;
+            onlineStatus?: boolean;
+            readReceipts?: boolean;
+            visibility?: "everyone" | "mutual" | "hidden";
+          };
+          setSettings((prev) =>
+            prev.map((s) => {
+              if (s.id === "age_visibility")
+                return { ...s, enabled: p.showAge ?? s.enabled };
+              if (s.id === "location_sharing")
+                return { ...s, enabled: p.showLocation ?? s.enabled };
+              if (s.id === "online_status")
+                return { ...s, enabled: p.onlineStatus ?? s.enabled };
+              if (s.id === "read_receipts")
+                return { ...s, enabled: p.readReceipts ?? s.enabled };
+              if (s.id === "profile_visibility")
+                return {
+                  ...s,
+                  selectedOption: mapVisibilityToOption(
+                    p.visibility ?? "everyone"
+                  ),
+                };
+              return s;
+            })
+          );
+        }
+        // Load blocked users
+        const blocksResp = await fetch("/api/user/blocks", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (blocksResp.ok) {
+          const bdata = await blocksResp.json();
+          setBlockedUsers(Array.isArray(bdata.blocked) ? bdata.blocked : []);
+        }
+      } catch {
+        // non-fatal
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const toggleSetting = (id: string) => {
     setSettings((prev) =>
@@ -91,6 +168,66 @@ export default function PrivacySettings() {
         setting.id === id ? { ...setting, selectedOption: value } : setting
       )
     );
+  };
+
+  const saveSettings = async () => {
+    try {
+      const payload = {
+        showAge: settings.find((s) => s.id === "age_visibility")?.enabled,
+        showLocation: settings.find((s) => s.id === "location_sharing")
+          ?.enabled,
+        onlineStatus: settings.find((s) => s.id === "online_status")?.enabled,
+        readReceipts: settings.find((s) => s.id === "read_receipts")?.enabled,
+        visibility: mapOptionToVisibility(
+          settings.find((s) => s.id === "profile_visibility")?.selectedOption ||
+            "Everyone"
+        ),
+      };
+      const resp = await fetch("/api/user/privacy", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok)
+        throw new Error(data.error || "Failed to save privacy settings");
+      showNotification("Privacy settings saved", "success");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? (e as { message: string }).message
+          : String(e);
+      showNotification(msg || "Failed to save", "error");
+    }
+  };
+
+  const unblockUser = async (targetUserId: string) => {
+    try {
+      const resp = await fetch(
+        `/api/user/blocks?targetUserId=${encodeURIComponent(targetUserId)}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem(
+              "fiorell_auth_token"
+            )}`,
+          },
+        }
+      );
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Failed to unblock user");
+      setBlockedUsers((prev) => prev.filter((u) => u.id !== targetUserId));
+      showNotification("User unblocked", "success");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? (e as { message: string }).message
+          : String(e);
+      showNotification(msg || "Failed to unblock", "error");
+    }
   };
 
   const ToggleSwitch = ({
@@ -192,6 +329,50 @@ export default function PrivacySettings() {
                           ))}
                         </select>
                       )}
+                      {setting.id === "profile_visibility" && (
+                        <div className="mt-2 text-xs text-gray-500 space-y-1">
+                          <div>
+                            <span className="font-medium text-gray-700">
+                              Everyone:
+                            </span>{" "}
+                            Your profile appears in discovery.
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">
+                              Mutual connections only:
+                            </span>{" "}
+                            Only users you&apos;ve matched with can see you.
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">
+                              Hidden:
+                            </span>{" "}
+                            You won&apos;t appear in discovery.
+                          </div>
+                        </div>
+                      )}
+                      {setting.id === "location_sharing" && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          When off, your city won&apos;t be shown on your
+                          profile.
+                        </div>
+                      )}
+                      {setting.id === "age_visibility" && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          When off, your age won’t be displayed.
+                        </div>
+                      )}
+                      {setting.id === "online_status" && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          When off, your “Last active” status won’t be shown.
+                        </div>
+                      )}
+                      {setting.id === "read_receipts" && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          When off, others won’t see read receipts for your
+                          messages.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -230,7 +411,10 @@ export default function PrivacySettings() {
                         {user.name}
                       </span>
                     </div>
-                    <button className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <button
+                      onClick={() => unblockUser(user.id)}
+                      className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
                       Unblock
                     </button>
                   </div>
@@ -323,8 +507,12 @@ export default function PrivacySettings() {
           </div>
 
           {/* Save Button */}
-          <button className="w-full px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all">
-            Save Privacy Settings
+          <button
+            onClick={saveSettings}
+            disabled={loading}
+            className="w-full px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Save Privacy Settings"}
           </button>
         </motion.div>
       </main>

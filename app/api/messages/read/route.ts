@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import Match from "@/models/Match";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
+import User from "@/models/User";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +34,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Match not found or unauthorized" },
         { status: 404 }
+      );
+    }
+
+    // Respect privacy: if user's readReceipts is disabled, do not mark as read
+    const viewer = (await User.findById(userId)
+      .select("privacy.readReceipts")
+      .lean()) as { privacy?: { readReceipts?: boolean } } | null;
+    const allowReadReceipts = viewer?.privacy?.readReceipts !== false;
+
+    if (!allowReadReceipts) {
+      return NextResponse.json(
+        { message: "Read receipts disabled", count: 0 },
+        { status: 200 }
       );
     }
 

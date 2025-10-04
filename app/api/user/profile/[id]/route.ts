@@ -21,7 +21,7 @@ export async function GET(
     const { id } = await context.params;
 
     const user = await User.findById(id).select(
-      "firstName dateOfBirth photos location bio interests verification lastSeen lifestyle stats"
+      "firstName dateOfBirth photos location bio interests verification lastSeen lifestyle stats privacy"
     );
 
     if (!user) {
@@ -50,10 +50,14 @@ export async function GET(
         ],
       }).lean();
       blockedByYou = blockRel.some(
-        (b) => b.blocker.toString() === userId.toString() && b.blocked.toString() === id.toString()
+        (b) =>
+          b.blocker.toString() === userId.toString() &&
+          b.blocked.toString() === id.toString()
       );
       blockedYou = blockRel.some(
-        (b) => b.blocker.toString() === id.toString() && b.blocked.toString() === userId.toString()
+        (b) =>
+          b.blocker.toString() === id.toString() &&
+          b.blocked.toString() === userId.toString()
       );
     } catch {}
 
@@ -113,6 +117,7 @@ export async function GET(
         mutualInterests,
         mutualInterestsCount: mutualInterests.length,
       },
+      privacy: user.privacy ?? {},
     };
 
     return NextResponse.json({ user: formattedUser });

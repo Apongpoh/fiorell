@@ -201,6 +201,11 @@ const UserSchema = new Schema<IUser>(
       showLocation: { type: Boolean, default: true },
       onlineStatus: { type: Boolean, default: true },
       readReceipts: { type: Boolean, default: true },
+      visibility: {
+        type: String,
+        enum: ["everyone", "mutual", "hidden"],
+        default: "everyone",
+      },
     },
     subscription: {
       type: {

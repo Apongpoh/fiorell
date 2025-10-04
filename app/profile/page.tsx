@@ -71,8 +71,10 @@ const profileSchema = z.object({
     })
     .refine(
       (loc) =>
-        (loc.coordinatesLng === undefined && loc.coordinatesLat === undefined) ||
-        (typeof loc.coordinatesLng === "number" && typeof loc.coordinatesLat === "number"),
+        (loc.coordinatesLng === undefined &&
+          loc.coordinatesLat === undefined) ||
+        (typeof loc.coordinatesLng === "number" &&
+          typeof loc.coordinatesLat === "number"),
       {
         message: "Provide both longitude and latitude, or leave both empty",
         path: ["coordinatesLng"],
@@ -124,7 +126,9 @@ function parsePhotos(raw: unknown): Photo[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter(
-      (p): p is {
+      (
+        p
+      ): p is {
         url?: unknown;
         key?: unknown;
         isMain?: unknown;
@@ -183,6 +187,8 @@ export default function ProfilePage() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmDeleteName, setConfirmDeleteName] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [dealBreakers, setDealBreakers] = useState({
     requireVerified: false,
     mustHaveInterests: "",
@@ -205,17 +211,24 @@ export default function ProfilePage() {
       try {
         setLoading(true);
         const response = await userAPI.getProfile();
-        if (!response || typeof response !== "object" || !("user" in response)) {
+        if (
+          !response ||
+          typeof response !== "object" ||
+          !("user" in response)
+        ) {
           throw new Error("Invalid profile response");
         }
-        const userData = (response as { user: typeof currentUser }).user as typeof currentUser;
+        const userData = (response as { user: typeof currentUser })
+          .user as typeof currentUser;
         setCurrentUser(userData);
         if (userData) {
           const interestsRaw = (userData as { interests?: unknown }).interests;
           const interests = Array.isArray(interestsRaw)
-            ? interestsRaw.filter((i): i is string => typeof i === 'string')
+            ? interestsRaw.filter((i): i is string => typeof i === "string")
             : [];
-          const photosArr = parsePhotos((userData as { photos?: unknown }).photos);
+          const photosArr = parsePhotos(
+            (userData as { photos?: unknown }).photos
+          );
           setSelectedInterests(interests);
           setPhotos(photosArr as Photo[]);
         }
@@ -324,13 +337,9 @@ export default function ProfilePage() {
         lifestyle: {
           // Send nulls for cleared fields so the API can delete them
           hasKids:
-            typeof lifestyle.hasKids === "undefined"
-              ? null
-              : lifestyle.hasKids,
+            typeof lifestyle.hasKids === "undefined" ? null : lifestyle.hasKids,
           smoking:
-            typeof lifestyle.smoking === "undefined"
-              ? null
-              : lifestyle.smoking,
+            typeof lifestyle.smoking === "undefined" ? null : lifestyle.smoking,
           maritalStatus:
             typeof lifestyle.maritalStatus === "undefined"
               ? null
@@ -343,7 +352,9 @@ export default function ProfilePage() {
       // Refresh user data
       const response = await userAPI.getProfile();
       if (response && typeof response === "object" && "user" in response) {
-        setCurrentUser((response as { user: typeof currentUser }).user as typeof currentUser);
+        setCurrentUser(
+          (response as { user: typeof currentUser }).user as typeof currentUser
+        );
       }
 
       showNotification("Profile updated successfully!", "success");
@@ -378,7 +389,9 @@ export default function ProfilePage() {
       });
       const refreshed = await userAPI.getProfile();
       if (refreshed && typeof refreshed === "object" && "user" in refreshed) {
-        setCurrentUser((refreshed as { user: typeof currentUser }).user as typeof currentUser);
+        setCurrentUser(
+          (refreshed as { user: typeof currentUser }).user as typeof currentUser
+        );
       }
       showNotification("Deal breakers saved", "success");
     } catch {
@@ -395,13 +408,9 @@ export default function ProfilePage() {
         lifestyle: {
           // Send nulls for cleared fields so the API can delete them
           hasKids:
-            typeof lifestyle.hasKids === "undefined"
-              ? null
-              : lifestyle.hasKids,
+            typeof lifestyle.hasKids === "undefined" ? null : lifestyle.hasKids,
           smoking:
-            typeof lifestyle.smoking === "undefined"
-              ? null
-              : lifestyle.smoking,
+            typeof lifestyle.smoking === "undefined" ? null : lifestyle.smoking,
           maritalStatus:
             typeof lifestyle.maritalStatus === "undefined"
               ? null
@@ -409,27 +418,35 @@ export default function ProfilePage() {
         },
       })) as unknown;
       // Prefer using the update response to avoid race conditions
-      if (updateResp && typeof updateResp === "object" && "user" in updateResp) {
-        const u = (updateResp as { user: typeof currentUser }).user as typeof currentUser;
+      if (
+        updateResp &&
+        typeof updateResp === "object" &&
+        "user" in updateResp
+      ) {
+        const u = (updateResp as { user: typeof currentUser })
+          .user as typeof currentUser;
         setCurrentUser(u);
         if (u && u.lifestyle) {
           setLifestyle({
             hasKids: u.lifestyle.hasKids,
             smoking: u.lifestyle.smoking as typeof lifestyle.smoking,
-            maritalStatus: u.lifestyle.maritalStatus as typeof lifestyle.maritalStatus,
+            maritalStatus: u.lifestyle
+              .maritalStatus as typeof lifestyle.maritalStatus,
           });
         }
       } else {
         // Fallback to fetching fresh profile if response didn't include user
         const refreshed = await userAPI.getProfile();
         if (refreshed && typeof refreshed === "object" && "user" in refreshed) {
-          const u = (refreshed as { user: typeof currentUser }).user as typeof currentUser;
+          const u = (refreshed as { user: typeof currentUser })
+            .user as typeof currentUser;
           setCurrentUser(u);
           if (u && u.lifestyle) {
             setLifestyle({
               hasKids: u.lifestyle.hasKids,
               smoking: u.lifestyle.smoking as typeof lifestyle.smoking,
-              maritalStatus: u.lifestyle.maritalStatus as typeof lifestyle.maritalStatus,
+              maritalStatus: u.lifestyle
+                .maritalStatus as typeof lifestyle.maritalStatus,
             });
           }
         }
@@ -587,11 +604,20 @@ export default function ProfilePage() {
                         await userAPI.deletePhoto(photo._id);
                         // Refresh user data and photos
                         const response = await userAPI.getProfile();
-                        if (response && typeof response === "object" && "user" in response) {
-                          const u = (response as { user: typeof currentUser }).user as typeof currentUser;
+                        if (
+                          response &&
+                          typeof response === "object" &&
+                          "user" in response
+                        ) {
+                          const u = (response as { user: typeof currentUser })
+                            .user as typeof currentUser;
                           setCurrentUser(u);
-                          if (u && typeof u === 'object') {
-                            setPhotos(parsePhotos((u as { photos?: unknown }).photos) as Photo[]);
+                          if (u && typeof u === "object") {
+                            setPhotos(
+                              parsePhotos(
+                                (u as { photos?: unknown }).photos
+                              ) as Photo[]
+                            );
                           }
                         }
                         showNotification(
@@ -628,11 +654,20 @@ export default function ProfilePage() {
                           }
                           // Refresh user data and photos
                           const response = await userAPI.getProfile();
-                          if (response && typeof response === "object" && "user" in response) {
-                            const u = (response as { user: typeof currentUser }).user as typeof currentUser;
+                          if (
+                            response &&
+                            typeof response === "object" &&
+                            "user" in response
+                          ) {
+                            const u = (response as { user: typeof currentUser })
+                              .user as typeof currentUser;
                             setCurrentUser(u);
-                            if (u && typeof u === 'object') {
-                              setPhotos(parsePhotos((u as { photos?: unknown }).photos) as Photo[]);
+                            if (u && typeof u === "object") {
+                              setPhotos(
+                                parsePhotos(
+                                  (u as { photos?: unknown }).photos
+                                ) as Photo[]
+                              );
                             }
                           }
                           showNotification("Main photo updated!", "success");
@@ -687,11 +722,21 @@ export default function ProfilePage() {
                             await userAPI.uploadPhotos(files);
                             // Refresh user data and photos
                             const response = await userAPI.getProfile();
-                            if (response && typeof response === "object" && "user" in response) {
-                              const u = (response as { user: typeof currentUser }).user as typeof currentUser;
+                            if (
+                              response &&
+                              typeof response === "object" &&
+                              "user" in response
+                            ) {
+                              const u = (
+                                response as { user: typeof currentUser }
+                              ).user as typeof currentUser;
                               setCurrentUser(u);
-                              if (u && typeof u === 'object') {
-                                setPhotos(parsePhotos((u as { photos?: unknown }).photos) as Photo[]);
+                              if (u && typeof u === "object") {
+                                setPhotos(
+                                  parsePhotos(
+                                    (u as { photos?: unknown }).photos
+                                  ) as Photo[]
+                                );
                               }
                             }
                             showNotification(
@@ -821,7 +866,8 @@ export default function ProfilePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Location <span className="text-gray-500">(City, Country)</span>
+                  Location{" "}
+                  <span className="text-gray-500">(City, Country)</span>
                 </label>
                 <input
                   {...register("location.city")}
@@ -836,9 +882,13 @@ export default function ProfilePage() {
                 )}
                 <div className="grid md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Longitude (°)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Longitude (°)
+                    </label>
                     <input
-                      {...register("location.coordinatesLng", { valueAsNumber: true })}
+                      {...register("location.coordinatesLng", {
+                        valueAsNumber: true,
+                      })}
                       type="number"
                       step="any"
                       min={-180}
@@ -848,14 +898,21 @@ export default function ProfilePage() {
                     />
                     {errors.location?.coordinatesLng && (
                       <p className="text-red-500 text-sm mt-1">
-                        {errors.location.coordinatesLng.message as unknown as string}
+                        {
+                          errors.location.coordinatesLng
+                            .message as unknown as string
+                        }
                       </p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Latitude (°)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Latitude (°)
+                    </label>
                     <input
-                      {...register("location.coordinatesLat", { valueAsNumber: true })}
+                      {...register("location.coordinatesLat", {
+                        valueAsNumber: true,
+                      })}
                       type="number"
                       step="any"
                       min={-90}
@@ -865,14 +922,17 @@ export default function ProfilePage() {
                     />
                     {errors.location?.coordinatesLat && (
                       <p className="text-red-500 text-sm mt-1">
-                        {errors.location.coordinatesLat.message as unknown as string}
+                        {
+                          errors.location.coordinatesLat
+                            .message as unknown as string
+                        }
                       </p>
                     )}
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Enter coordinates to find people near you. Order is Longitude, Latitude.
-                  Example (New York): -74.0060, 40.7128
+                  Enter coordinates to find people near you. Order is Longitude,
+                  Latitude. Example (New York): -74.0060, 40.7128
                 </p>
               </div>
             </div>
@@ -1412,6 +1472,18 @@ export default function ProfilePage() {
                       cannot be undone and all your data will be permanently
                       deleted.
                     </p>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type your first name to confirm
+                      </label>
+                      <input
+                        type="text"
+                        value={confirmDeleteName}
+                        onChange={(e) => setConfirmDeleteName(e.target.value)}
+                        placeholder="Enter your first name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
+                      />
+                    </div>
                     <div className="flex space-x-4">
                       <button
                         onClick={() => setShowDeleteConfirm(false)}
@@ -1422,24 +1494,55 @@ export default function ProfilePage() {
                       <button
                         onClick={async () => {
                           try {
-                            await userAPI.deleteAccount();
+                            setDeleteSubmitting(true);
+                            const resp = await fetch("/api/user/delete", {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${localStorage.getItem(
+                                  "fiorell_auth_token"
+                                )}`,
+                              },
+                              body: JSON.stringify({
+                                confirmName: confirmDeleteName,
+                              }),
+                            });
+                            const data = await resp.json();
+                            if (!resp.ok)
+                              throw new Error(
+                                data.error || "Failed to delete account"
+                              );
                             showNotification(
-                              "Account deleted successfully.",
+                              "Account deactivated. You will be logged out.",
                               "success"
                             );
+                            // Log out and redirect
+                            await fetch("/api/auth/logout", { method: "POST" });
                             logout();
-                          } catch {
+                            setShowDeleteConfirm(false);
+                          } catch (e: unknown) {
+                            const msg =
+                              typeof e === "object" && e && "message" in e
+                                ? (e as { message: string }).message
+                                : String(e);
                             showNotification(
-                              "Failed to delete account. Please try again.",
+                              msg ||
+                                "Failed to delete account. Please try again.",
                               "error"
                             );
                           } finally {
-                            setShowDeleteConfirm(false);
+                            setDeleteSubmitting(false);
                           }
                         }}
-                        className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors cursor-pointer"
+                        disabled={
+                          deleteSubmitting ||
+                          !currentUser?.firstName ||
+                          currentUser.firstName.trim().toLowerCase() !==
+                            confirmDeleteName.trim().toLowerCase()
+                        }
+                        className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-50"
                       >
-                        Delete Account
+                        {deleteSubmitting ? "Processing..." : "Delete Account"}
                       </button>
                     </div>
                   </div>

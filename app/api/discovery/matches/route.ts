@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import Block from "@/models/Block";
 import Like from "@/models/Like";
+import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 
 // Get potential matches for discovery
@@ -38,10 +39,10 @@ export async function GET(request: NextRequest) {
     const diagnostics = searchParams.get("diag") === "1";
 
     // Build filter based on user preferences
-    const filter: Record<
-      string,
-      string | number | boolean | object | undefined
-    > = {
+    const filter: {
+      [key: string]: unknown;
+      $or?: Array<Record<string, unknown>>;
+    } = {
       _id: { $ne: userId }, // Exclude current user
       isActive: true,
     };
@@ -172,6 +173,44 @@ export async function GET(request: NextRequest) {
       filter._id = { ...origId, $nin: interactedUserIds };
     }
 
+    // Enforce privacy visibility: exclude hidden, restrict mutual-only to matched connections
+    // Build mutual connections set (matched users)
+    const matched = await Match.find({
+      isActive: true,
+      status: "matched",
+      $or: [{ user1: userId }, { user2: userId }],
+    })
+      .select("user1 user2")
+      .lean();
+    const mutualIds = new Set<string>();
+    matched.forEach((m) => {
+      const other =
+        m.user1?.toString() === userId.toString() ? m.user2 : m.user1;
+      if (other) mutualIds.add(other.toString());
+    });
+
+    // Apply visibility filter: show profiles visible to everyone OR mutual-only if matched
+    const visibilityOrClauses: Array<Record<string, unknown>> = [
+      { "privacy.visibility": "everyone" },
+    ];
+    if (mutualIds.size > 0) {
+      visibilityOrClauses.push({
+        "privacy.visibility": "mutual",
+        _id: { $in: Array.from(mutualIds) },
+      });
+    } else {
+      // When no mutuals, exclude mutual-only profiles
+      filter["privacy.visibility"] = { $ne: "mutual" };
+    }
+    // Always exclude hidden
+    filter["privacy.visibility"] = filter["privacy.visibility"]
+      ? { ...(filter["privacy.visibility"] as object), $ne: "hidden" }
+      : { $ne: "hidden" };
+    if (visibilityOrClauses.length > 1) {
+      // Combine with $or only when mutual clause exists
+      filter.$or = visibilityOrClauses;
+    }
+
     // Resolve interest filter conflicts (intersection between $all and $nin makes query unsatisfiable)
     if (
       Array.isArray(interestFilter.$all) &&
@@ -225,11 +264,11 @@ export async function GET(request: NextRequest) {
     if (excludeIds.size > 0) {
       const origId =
         typeof filter._id === "object" && filter._id !== null ? filter._id : {};
-        const idFilter: { [key: string]: unknown; $nin: string[] } = {
-          ...origId,
-          $nin: Array.from(excludeIds),
-        };
-        filter._id = idFilter as object;
+      const idFilter: { [key: string]: unknown; $nin: string[] } = {
+        ...origId,
+        $nin: Array.from(excludeIds),
+      };
+      filter._id = idFilter as object;
     }
 
     // Execute main query
@@ -267,10 +306,7 @@ export async function GET(request: NextRequest) {
     // If no results and we have strong deal breakers, attempt a relaxed count to help client adjust
     let relaxedCount: number | undefined;
     if (users.length === 0 && dealBreakers) {
-      const relaxedFilter: Record<
-        string,
-        string | number | boolean | object | undefined
-      > = { ...filter };
+      const relaxedFilter: typeof filter = { ...filter };
       // Remove hard deal breaker clauses progressively
       delete relaxedFilter["verification.isVerified"]; // from deal breaker requirement
       if (

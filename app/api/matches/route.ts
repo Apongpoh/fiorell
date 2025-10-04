@@ -31,11 +31,11 @@ export async function GET(request: NextRequest) {
     })
       .populate(
         "user1",
-        "_id firstName dateOfBirth photos lastSeen verification"
+        "_id firstName dateOfBirth photos lastSeen verification privacy"
       )
       .populate(
         "user2",
-        "_id firstName dateOfBirth photos lastSeen verification"
+        "_id firstName dateOfBirth photos lastSeen verification privacy"
       )
       .sort({ lastMessageAt: -1, matchedAt: -1 });
 
@@ -64,16 +64,22 @@ export async function GET(request: NextRequest) {
         });
 
         // Check if the other user is online (active within last 5 minutes)
-        const isOnline =
+        const isOnlineRaw =
           otherUser.lastSeen &&
           Date.now() - otherUser.lastSeen.getTime() < 5 * 60 * 1000;
 
-        const age = otherUser.dateOfBirth
+        const ageRaw = otherUser.dateOfBirth
           ? Math.floor(
               (Date.now() - new Date(otherUser.dateOfBirth).getTime()) /
                 (1000 * 60 * 60 * 24 * 365.25)
             )
           : null;
+
+        // Respect privacy flags
+        const showAge = otherUser.privacy?.showAge !== false;
+        const showOnline = otherUser.privacy?.onlineStatus !== false;
+        const age = showAge ? ageRaw : null;
+        const isOnline = showOnline ? isOnlineRaw : false;
 
         return {
           _id: match._id,

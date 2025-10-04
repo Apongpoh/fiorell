@@ -45,8 +45,8 @@ type ProfileStats = {
 interface Profile extends Omit<import("@/models/User").IUser, "stats"> {
   age?: number;
   stats: ProfileStats;
-    blockedByYou?: boolean;
-    blockedYou?: boolean;
+  blockedByYou?: boolean;
+  blockedYou?: boolean;
 }
 
 export default function ProfilePage() {
@@ -634,27 +634,32 @@ export default function ProfilePage() {
           <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                {profile.firstName}, {profile.age}
+                {profile.firstName}
+                {profile?.privacy?.showAge !== false &&
+                  profile.age !== null && <span>, {profile.age}</span>}
                 {profile.verification?.isVerified && (
                   <Shield className="h-5 w-5 text-blue-500" />
                 )}
               </h1>
-              {profile.location?.city && (
-                <p className="text-gray-600 flex items-center gap-2 mt-1">
-                  <MapPin className="h-4 w-4" />
-                  {profile.location.city}
-                </p>
+              {profile?.privacy?.showLocation !== false &&
+                profile.location?.city && (
+                  <p className="text-gray-600 flex items-center gap-2 mt-1">
+                    <MapPin className="h-4 w-4" />
+                    {profile.location.city}
+                  </p>
+                )}
+              {profile?.privacy?.onlineStatus !== false && (
+                <div className="text-gray-600 flex items-center gap-2 mt-1 text-sm">
+                  <Clock className="h-4 w-4" />
+                  {profile.lastSeen
+                    ? `Last active ${new Date(
+                        profile.lastSeen
+                      ).toLocaleDateString()}`
+                    : "Offline"}
+                </div>
               )}
             </div>
             <div className="text-right text-sm text-gray-500">
-              <div className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                {profile.lastSeen
-                  ? `Last active ${new Date(
-                      profile.lastSeen
-                    ).toLocaleDateString()}`
-                  : "Offline"}
-              </div>
               {profile.stats?.matchRate && (
                 <div className="flex items-center gap-1 mt-1">
                   <Star className="h-4 w-4 text-yellow-400" />
