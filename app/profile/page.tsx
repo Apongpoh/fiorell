@@ -661,7 +661,7 @@ export default function ProfilePage() {
                         }
                       }
                     }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center cursor-pointer"
                     title="Delete Photo"
                   >
                     <X className="h-4 w-4 text-white" />
@@ -701,7 +701,7 @@ export default function ProfilePage() {
                           );
                         }
                       }}
-                      className="absolute bottom-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="absolute bottom-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded cursor-pointer"
                       title="Set as Main Photo"
                     >
                       Set Main
@@ -738,10 +738,19 @@ export default function ProfilePage() {
                         onChange={async (e) => {
                           const files = e.target.files;
                           if (!files || files.length === 0) return;
+                          // Prevent video uploads
+                          const validImages = Array.from(files).filter(f => !f.type.startsWith("video/"));
+                          const hasVideo = Array.from(files).some(f => f.type.startsWith("video/"));
+                          if (hasVideo) {
+                            showNotification("Video uploads are not allowed. Please select image files only.", "error");
+                          }
+                          if (validImages.length === 0) return;
                           setUploading(true);
                           try {
-                            // Upload photos to backend
-                            await userAPI.uploadPhotos(files);
+                            // Upload only valid image files
+                            const dt = new DataTransfer();
+                            validImages.forEach(file => dt.items.add(file));
+                            await userAPI.uploadPhotos(dt.files);
                             // Refresh user data and photos
                             const response = await userAPI.getProfile();
                             if (
