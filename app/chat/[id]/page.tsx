@@ -254,14 +254,40 @@ export default function ChatPage() {
     }
   }, [id, retryCount, decryptMessages]);
 
+
   // Scroll to bottom when messages change
   // Initial load: scroll to bottom
   useEffect(() => {
     debouncedScrollToBottom();
+
+    // Proactively refresh video URLs for all visible video messages
+    const refreshAllVideoUrls = async () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("fiorell_auth_token") : null;
+      const videoMessages = messages.filter(m => m.type === "video" && m.media && m.media.key && m.media.url);
+      for (const message of videoMessages) {
+        if (!message.media) continue;
+        try {
+          const res = await fetch(
+            `/api/messages/media/refresh?key=${encodeURIComponent(message.media.key)}${token ? `&token=${encodeURIComponent(token)}` : ""}`
+          );
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.url) {
+              setMessages(prev => prev.map(m => m.id === message.id ? { ...m, media: m.media ? { ...m.media, url: json.url } : m.media } : m));
+            }
+          }
+        } catch {}
+      }
+    };
+    refreshAllVideoUrls();
+
+    // Set interval to refresh every 30 minutes
+    const interval = setInterval(refreshAllVideoUrls, 30 * 60 * 1000);
     return () => {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      clearInterval(interval);
     };
-  }, []); // Only on mount
+  }, [debouncedScrollToBottom, messages]);
 
   // On new message: scroll to bottom only if user is at bottom
   const prevMessagesLength = useRef<number>(0);
@@ -1320,8 +1346,14 @@ export default function ChatPage() {
       {/* Messages */}
       <div
         id="chat-scroll-container"
-        className="flex-1 overflow-y-auto p-4 pb-20 bg-gray-50 scroll-smooth"
+        className="flex-1 overflow-y-auto p-4 pb-20 scroll-smooth"
         onScroll={handleScroll}
+        style={{
+          backgroundImage: 'url(/wintery-sunburst.svg)',
+          backgroundRepeat: 'repeat',
+          backgroundSize: '400px 400px',
+          backgroundColor: '#f7f5fa',
+        }}
       >
         <div className="max-w-2xl mx-auto">
           {/* Bulk Select Toolbar */}

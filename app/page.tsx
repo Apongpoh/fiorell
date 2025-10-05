@@ -1,12 +1,44 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { Heart, Users, MessageCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
+    <div
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: `url('/pattern-randomized.svg'), linear-gradient(135deg, #fce7f3 0%, #f3e8ff 40%, #e0f2fe 100%)`,
+        backgroundSize: "cover, cover",
+        backgroundRepeat: "no-repeat, no-repeat",
+        backgroundPosition: "center, center",
+        backgroundBlendMode: "multiply",
+      }}
+    >
+      {/* SVG background pattern, absolutely positioned, behind all content */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: -1,
+          pointerEvents: 'none',
+          overflow: 'hidden',
+        }}
+        aria-hidden="true"
+      >
+        <Image
+          src="/pattern-randomized.svg"
+          alt="Background pattern"
+          fill
+          style={{ objectFit: 'cover' }}
+          draggable={false}
+          priority
+        />
+      </div>
       {/* Header */}
       <header className="relative px-6 py-4">
         <nav className="flex items-center justify-between max-w-7xl mx-auto">
