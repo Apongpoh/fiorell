@@ -244,8 +244,12 @@ export default function ChatPage() {
       eventSource.onmessage = async (event) => {
         const message = JSON.parse(event.data);
 
-        // Just add message as-is
-        setMessages((prev) => [...prev, message]);
+        // Add message and scroll to bottom
+        setMessages((prev) => {
+          const updated = [...prev, message];
+          setTimeout(() => debouncedScrollToBottom(), 100);
+          return updated;
+        });
       };
 
       return () => {
@@ -255,11 +259,9 @@ export default function ChatPage() {
   }, [id, retryCount, decryptMessages]);
 
 
-  // Scroll to bottom when messages change
-  // Initial load: scroll to bottom
+  // Scroll to bottom only on initial load
   useEffect(() => {
     debouncedScrollToBottom();
-
     // Proactively refresh video URLs for all visible video messages
     const refreshAllVideoUrls = async () => {
       const token = typeof window !== "undefined" ? localStorage.getItem("fiorell_auth_token") : null;
@@ -280,23 +282,13 @@ export default function ChatPage() {
       }
     };
     refreshAllVideoUrls();
-
     // Set interval to refresh every 30 minutes
     const interval = setInterval(refreshAllVideoUrls, 30 * 60 * 1000);
     return () => {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       clearInterval(interval);
     };
-  }, [debouncedScrollToBottom, messages]);
-
-  // On new message: scroll to bottom only if user is at bottom
-  const prevMessagesLength = useRef<number>(0);
-  useEffect(() => {
-    if (messages.length > prevMessagesLength.current && isAtBottom) {
-      debouncedScrollToBottom();
-    }
-    prevMessagesLength.current = messages.length;
-  }, [messages, isAtBottom, debouncedScrollToBottom]);
+  }, []);
 
   // Check for expired disappearing messages
   useEffect(() => {
@@ -498,13 +490,12 @@ export default function ChatPage() {
         };
         newMsg = enriched;
       }
-      setMessages((prev) => [...prev, newMsg as Message]);
+      setMessages((prev) => {
+        const updated = [...prev, newMsg as Message];
+        setTimeout(() => debouncedScrollToBottom(), 100);
+        return updated;
+      });
       setNewMessage("");
-      // Only scroll if user is at bottom
-      if (isAtBottom) {
-        debouncedScrollToBottom();
-        setTimeout(debouncedScrollToBottom, 100);
-      }
     } catch (error: unknown) {
       let errorMessage = "Failed to send message.";
       if (
