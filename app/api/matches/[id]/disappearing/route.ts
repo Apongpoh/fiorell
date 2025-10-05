@@ -3,11 +3,15 @@ import connectToDatabase from "@/lib/mongodb";
 import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     await connectToDatabase();
     const { userId } = verifyAuth(request);
-    const matchId = params.id;
+    const { id } = await context.params;
+    const matchId = id;
     const body = await request.json();
     const { disappearingMessageDuration } = body;
 
@@ -22,14 +26,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       isActive: true,
     });
     if (!match) {
-      return NextResponse.json({ error: "Match not found or unauthorized" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Match not found or unauthorized" },
+        { status: 404 }
+      );
     }
 
     match.disappearingMessageDuration = disappearingMessageDuration;
     await match.save();
 
     return NextResponse.json({ success: true, disappearingMessageDuration });
-  } catch (error) {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

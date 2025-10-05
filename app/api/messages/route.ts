@@ -13,13 +13,67 @@ const RATE_WINDOW_MS = 3500; // minimum gap between messages from same user in s
 // Very small profanity placeholder list (extend or replace with dedicated service)
 const BANNED_WORDS = [
   // Hate speech/racism
-  "nigger", "faggot", "chink", "spic", "kike", "coon", "gook", "wetback", "slut", "whore", "tranny", "retard", "dyke", "twink", "paki", "terrorist", "isis",
+  "nigger",
+  "faggot",
+  "chink",
+  "spic",
+  "kike",
+  "coon",
+  "gook",
+  "wetback",
+  "slut",
+  "whore",
+  "tranny",
+  "retard",
+  "dyke",
+  "twink",
+  "paki",
+  "terrorist",
+  "isis",
   // Sexual harassment/explicit
-  "rape", "cum", "dick", "pussy", "cock", "anal", "blowjob", "handjob", "nude", "nudes", "sex", "porn", "xxx", "horny", "milf", "incest", "pedophile", "child porn",
+  "rape",
+  "cum",
+  "dick",
+  "pussy",
+  "cock",
+  "anal",
+  "blowjob",
+  "handjob",
+  "nude",
+  "nudes",
+  "sex",
+  "porn",
+  "xxx",
+  "horny",
+  "milf",
+  "incest",
+  "pedophile",
+  "child porn",
   // Violence/threats
-  "kill", "murder", "die", "suicide", "hang", "shoot", "stab", "bomb", "attack", "abuse", "beat", "assault",
+  "kill",
+  "murder",
+  "die",
+  "suicide",
+  "hang",
+  "shoot",
+  "stab",
+  "bomb",
+  "attack",
+  "abuse",
+  "beat",
+  "assault",
   // General offensive
-  "bitch", "asshole", "motherfucker", "cunt", "twat", "douche", "bastard", "jerk", "idiot", "moron", "loser"
+  "bitch",
+  "asshole",
+  "motherfucker",
+  "cunt",
+  "twat",
+  "douche",
+  "bastard",
+  "jerk",
+  "idiot",
+  "moron",
+  "loser",
 ];
 const hasBannedWord = (text: string) => {
   const lower = text.toLowerCase();
@@ -64,7 +118,9 @@ export async function GET(request: NextRequest) {
     }).populate("user1 user2", "_id firstName photos lastSeen");
     // Block checks: if either party has blocked the other, prevent message access
     const otherUserId =
-      match.user1._id.toString() === userId ? match.user2._id.toString() : match.user1._id.toString();
+      match.user1._id.toString() === userId
+        ? match.user2._id.toString()
+        : match.user1._id.toString();
     const blockedRel = await Block.findOne({
       active: true,
       $or: [
@@ -166,7 +222,7 @@ export async function GET(request: NextRequest) {
         lastMessageAt: match.lastMessageAt,
         disappearingMessageDuration: match.disappearingMessageDuration ?? null,
       };
-    } catch (error) {
+    } catch {
       return NextResponse.json(
         { error: "Failed to process match data" },
         { status: 500 }
@@ -209,17 +265,17 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const body = await request.json();
-    const { 
-      matchId, 
-      content: rawContent, 
-      type = "text", 
-      disappearingDuration, 
+    const {
+      matchId,
+      content: rawContent,
+      type = "text",
+      disappearingDuration,
       disappearsAt,
       // Encryption fields
       isEncrypted = false,
       encryptedContent,
       iv,
-      keyId
+      keyId,
     } = body;
     let content = rawContent;
 
@@ -285,7 +341,9 @@ export async function POST(request: NextRequest) {
     });
     // Block checks before sending messages
     const otherUserId =
-      match.user1.toString() === userId ? match.user2.toString() : match.user1.toString();
+      match.user1.toString() === userId
+        ? match.user2.toString()
+        : match.user1.toString();
     const blockedRel = await Block.findOne({
       active: true,
       $or: [
@@ -412,7 +470,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-      message: formattedMessage,
+        message: formattedMessage,
       },
       { status: 201 }
     );

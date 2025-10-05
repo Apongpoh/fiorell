@@ -10,7 +10,6 @@ import {
   Send,
   MoreVertical,
   Timer,
-  Shield,
 } from "lucide-react";
 import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
@@ -146,10 +145,13 @@ export default function ChatPage() {
   }, [user?.id, id, showNotification]);
 
   // Decrypt messages when they are loaded
-  const decryptMessages = useCallback(async (messages: Message[]): Promise<Message[]> => {
-    // Encryption removed, just return messages as-is
-    return messages;
-  }, [user]);
+  const decryptMessages = useCallback(
+    async (messages: Message[]): Promise<Message[]> => {
+      // Encryption removed, just return messages as-is
+      return messages;
+    },
+    []
+  );
 
   // Load initial messages and setup real-time updates
   useEffect(() => {
@@ -269,12 +271,14 @@ export default function ChatPage() {
 
   // Immediately remove expired messages on render
   useEffect(() => {
-    setMessages((prev) => prev.filter((message) => {
-      if (message.disappearsAt) {
-        return new Date(message.disappearsAt).getTime() > Date.now();
-      }
-      return true;
-    }));
+    setMessages((prev) =>
+      prev.filter((message) => {
+        if (message.disappearsAt) {
+          return new Date(message.disappearsAt).getTime() > Date.now();
+        }
+        return true;
+      })
+    );
   }, []);
 
   // Send text message
@@ -297,13 +301,15 @@ export default function ChatPage() {
         keyId?: string;
       }
 
-      let messagePayload: MessagePayload = {
+      const messagePayload: MessagePayload = {
         matchId: id as string,
         content: newMessage.trim(),
         type: "text",
         ...(disappearingTime && {
           disappearingDuration: disappearingTime,
-          disappearsAt: new Date(Date.now() + disappearingTime * 1000).toISOString(),
+          disappearsAt: new Date(
+            Date.now() + disappearingTime * 1000
+          ).toISOString(),
         }),
       };
 
@@ -1242,7 +1248,9 @@ export default function ChatPage() {
                   try {
                     await apiRequest(`/matches/${id}/disappearing`, {
                       method: "PATCH",
-                      body: JSON.stringify({ disappearingMessageDuration: disappearingTime ?? 0 }),
+                      body: JSON.stringify({
+                        disappearingMessageDuration: disappearingTime ?? 0,
+                      }),
                     });
                     if (disappearingTime) {
                       const timeText =
@@ -1262,7 +1270,10 @@ export default function ChatPage() {
                       );
                     }
                   } catch {
-                    showNotification("Failed to save disappearing message setting.", "error");
+                    showNotification(
+                      "Failed to save disappearing message setting.",
+                      "error"
+                    );
                   }
                 }}
                 className="inline-flex items-center justify-center rounded-full font-semibold transition-all duration-200 px-6 py-3 text-base bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg transform hover:scale-105 focus:ring-2 focus:ring-indigo-500"
