@@ -492,11 +492,11 @@ function DashboardPage() {
       return;
     }
 
-  // reset trackers for new photo
-  elapsedBeforePauseRef.current = 0;
-  startTimeRef.current = performance.now();
-  setPhotoProgress(0); // Always reset progress on photo change
-  setIsPaused(false);
+    // reset trackers for new photo
+    elapsedBeforePauseRef.current = 0;
+    startTimeRef.current = performance.now();
+    setPhotoProgress(0); // Always reset progress on photo change
+    setIsPaused(false);
 
     const animate = (ts: number) => {
       if (!startTimeRef.current) startTimeRef.current = ts;

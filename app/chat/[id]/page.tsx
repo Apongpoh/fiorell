@@ -80,6 +80,17 @@ const formatMessageTime = (timestamp: string | null) => {
 // Removed unused useClickOutside
 
 export default function ChatPage() {
+  // Track if user is at bottom of chat
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // Handler to check if user is at bottom
+  const handleScroll = useCallback(() => {
+    const container = document.getElementById("chat-scroll-container");
+    if (!container) return;
+    // Allow 40px leeway for mobile
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 40;
+    setIsAtBottom(atBottom);
+  }, []);
   const { showNotification } = useNotification();
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [blockReason, setBlockReason] = useState("");
@@ -134,10 +145,14 @@ export default function ChatPage() {
     setRetryCount((prev) => prev + 1);
   };
 
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Debounced scroll to bottom of messages (stable instance)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedScrollToBottom = useCallback(() => {
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 80);
+  }, []);
 
   // Initialize encryption for the user
   useEffect(() => {
@@ -240,9 +255,22 @@ export default function ChatPage() {
   }, [id, retryCount, decryptMessages]);
 
   // Scroll to bottom when messages change
+  // Initial load: scroll to bottom
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    debouncedScrollToBottom();
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []); // Only on mount
+
+  // On new message: scroll to bottom only if user is at bottom
+  const prevMessagesLength = useRef<number>(0);
+  useEffect(() => {
+    if (messages.length > prevMessagesLength.current && isAtBottom) {
+      debouncedScrollToBottom();
+    }
+    prevMessagesLength.current = messages.length;
+  }, [messages, isAtBottom, debouncedScrollToBottom]);
 
   // Check for expired disappearing messages
   useEffect(() => {
@@ -446,9 +474,11 @@ export default function ChatPage() {
       }
       setMessages((prev) => [...prev, newMsg as Message]);
       setNewMessage("");
-      scrollToBottom();
-      // Add small delay to ensure scroll happens after render
-      setTimeout(scrollToBottom, 100);
+      // Only scroll if user is at bottom
+      if (isAtBottom) {
+        debouncedScrollToBottom();
+        setTimeout(debouncedScrollToBottom, 100);
+      }
     } catch (error: unknown) {
       let errorMessage = "Failed to send message.";
       if (
@@ -518,8 +548,10 @@ export default function ChatPage() {
       };
 
       setMessages((prev) => [...prev, optimistic]);
-      scrollToBottom();
-      setTimeout(scrollToBottom, 50);
+      if (isAtBottom) {
+        debouncedScrollToBottom();
+        setTimeout(debouncedScrollToBottom, 50);
+      }
 
       // Create form data
       const formData = new FormData();
@@ -1286,7 +1318,11 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 pb-20 bg-gray-50 scroll-smooth">
+      <div
+        id="chat-scroll-container"
+        className="flex-1 overflow-y-auto p-4 pb-20 bg-gray-50 scroll-smooth"
+        onScroll={handleScroll}
+      >
         <div className="max-w-2xl mx-auto">
           {/* Bulk Select Toolbar */}
           {bulkSelectMode && (
@@ -1480,14 +1516,41 @@ export default function ChatPage() {
                         <div className="relative">
                           <video
                             key={message.id + "-video"}
-                            src={message.media?.url || ""}
                             controls
                             width={400}
                             height={400}
                             className={`rounded-lg max-w-full ${
                               message.uploading ? "opacity-70" : ""
                             }`}
-                          />
+                            onError={async () => {
+                              // Attempt one refresh for expired/403 signed URLs or format errors
+                              if (!message.media?.key || message._refreshed) return;
+                              try {
+                                const token = typeof window !== "undefined" ? localStorage.getItem("fiorell_auth_token") : null;
+                                const res = await fetch(
+                                  `/api/messages/media/refresh?key=${encodeURIComponent(message.media.key)}${token ? `&token=${encodeURIComponent(token)}` : ""}`
+                                );
+                                if (res.ok) {
+                                  const json = await res.json();
+                                  if (json && json.url) {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.id === message.id
+                                          ? {
+                                              ...m,
+                                              media: m.media ? { ...m.media, url: json.url } : m.media,
+                                              _refreshed: true,
+                                            }
+                                          : m
+                                      )
+                                    );
+                                  }
+                                }
+                              } catch {}
+                            }}
+                          >
+                            <source src={message.media?.url || ""} type={message.media?.mimeType || "video/mp4"} />
+                          </video>
                           {message.uploading && (
                             <div className="absolute inset-0 flex items-center justify-center">
                               <div className="h-10 w-10 border-4 border-white/40 border-t-white rounded-full animate-spin" />
