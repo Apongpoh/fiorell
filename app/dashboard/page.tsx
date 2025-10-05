@@ -470,11 +470,13 @@ function DashboardPage() {
 
   const nextPhoto = useCallback(() => {
     if (!currentProfile || currentProfile.photos.length <= 1) return;
+    setPhotoProgress(0); // Reset progress for next image
     setPhotoIndex((prev) => (prev + 1) % currentProfile.photos.length);
   }, [currentProfile]);
 
   const prevPhoto = useCallback(() => {
     if (!currentProfile || currentProfile.photos.length <= 1) return;
+    setPhotoProgress(0); // Reset progress for previous image
     setPhotoIndex((prev) =>
       prev === 0 ? currentProfile!.photos.length - 1 : prev - 1
     );
@@ -490,11 +492,11 @@ function DashboardPage() {
       return;
     }
 
-    // reset trackers for new photo
-    elapsedBeforePauseRef.current = 0;
-    startTimeRef.current = performance.now();
-    setPhotoProgress(0);
-    setIsPaused(false);
+  // reset trackers for new photo
+  elapsedBeforePauseRef.current = 0;
+  startTimeRef.current = performance.now();
+  setPhotoProgress(0); // Always reset progress on photo change
+  setIsPaused(false);
 
     const animate = (ts: number) => {
       if (!startTimeRef.current) startTimeRef.current = ts;
@@ -945,7 +947,6 @@ function DashboardPage() {
                   className="w-full accent-pink-500"
                 />
               </label>
-              {/* Deal Breakers UI removed */}
             </div>
             <div className="flex flex-wrap gap-2 pt-1 items-center">
               <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer select-none">
