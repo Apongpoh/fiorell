@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import Block from "@/models/Block";
-import Like from "@/models/Like";
+import Interaction from "@/models/Interaction";
 import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 
@@ -162,11 +162,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Get users who haven't been liked/passed by current user
-    const existingInteractions = await Like.find({
-      fromUserId: userId,
-    }).select("toUserId");
+    const existingInteractions = await Interaction.find({
+      userId: userId,
+    }).select("targetUserId");
 
-    const interactedUserIds = existingInteractions.map((like) => like.toUserId);
+    const interactedUserIds = existingInteractions.map((interaction) => interaction.targetUserId);
     if (interactedUserIds.length > 0) {
       const origId =
         typeof filter._id === "object" && filter._id !== null ? filter._id : {};

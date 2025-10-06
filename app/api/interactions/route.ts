@@ -82,20 +82,40 @@ export async function POST(request: NextRequest) {
     session.startTransaction();
 
     try {
-      // Check for existing interaction
-      const existingInteraction = await Interaction.findOne({
+      // Check for existing interaction today
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(today);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      const existingTodayInteraction = await Interaction.findOne({
         userId: body.userId,
         targetUserId: body.targetUserId,
         action: body.action,
+        createdAt: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
       }).session(session);
 
-      if (existingInteraction) {
+      if (existingTodayInteraction) {
         await session.abortTransaction();
         return NextResponse.json(
-          { error: "You have already performed this action with this user" },
+          { error: `You can only ${body.action.replace('_', ' ')} this user once per day. Try again tomorrow!` },
           { status: 409 }
         );
       }
+
+      // Create the new interaction
+      const newInteraction = new Interaction({
+        userId: body.userId,
+        targetUserId: body.targetUserId,
+        action: body.action,
+        isMatch: false,
+      });
+
+      await newInteraction.save({ session });
 
       // Update target user's received likes/super likes count
       if (body.action === "like" || body.action === "super_like") {

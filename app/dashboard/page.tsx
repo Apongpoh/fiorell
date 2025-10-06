@@ -14,6 +14,7 @@ import {
   Info,
 } from "lucide-react";
 import { useAuth, withAuth } from "@/contexts/AuthContext";
+import { useNotification } from "@/contexts/NotificationContext";
 import { discoveryAPI, interactionsAPI, userAPI, statsAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -61,6 +62,7 @@ const CURATED_INTERESTS: string[] = [
 ];
 
 function DashboardPage() {
+  const { showNotification } = useNotification();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
   const [dragDirection, setDragDirection] = useState<string | null>(null);
@@ -672,6 +674,16 @@ function DashboardPage() {
             typeof (err as { message?: unknown }).message === "string"
               ? (err as { message: string }).message
               : String(err);
+          
+          if (/once per day/i.test(msg)) {
+            // Daily limit reached - show user-friendly message
+            showNotification(
+              `You've already ${action.replace('_', ' ')}d this profile today. You can try again tomorrow!`,
+              "error"
+            );
+            return;
+          }
+          
           if (/already performed/i.test(msg)) {
             // Duplicate – silently ignore (user already moved on)
             return;

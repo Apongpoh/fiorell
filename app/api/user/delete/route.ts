@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
-import Like from "@/models/Like";
+import Interaction from "@/models/Interaction";
 import Match from "@/models/Match";
 import Message from "@/models/Message";
 import Block from "@/models/Block";
 import Report from "@/models/Report";
 import SupportTicket from "@/models/SupportTicket";
 import ProfileView from "@/models/ProfileView";
-import Interaction from "@/models/Interaction";
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,8 +46,8 @@ export async function POST(req: NextRequest) {
       try {
         // Delete relationships and artifacts referencing the user
         await Promise.all([
-          Like.deleteMany({
-            $or: [{ fromUserId: userId }, { toUserId: userId }],
+          Interaction.deleteMany({
+            $or: [{ userId: userId }, { targetUserId: userId }],
           }),
           Match.deleteMany({ $or: [{ user1: userId }, { user2: userId }] }),
           Message.deleteMany({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
-import Like from "@/models/Like";
+import Interaction from "@/models/Interaction";
 import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 import Block from "../../../../models/Block";
@@ -73,40 +73,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has already performed an action on this target
-    const existingLike = await Like.findOne({
-      liker: userId,
-      liked: targetUserId,
+    // Check if user has already performed this action today
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    const existingTodayLike = await Interaction.findOne({
+      userId: userId,
+      targetUserId: targetUserId,
+      action: action,
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
     });
-    if (existingLike) {
+    
+    if (existingTodayLike) {
       return NextResponse.json(
-        { error: "You have already performed an action on this user" },
+        { error: `You can only ${action.replace('_', ' ')} this user once per day. Try again tomorrow!` },
         { status: 400 }
       );
     }
 
     // Create like/pass record
-    const like = new Like({
-      liker: userId,
-      liked: targetUserId,
-      type: action,
+    const interaction = new Interaction({
+      userId: userId,
+      targetUserId: targetUserId,
+      action: action,
+      isMatch: false,
     });
 
-    await like.save();
+    await interaction.save();
 
     let isMatch = false;
     let matchId = null;
 
     // If this is a like or super_like, check for mutual like (match)
     if (action === "like" || action === "super_like") {
-      const mutualLike = await Like.findOne({
-        liker: targetUserId,
-        liked: userId,
-        type: { $in: ["like", "super_like"] },
-        isActive: true,
+      const mutualInteraction = await Interaction.findOne({
+        userId: targetUserId,
+        targetUserId: userId,
+        action: { $in: ["like", "super_like"] },
       });
 
-      if (mutualLike) {
+      if (mutualInteraction) {
+        // Mark both interactions as matches
+        await Interaction.updateMany(
+          {
+            $or: [
+              { userId: userId, targetUserId: targetUserId },
+              { userId: targetUserId, targetUserId: userId },
+            ],
+          },
+          { isMatch: true }
+        );
+
         // Create a match
         const match = new Match({
           user1: userId,
@@ -201,21 +224,19 @@ export async function GET(request: NextRequest) {
 
     if (type === "sent") {
       // Likes sent by the user
-      likes = await Like.find({
-        liker: userId,
-        type: { $in: ["like", "super_like"] },
-        isActive: true,
+      likes = await Interaction.find({
+        userId: userId,
+        action: { $in: ["like", "super_like"] },
       })
-        .populate("liked", "firstName dateOfBirth photos")
+        .populate("targetUserId", "firstName dateOfBirth photos")
         .sort({ createdAt: -1 });
     } else if (type === "received") {
       // Likes received by the user
-      likes = await Like.find({
-        liked: userId,
-        type: { $in: ["like", "super_like"] },
-        isActive: true,
+      likes = await Interaction.find({
+        targetUserId: userId,
+        action: { $in: ["like", "super_like"] },
       })
-        .populate("liker", "firstName dateOfBirth photos")
+        .populate("userId", "firstName dateOfBirth photos")
         .sort({ createdAt: -1 });
     } else if (type === "mutual") {
       // Get matches (mutual likes)
@@ -249,18 +270,18 @@ export async function GET(request: NextRequest) {
 
     // Format likes for response
     const formattedLikes =
-      likes?.map((like) => {
-        const user = type === "sent" ? like.liked : like.liker;
+      likes?.map((interaction: { _id: unknown; action: string; targetUserId: { _id: unknown; firstName: string; dateOfBirth: Date; photos: unknown }; userId: { _id: unknown; firstName: string; dateOfBirth: Date; photos: unknown }; createdAt: Date }) => {
+        const user = type === "sent" ? interaction.targetUserId : interaction.userId;
         return {
-          id: like._id,
-          type: like.type,
+          id: interaction._id,
+          type: interaction.action,
           user: {
             id: user._id,
             firstName: user.firstName,
             age: new Date().getFullYear() - user.dateOfBirth.getFullYear(),
             photos: user.photos,
           },
-          createdAt: like.createdAt,
+          createdAt: interaction.createdAt,
         };
       }) || [];
 
