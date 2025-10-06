@@ -1066,10 +1066,20 @@ function ProfilePage() {
                   </p>
                 )}
               </div>
-              {currentUser?.subscription?.type === "free" && (
-                <button className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transform hover:scale-105 transition-all cursor-pointer">
+              {currentUser?.subscription?.type === "free" ? (
+                <Link
+                  href="/subscription"
+                  className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transform hover:scale-105 transition-all cursor-pointer"
+                >
                   Upgrade
-                </button>
+                </Link>
+              ) : (
+                <Link
+                  href="/subscription/manage"
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-all cursor-pointer"
+                >
+                  Manage
+                </Link>
               )}
             </div>
           </div>

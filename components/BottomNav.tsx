@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Users, Heart, MessageCircle, User } from "lucide-react";
+import { Users, Heart, MessageCircle, User, Crown } from "lucide-react";
 
 interface BottomNavProps {
   unreadMessages?: number;
@@ -64,6 +64,31 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
             }`}
           >
             Matches
+          </span>
+        </button>
+        <button
+          onClick={() => router.push("/subscription")}
+          className={`flex flex-col items-center space-y-1 transition-all duration-200 transform active:scale-90 hover:scale-105 ${
+            isActive("/subscription") || pathname?.startsWith("/subscription")
+              ? "text-pink-500"
+              : "text-gray-400 hover:text-pink-500"
+          }`}
+        >
+          <Crown
+            className={`h-6 w-6 transition-transform duration-300 ${
+              isActive("/subscription") || pathname?.startsWith("/subscription") 
+                ? "scale-110 fill-current" 
+                : ""
+            }`}
+          />
+          <span
+            className={`text-xs transition-all duration-200 ${
+              isActive("/subscription") || pathname?.startsWith("/subscription") 
+                ? "font-semibold" 
+                : ""
+            }`}
+          >
+            Premium
           </span>
         </button>
         <button
