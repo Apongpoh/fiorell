@@ -19,6 +19,10 @@ import { useRouter } from "next/navigation";
 import { useDailyLimits } from "@/hooks/useSubscription";
 import { usePremiumPrompt } from "@/components/PremiumPrompt";
 import { MiniUsageIndicator } from "@/components/UsageLimits";
+import { ProfileBoost } from "@/components/ProfileBoost";
+import { IncognitoMode } from "@/components/IncognitoMode";
+import { TravelMode } from "@/components/TravelMode";
+import { PreMatchMessage } from "@/components/PreMatchMessage";
 
 interface Profile {
   id: string;
@@ -83,6 +87,14 @@ function DashboardPage() {
   const [autoApply, setAutoApply] = useState(false); // manual apply by default
   const [appliedFiltersSignature, setAppliedFiltersSignature] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
+  
+  // Premium features state
+  const [showProfileBoost, setShowProfileBoost] = useState(false);
+  const [showTravelMode, setShowTravelMode] = useState(false);
+  const [preMatchMessage, setPreMatchMessage] = useState<{
+    recipientId: string;
+    recipientName: string;
+  } | null>(null);
   
   // Premium subscription hooks
   const { likes, superLikes, refetch: refetchUsage } = useDailyLimits();
@@ -805,6 +817,22 @@ function DashboardPage() {
           <div className="flex items-center space-x-4">
             <button
               type="button"
+              onClick={() => setShowProfileBoost(true)}
+              className="p-2 text-gray-600 hover:text-purple-600 transition-colors relative"
+              title="Profile Boost"
+            >
+              <Star className="h-6 w-6" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowTravelMode(true)}
+              className="p-2 text-gray-600 hover:text-blue-600 transition-colors relative"
+              title="Travel Mode"
+            >
+              <MapPin className="h-6 w-6" />
+            </button>
+            <button
+              type="button"
               onClick={() => setShowFilters((v) => !v)}
               className="p-2 text-gray-600 hover:text-pink-600 transition-colors relative"
             >
@@ -836,6 +864,11 @@ function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6">
+        {/* Incognito Mode Toggle */}
+        <div className="mb-4">
+          <IncognitoMode />
+        </div>
+
         {showFilters && (
           <div className="mb-4 p-4 bg-white rounded-2xl shadow border border-gray-100 space-y-4 relative">
             <div className="flex items-center justify-between">
@@ -1436,6 +1469,22 @@ function DashboardPage() {
           </AnimatePresence>
         </div>
 
+        {/* Message Before Matching Button */}
+        <div className="flex justify-center mb-4">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setPreMatchMessage({
+              recipientId: currentProfile.id,
+              recipientName: currentProfile.firstName
+            })}
+            className="px-6 py-2 bg-purple-500 text-white rounded-full shadow-lg hover:bg-purple-600 transition-colors flex items-center gap-2"
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span className="text-sm font-medium">Message First</span>
+          </motion.button>
+        </div>
+
         {/* Action Buttons */}
         <div className="flex items-center justify-center space-x-8">
           <motion.button
@@ -1585,6 +1634,29 @@ function DashboardPage() {
           </button>
         </div>
       </nav>
+      
+      {/* Premium Feature Modals */}
+      <ProfileBoost 
+        isOpen={showProfileBoost} 
+        onClose={() => setShowProfileBoost(false)} 
+      />
+      
+      <TravelMode 
+        isOpen={showTravelMode} 
+        onClose={() => setShowTravelMode(false)} 
+      />
+      
+      {preMatchMessage && (
+        <PreMatchMessage
+          recipientId={preMatchMessage.recipientId}
+          recipientName={preMatchMessage.recipientName}
+          onClose={() => setPreMatchMessage(null)}
+          onMessageSent={() => {
+            // Optional: Show success message or navigate
+            console.log('Pre-match message sent!');
+          }}
+        />
+      )}
       
       {/* Premium Prompt Modal */}
       <PremiumPrompt />

@@ -4,6 +4,7 @@ import Match from "@/models/Match";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
+import { getUserSubscription } from "@/lib/subscription";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +35,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Match not found or unauthorized" },
         { status: 404 }
+      );
+    }
+
+    // Check if user has premium for read receipts
+    const subscription = await getUserSubscription(userId);
+    if (!subscription.hasPremium) {
+      return NextResponse.json(
+        { 
+          error: "Read receipts are a Premium feature. Upgrade to see when your messages are read!",
+          code: "PREMIUM_FEATURE_REQUIRED",
+          upgradeRequired: true,
+          feature: "read_receipts"
+        },
+        { status: 403 }
       );
     }
 

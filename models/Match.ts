@@ -9,6 +9,9 @@ export interface IMatch extends Document {
   lastMessageAt?: Date;
   isActive: boolean;
   disappearingMessageDuration?: number;
+  // Pre-match message support
+  hasPreMatchMessage?: boolean;
+  preMatchMessageSender?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +51,15 @@ const MatchSchema = new Schema<IMatch>(
     disappearingMessageDuration: {
       type: Number,
       default: null,
+    },
+    // Pre-match message support
+    hasPreMatchMessage: {
+      type: Boolean,
+      default: false,
+    },
+    preMatchMessageSender: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
   },
   {

@@ -53,6 +53,20 @@ export interface IUser extends Document {
     showLocation: boolean;
     onlineStatus: boolean;
     readReceipts: boolean;
+    incognitoMode?: boolean;
+  };
+  travel?: {
+    isActive: boolean;
+    currentLocation?: {
+      city: string;
+      country: string;
+      coordinates: [number, number];
+    };
+    originalLocation?: {
+      city: string;
+      country: string;
+      coordinates: [number, number];
+    };
   };
   subscription: {
     type: "free" | "premium" | "premium_plus";
@@ -214,6 +228,10 @@ const UserSchema = new Schema<IUser>(
         enum: ["everyone", "mutual", "hidden"],
         default: "everyone",
       },
+      // Premium Features
+      incognitoMode: { type: Boolean, default: false },
+      incognitoModeUpdatedAt: { type: Date },
+      blockUnmatchedMessages: { type: Boolean, default: false },
     },
     subscription: {
       type: {
@@ -270,6 +288,20 @@ const UserSchema = new Schema<IUser>(
         enabled: { type: Boolean, default: false },
         startTime: { type: String, default: "22:00" },
         endTime: { type: String, default: "08:00" },
+      },
+    },
+    // Travel Mode (Premium Plus Feature)
+    travel: {
+      isActive: { type: Boolean, default: false },
+      currentLocation: {
+        city: { type: String },
+        country: { type: String },
+        coordinates: [{ type: Number }],
+      },
+      originalLocation: {
+        city: { type: String },
+        country: { type: String },
+        coordinates: [{ type: Number }],
       },
     },
     pushSubscriptions: [

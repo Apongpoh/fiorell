@@ -22,6 +22,9 @@ export interface IMessage extends Document {
   // Encryption fields removed
   disappearingDuration?: number;
   disappearsAt?: Date;
+  // Pre-match message support
+  isPreMatch?: boolean;
+  matchId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -85,6 +88,15 @@ const MessageSchema = new Schema<IMessage>(
     disappearsAt: {
       type: Date,
       default: null,
+    },
+    // Pre-match message support
+    isPreMatch: {
+      type: Boolean,
+      default: false,
+    },
+    matchId: {
+      type: Schema.Types.ObjectId,
+      ref: "Match",
     },
   },
   {
