@@ -79,6 +79,17 @@ export interface IUser extends Document {
   };
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+  notificationSettings?: {
+    matches?: { push: boolean; email: boolean; sound: boolean };
+    messages?: { push: boolean; email: boolean; sound: boolean };
+    likes?: { push: boolean; email: boolean; sound: boolean };
+    views?: { push: boolean; email: boolean; sound: boolean };
+    quietHours?: {
+      enabled: boolean;
+      startTime: string;
+      endTime: string;
+    };
+  };
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -107,6 +118,17 @@ const UserSchema = new Schema<IUser>(
     twoFA: { enabled: { type: Boolean, default: false }, secret: { type: String }, tempSecret: { type: String }, verified: { type: Boolean, default: false }, recoveryCodes: [{ type: String }], enabledAt: { type: Date }, disabledAt: { type: Date } },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    notificationSettings: {
+      matches: { push: { type: Boolean, default: true }, email: { type: Boolean, default: true }, sound: { type: Boolean, default: true } },
+      messages: { push: { type: Boolean, default: true }, email: { type: Boolean, default: false }, sound: { type: Boolean, default: true } },
+      likes: { push: { type: Boolean, default: true }, email: { type: Boolean, default: false }, sound: { type: Boolean, default: false } },
+      views: { push: { type: Boolean, default: false }, email: { type: Boolean, default: true }, sound: { type: Boolean, default: false } },
+      quietHours: {
+        enabled: { type: Boolean, default: false },
+        startTime: { type: String, default: "22:00" },
+        endTime: { type: String, default: "08:00" }
+      }
+    },
   },
   {
     timestamps: true,

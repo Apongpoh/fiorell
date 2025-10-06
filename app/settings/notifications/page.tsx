@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { 
   ArrowLeft, 
@@ -11,9 +11,12 @@ import {
   Star,
   Volume2,
   Smartphone,
-  Mail
+  Mail,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
+import { useNotification } from "@/contexts/NotificationContext";
+import { apiRequest } from "@/lib/api";
 
 interface NotificationSetting {
   id: string;
@@ -25,7 +28,37 @@ interface NotificationSetting {
   sound: boolean;
 }
 
+interface NotificationPreference {
+  push: boolean;
+  email: boolean;
+  sound: boolean;
+}
+
+interface QuietHours {
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
+}
+
+interface NotificationSettings {
+  matches?: NotificationPreference;
+  messages?: NotificationPreference;
+  likes?: NotificationPreference;
+  views?: NotificationPreference;
+  quietHours?: QuietHours;
+  [key: string]: NotificationPreference | QuietHours | undefined;
+}
+
 export default function NotificationSettings() {
+  const { showNotification } = useNotification();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
+  const [quietHours, setQuietHours] = useState({
+    startTime: "22:00",
+    endTime: "08:00"
+  });
+  
   const [settings, setSettings] = useState<NotificationSetting[]>([
     {
       id: "matches",
@@ -64,6 +97,126 @@ export default function NotificationSettings() {
       sound: false,
     },
   ]);
+
+  // Load notification preferences on component mount
+  useEffect(() => {
+    const loadNotificationSettings = async () => {
+      try {
+        const token = localStorage.getItem("fiorell_auth_token");
+        if (!token) {
+          showNotification("Please log in to access notification settings", "error");
+          return;
+        }
+
+        const response = await apiRequest("/user/notifications", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }) as { settings?: NotificationSettings };
+
+        if (response.settings) {
+          const serverSettings = response.settings;
+          
+          // Update settings state with server data
+          setSettings(prev => prev.map(setting => {
+            const settingData = serverSettings[setting.id] as NotificationPreference | undefined;
+            return {
+              ...setting,
+              push: settingData?.push ?? setting.push,
+              email: settingData?.email ?? setting.email,
+              sound: settingData?.sound ?? setting.sound,
+            };
+          }));
+
+          // Update quiet hours
+          if (serverSettings.quietHours) {
+            setQuietHoursEnabled(serverSettings.quietHours.enabled);
+            setQuietHours({
+              startTime: serverSettings.quietHours.startTime,
+              endTime: serverSettings.quietHours.endTime,
+            });
+          }
+        }
+      } catch (error: unknown) {
+        console.error("Error loading notification settings:", error);
+        showNotification("Failed to load notification settings", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNotificationSettings();
+  }, [showNotification]);
+
+  // Save notification preferences
+  const saveNotificationSettings = async () => {
+    try {
+      setSaving(true);
+      const token = localStorage.getItem("fiorell_auth_token");
+      if (!token) {
+        showNotification("Please log in to save settings", "error");
+        return;
+      }
+
+      // Convert settings array to object format for API
+      const settingsObject: Record<string, NotificationPreference | QuietHours> = settings.reduce((acc, setting) => {
+        acc[setting.id] = {
+          push: setting.push,
+          email: setting.email,
+          sound: setting.sound,
+        };
+        return acc;
+      }, {} as Record<string, { push: boolean; email: boolean; sound: boolean }>);
+
+      // Add quiet hours
+      settingsObject.quietHours = {
+        enabled: quietHoursEnabled,
+        startTime: quietHours.startTime,
+        endTime: quietHours.endTime,
+      };
+
+      const response = await apiRequest("/user/notifications", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ settings: settingsObject }),
+      }) as { settings?: NotificationSettings };
+
+      // Update local state with saved settings to prevent reset
+      if (response.settings) {
+        const serverSettings = response.settings;
+        
+        // Update settings state with server data
+        setSettings(prev => prev.map(setting => {
+          const settingData = serverSettings[setting.id] as NotificationPreference | undefined;
+          return {
+            ...setting,
+            push: settingData?.push ?? setting.push,
+            email: settingData?.email ?? setting.email,
+            sound: settingData?.sound ?? setting.sound,
+          };
+        }));
+
+        // Update quiet hours
+        if (serverSettings.quietHours) {
+          setQuietHoursEnabled(serverSettings.quietHours.enabled);
+          setQuietHours({
+            startTime: serverSettings.quietHours.startTime,
+            endTime: serverSettings.quietHours.endTime,
+          });
+        }
+      }
+
+      showNotification("Notification preferences saved successfully", "success");
+    } catch (error: unknown) {
+      console.error("Error saving notification settings:", error);
+      showNotification("Failed to save notification settings", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleSetting = (id: string, type: 'push' | 'email' | 'sound') => {
     setSettings(prev => 
@@ -111,11 +264,17 @@ export default function NotificationSettings() {
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-pink-500" />
+            <span className="ml-2 text-gray-600">Loading notification settings...</span>
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
           {/* Quick Actions */}
           <div className="bg-white rounded-2xl p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -216,19 +375,23 @@ export default function NotificationSettings() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-700">Enable Quiet Hours</span>
-                <ToggleSwitch enabled={false} onToggle={() => {}} />
+                <ToggleSwitch 
+                  enabled={quietHoursEnabled} 
+                  onToggle={() => setQuietHoursEnabled(!quietHoursEnabled)} 
+                />
               </div>
               
-              <div className="grid grid-cols-2 gap-4 opacity-50">
+              <div className={`grid grid-cols-2 gap-4 transition-opacity ${!quietHoursEnabled ? 'opacity-50' : ''}`}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Start Time
                   </label>
                   <input
                     type="time"
-                    defaultValue="22:00"
+                    value={quietHours.startTime}
+                    onChange={(e) => setQuietHours(prev => ({ ...prev, startTime: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    disabled
+                    disabled={!quietHoursEnabled}
                   />
                 </div>
                 <div>
@@ -237,9 +400,10 @@ export default function NotificationSettings() {
                   </label>
                   <input
                     type="time"
-                    defaultValue="08:00"
+                    value={quietHours.endTime}
+                    onChange={(e) => setQuietHours(prev => ({ ...prev, endTime: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    disabled
+                    disabled={!quietHoursEnabled}
                   />
                 </div>
               </div>
@@ -247,10 +411,22 @@ export default function NotificationSettings() {
           </div>
 
           {/* Save Button */}
-          <button className="w-full px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all">
-            Save Preferences
+          <button 
+            onClick={saveNotificationSettings}
+            disabled={saving}
+            className="w-full px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <span>Save Preferences</span>
+            )}
           </button>
         </motion.div>
+        )}
       </main>
     </div>
   );
