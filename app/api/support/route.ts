@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import SupportTicket from "@/models/SupportTicket";
+import User from "@/models/User";
+import emailService from "@/lib/emailService";
 // import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 // const ses = new SESClient({ region: process.env.AWS_REGION });
 
@@ -54,28 +56,22 @@ export async function POST(req: NextRequest) {
       readBySupport: false,
     });
 
-    // Email notification (commented out until email is configured):
-    // const toAddress = process.env.SUPPORT_EMAIL_TO; // e.g., support@yourdomain.com
-    // const fromAddress = process.env.SUPPORT_EMAIL_FROM; // verified SES sender
-    // if (toAddress && fromAddress) {
-    //   const emailParams = new SendEmailCommand({
-    //     Destination: { ToAddresses: [toAddress] },
-    //     Message: {
-    //       Body: {
-    //         Text: {
-    //           Data: `New support ticket\n\nUser: ${userId}\nTicket ID: ${ticket._id}\nSubject: ${subject}\n\n${message}`,
-    //         },
-    //       },
-    //       Subject: { Data: `Support Ticket: ${subject}` },
-    //     },
-    //     Source: fromAddress,
-    //   });
-    //   try {
-    //     await ses.send(emailParams);
-    //   } catch (e) {
-    //     console.warn("Support email send failed (SES)", e);
-    //   }
-    // }
+    // Send email notification to support team
+    if (process.env.ENABLE_EMAIL_NOTIFICATIONS === "true") {
+      try {
+        const user = await User.findById(userId);
+        await emailService.sendNewTicketNotification({
+          ticketId: ticket._id,
+          ticketSubject: ticket.subject,
+          userName: user?.name || "Unknown User",
+          ticketType: ticket.type,
+          priority: ticket.priority,
+          description: String(message),
+        });
+      } catch (emailError) {
+        console.error("Failed to send email notification:", emailError);
+      }
+    }
 
     return NextResponse.json({ ticket }, { status: 201 });
   } catch (error: unknown) {

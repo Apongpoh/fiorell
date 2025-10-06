@@ -68,6 +68,7 @@ export interface IUser extends Document {
   lastSeen: Date;
   createdAt: Date;
   updatedAt: Date;
+  isAdmin?: boolean;
   twoFA?: {
     enabled: boolean;
     secret?: string;
@@ -232,6 +233,7 @@ const UserSchema = new Schema<IUser>(
     },
     isActive: { type: Boolean, default: true },
     lastSeen: { type: Date, default: Date.now },
+    isAdmin: { type: Boolean, default: false },
     twoFA: {
       enabled: { type: Boolean, default: false },
       secret: { type: String },

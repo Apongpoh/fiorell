@@ -153,6 +153,43 @@ export async function POST(
       await ticket.save();
     }
 
+    // Trigger auto-response if enabled
+    let autoResponse = null;
+    try {
+      const autoResponseRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/support/auto-response`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: content,
+          ticketId: ticketId,
+        }),
+      });
+
+      if (autoResponseRes.ok) {
+        const autoData = await autoResponseRes.json();
+        autoResponse = autoData.autoResponse;
+      }
+    } catch (error) {
+      console.log("Auto-response failed:", error);
+    }
+
+    // Send notification to support team
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/support`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": request.headers.get("authorization") || "",
+        },
+        body: JSON.stringify({
+          message: message,
+          ticketId: ticketId,
+        }),
+      });
+    } catch (error) {
+      console.log("Notification failed:", error);
+    }
+
     return NextResponse.json({
       message: {
         id: message._id,
@@ -162,6 +199,7 @@ export async function POST(
         readByUser: message.readByUser,
         readBySupport: message.readBySupport,
       },
+      autoResponse,
     });
   } catch (error: unknown) {
     console.error("Send support message error:", error);

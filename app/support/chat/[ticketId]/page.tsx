@@ -114,9 +114,16 @@ function SupportChatPage() {
       
       // Add new message to conversation
       if (conversation) {
+        const newMessages = [...conversation.messages, data.message];
+        
+        // Add auto-response if present
+        if (data.autoResponse) {
+          newMessages.push(data.autoResponse);
+        }
+        
         setConversation({
           ...conversation,
-          messages: [...conversation.messages, data.message],
+          messages: newMessages,
         });
       }
 

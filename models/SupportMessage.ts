@@ -8,6 +8,7 @@ export interface ISupportMessage extends Document {
   supportAgentName?: string;
   readByUser: boolean;
   readBySupport: boolean;
+  isAutoResponse?: boolean;
   attachments?: Array<{
     url: string;
     filename: string;
@@ -55,6 +56,10 @@ const SupportMessageSchema = new Schema<ISupportMessage>(
       type: Boolean,
       default: false,
       index: true,
+    },
+    isAutoResponse: {
+      type: Boolean,
+      default: false,
     },
     attachments: [
       {
