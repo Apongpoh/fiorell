@@ -5,6 +5,7 @@ import Block from "@/models/Block";
 import Interaction from "@/models/Interaction";
 import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
+import { canUserPerformAction } from "@/lib/subscription";
 
 // Get potential matches for discovery
 export async function GET(request: NextRequest) {
@@ -37,6 +38,26 @@ export async function GET(request: NextRequest) {
     const interestsParam = searchParams.get("interests");
     const maxDistance = searchParams.get("maxDistance");
     const diagnostics = searchParams.get("diag") === "1";
+
+    // Check if advanced filters are being used and require premium
+    const usingAdvancedFilters = Boolean(
+      minAge || maxAge || verifiedOnly || interestsParam || (maxDistance && parseInt(maxDistance) < 50)
+    );
+
+    if (usingAdvancedFilters) {
+      const canUseAdvancedFilters = await canUserPerformAction(userId, 'advanced_filters');
+      if (!canUseAdvancedFilters.allowed) {
+        return NextResponse.json(
+          {
+            error: canUseAdvancedFilters.reason,
+            code: "PREMIUM_FEATURE_REQUIRED",
+            upgradeRequired: true,
+            feature: "advanced_filters"
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     // Build filter based on user preferences
     const filter: {

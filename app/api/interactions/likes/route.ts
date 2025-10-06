@@ -6,6 +6,7 @@ import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 import Block from "../../../../models/Block";
 import { isObjectId } from "@/lib/validators";
+import { checkDailyLimits, canUserPerformAction } from "@/lib/subscription";
 
 // Like or pass a user
 export async function POST(request: NextRequest) {
@@ -45,6 +46,23 @@ export async function POST(request: NextRequest) {
         { error: "Cannot perform action on yourself" },
         { status: 400 }
       );
+    }
+
+    // Check premium restrictions for likes and super likes
+    if (action === "like" || action === "super_like") {
+      const limitCheck = await checkDailyLimits(userId, action);
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          { 
+            error: limitCheck.reason,
+            code: "DAILY_LIMIT_EXCEEDED",
+            upgradeRequired: limitCheck.upgradeRequired,
+            currentUsage: limitCheck.currentUsage,
+            limit: limitCheck.limit
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Block checks
@@ -220,6 +238,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "received"; // 'sent', 'received', 'mutual'
 
+    // Check premium restrictions for "see who liked you" feature
+    if (type === "received") {
+      const canSeeResult = await canUserPerformAction(userId, 'see_who_liked');
+      if (!canSeeResult.allowed) {
+        return NextResponse.json(
+          {
+            error: canSeeResult.reason,
+            code: "PREMIUM_FEATURE_REQUIRED",
+            upgradeRequired: true,
+            feature: "see_who_liked_you"
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     let likes;
 
     if (type === "sent") {
@@ -231,7 +265,7 @@ export async function GET(request: NextRequest) {
         .populate("targetUserId", "firstName dateOfBirth photos")
         .sort({ createdAt: -1 });
     } else if (type === "received") {
-      // Likes received by the user
+      // Likes received by the user (Premium feature)
       likes = await Interaction.find({
         targetUserId: userId,
         action: { $in: ["like", "super_like"] },

@@ -14,9 +14,11 @@ import {
   Info,
 } from "lucide-react";
 import { useAuth, withAuth } from "@/contexts/AuthContext";
-import { useNotification } from "@/contexts/NotificationContext";
 import { discoveryAPI, interactionsAPI, userAPI, statsAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useDailyLimits } from "@/hooks/useSubscription";
+import { usePremiumPrompt } from "@/components/PremiumPrompt";
+import { MiniUsageIndicator } from "@/components/UsageLimits";
 
 interface Profile {
   id: string;
@@ -62,7 +64,6 @@ const CURATED_INTERESTS: string[] = [
 ];
 
 function DashboardPage() {
-  const { showNotification } = useNotification();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
   const [dragDirection, setDragDirection] = useState<string | null>(null);
@@ -82,6 +83,11 @@ function DashboardPage() {
   const [autoApply, setAutoApply] = useState(false); // manual apply by default
   const [appliedFiltersSignature, setAppliedFiltersSignature] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
+  
+  // Premium subscription hooks
+  const { likes, superLikes, refetch: refetchUsage } = useDailyLimits();
+  const { showPrompt, PremiumPrompt } = usePremiumPrompt();
+  
   // (Deal breakers removed from inline filters; managed in Profile page)
 
   // Persist filters (A)
@@ -639,6 +645,31 @@ function DashboardPage() {
         ? "super_like"
         : "like";
 
+    // Check premium limits before performing action
+    if (action === "like") {
+      if (likes.limit !== -1 && likes.current >= likes.limit) {
+        showPrompt(
+          'likes',
+          'Daily Like Limit Reached',
+          `You've used all ${likes.limit} likes for today. Upgrade to Premium for unlimited likes!`,
+          false
+        );
+        return;
+      }
+    }
+
+    if (action === "super_like") {
+      if (superLikes.limit !== -1 && superLikes.current >= superLikes.limit) {
+        showPrompt(
+          'super_likes',
+          'Daily Super Like Limit Reached',
+          `You've used all ${superLikes.limit} super likes for today. Upgrade to Premium for more super likes!`,
+          false
+        );
+        return;
+      }
+    }
+
     // Advance immediately for snappy UI
     moveToNextProfile();
 
@@ -652,6 +683,12 @@ function DashboardPage() {
             profileSnapshot.id,
             action
           );
+          
+          // Refresh usage counts after successful action
+          if (action === "like" || action === "super_like") {
+            refetchUsage();
+          }
+          
           if (response && typeof response === "object" && "match" in response) {
             const matchField = (response as { match?: unknown }).match;
             if (matchField) {
@@ -675,11 +712,14 @@ function DashboardPage() {
               ? (err as { message: string }).message
               : String(err);
           
-          if (/once per day/i.test(msg)) {
-            // Daily limit reached - show user-friendly message
-            showNotification(
-              `You've already ${action.replace('_', ' ')}d this profile today. You can try again tomorrow!`,
-              "error"
+          if (/DAILY_LIMIT_EXCEEDED/i.test(msg) || /once per day/i.test(msg)) {
+            // Daily limit reached - show premium prompt
+            const isLike = action === "like";
+            showPrompt(
+              action,
+              `Daily ${isLike ? 'Like' : 'Super Like'} Limit Reached`,
+              `You've reached your daily ${isLike ? 'like' : 'super like'} limit. Upgrade to Premium for ${isLike ? 'unlimited likes' : 'more super likes'}!`,
+              false
             );
             return;
           }
@@ -1407,23 +1447,43 @@ function DashboardPage() {
             <X className="h-6 w-6 text-gray-400 hover:text-red-500 transition-colors" />
           </motion.button>
 
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleSuperLike}
-            className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-gray-200 hover:border-blue-300 transition-colors"
-          >
-            <Star className="h-5 w-5 text-gray-400 hover:text-blue-500 transition-colors" />
-          </motion.button>
+          <div className="flex flex-col items-center">
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSuperLike}
+              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-gray-200 hover:border-blue-300 transition-colors relative"
+            >
+              <Star className="h-5 w-5 text-gray-400 hover:text-blue-500 transition-colors" />
+              {superLikes.limit !== -1 && superLikes.remaining <= 2 && (
+                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {superLikes.remaining}
+                </div>
+              )}
+            </motion.button>
+            <div className="mt-1 w-20">
+              <MiniUsageIndicator type="superLikes" />
+            </div>
+          </div>
 
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleLike}
-            className="w-16 h-16 bg-pink-500 rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"
-          >
-            <Heart className="h-8 w-8 text-white" />
-          </motion.button>
+          <div className="flex flex-col items-center">
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleLike}
+              className="w-16 h-16 bg-pink-500 rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors relative"
+            >
+              <Heart className="h-8 w-8 text-white" />
+              {likes.limit !== -1 && likes.remaining <= 5 && (
+                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                  {likes.remaining}
+                </div>
+              )}
+            </motion.button>
+            <div className="mt-1 w-20">
+              <MiniUsageIndicator type="likes" />
+            </div>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -1525,6 +1585,9 @@ function DashboardPage() {
           </button>
         </div>
       </nav>
+      
+      {/* Premium Prompt Modal */}
+      <PremiumPrompt />
     </div>
   );
 }
