@@ -1,61 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { verify2FACode } from "@/lib/2fa";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
-
-// CORS preflight handler (no request body needed)
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": "true",
-    },
-  });
-}
 
 export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
 
     const body = await request.json();
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "unknown";
-
-    // Rate limiting: max 5 login attempts per IP+email per 15 minutes
-    const LoginAttempt = (await import("@/models/LoginAttempt")).default;
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-    const recentAttempts = await LoginAttempt.countDocuments({
-      ip,
-      email: body.email?.toLowerCase(),
-      createdAt: { $gte: fifteenMinutesAgo },
-    });
-    if (recentAttempts >= 5) {
-      return NextResponse.json(
-        { error: "Too many login attempts. Please try again later." },
-        {
-          status: 429,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          },
-        }
-      );
-    }
-    // Log this attempt
-    await LoginAttempt.create({ ip, email: body.email?.toLowerCase() });
-
-    const { email, password } = body;
+    const { tempUserId, code, timestamp } = body;
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
     // Basic validation
-    if (!email || !password) {
+    if (!tempUserId || !code) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "User ID and verification code are required" },
         {
           status: 400,
           headers: {
@@ -67,12 +27,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password"
-    );
+    // Rate limiting: max 5 2FA attempts per IP+tempUserId per 15 minutes
+    const LoginAttempt = (await import("@/models/LoginAttempt")).default;
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const recentAttempts = await LoginAttempt.countDocuments({
+      ip,
+      email: tempUserId, // Use tempUserId as identifier for 2FA attempts
+      createdAt: { $gte: fifteenMinutesAgo },
+    });
+    
+    if (recentAttempts >= 5) {
+      return NextResponse.json(
+        { error: "Too many verification attempts. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    }
+
+    // Find user by temp ID
+    const user = await User.findById(tempUserId);
     if (!user) {
-      console.error("Login error: User not found for email", email);
+      // Log failed attempt
+      await LoginAttempt.create({ ip, email: tempUserId });
       return NextResponse.json(
         { error: "User not found" },
         {
@@ -86,13 +68,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+    // Check if 2FA is enabled and verify code
+    if (!user.twoFA?.enabled || !user.twoFA?.secret) {
+      await LoginAttempt.create({ ip, email: tempUserId });
       return NextResponse.json(
-        { error: "Incorrect password" },
+        { error: "Two-factor authentication is not enabled" },
         {
-          status: 401,
+          status: 400,
           headers: {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -102,19 +84,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has 2FA enabled
-    if (user.twoFA?.enabled) {
-      // If 2FA is enabled, don't generate full token yet
-      // Return a temporary response indicating 2FA is required
+    // Verify the 2FA code
+    const isValid = verify2FACode(user.twoFA.secret, code);
+
+    if (!isValid) {
+      // Log failed attempt
+      await LoginAttempt.create({ ip, email: tempUserId });
       return NextResponse.json(
+        { error: "Invalid verification code" },
         {
-          requiresTwoFA: true,
-          message: "Two-factor authentication required",
-          tempUserId: user._id.toString(),
-          expiresAt: Date.now() + (5 * 60 * 1000), // 5 minutes expiry
-        },
-        {
-          status: 200,
+          status: 401,
           headers: {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -136,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json(
       {
-        message: "Login successful",
+        message: "Two-factor authentication successful",
         user: {
           id: user._id,
           firstName: user.firstName,
@@ -164,6 +143,7 @@ export async function POST(request: NextRequest) {
         },
       }
     );
+
     // Set HttpOnly auth cookie for middleware protection on app routes
     response.cookies.set({
       name: "auth_token",
@@ -174,9 +154,10 @@ export async function POST(request: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
+
     return response;
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("2FA verification error:", error);
     return NextResponse.json(
       {
         error: "Internal server error",
@@ -192,4 +173,16 @@ export async function POST(request: NextRequest) {
       }
     );
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Credentials": "true",
+    },
+  });
 }

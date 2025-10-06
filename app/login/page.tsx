@@ -50,8 +50,20 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     try {
       setError(null);
-  await login(data);
-  router.replace('/dashboard');
+      const result = await login(data);
+      
+      // Check if 2FA is required
+      if (result && typeof result === 'object' && 'requiresTwoFA' in result && result.requiresTwoFA) {
+        // Store temp user ID and expiry for 2FA verification
+        localStorage.setItem('temp_user_id', result.tempUserId as string);
+        if ('expiresAt' in result && result.expiresAt) {
+          localStorage.setItem('temp_session_expires', result.expiresAt.toString());
+        }
+        router.replace('/login/2fa');
+        return;
+      }
+      
+      router.replace('/dashboard');
     } catch (error: unknown) {
       // Try to extract error from API response
       if (typeof error === 'object' && error !== null) {

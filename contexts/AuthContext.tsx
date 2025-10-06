@@ -50,7 +50,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<void>;
+  login: (credentials: { email: string; password: string }) => Promise<any>;
   signup: (userData: any) => Promise<void>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => Promise<void>;
@@ -107,6 +107,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     try {
       const response = await authAPI.login(credentials as any);
+      
+      // Check if 2FA is required
+      if (
+        response &&
+        typeof response === 'object' &&
+        'requiresTwoFA' in response &&
+        (response as { requiresTwoFA?: boolean }).requiresTwoFA
+      ) {
+        setIsLoading(false);
+        return response; // Return 2FA response
+      }
+      
+      // Normal login - set user
       if (
         response &&
         typeof response === 'object' &&
@@ -116,11 +129,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       ) {
         setUser((response as { user: User }).user);
       }
+      setIsLoading(false);
+      return response;
     } catch (error) {
       setIsLoading(false);
       throw error;
     }
-    setIsLoading(false);
   };
 
   const signup = async (userData: any) => {
