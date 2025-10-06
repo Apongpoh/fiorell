@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNotification } from "@/contexts/NotificationContext";
-import { withAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Plan {
   id: string;
@@ -40,8 +40,86 @@ interface UserSubscription {
   features: string[];
 }
 
+// Default plans for non-authenticated users
+const getDefaultPlans = (): Plan[] => [
+  {
+    id: "premium_monthly",
+    name: "Premium Monthly",
+    description: "All premium features with monthly billing",
+    price: 9.99,
+    currency: "USD",
+    interval: "month",
+    features: [
+      "Unlimited likes",
+      "See who liked you",
+      "Advanced filters",
+      "Priority support",
+      "Ad-free experience"
+    ]
+  },
+  {
+    id: "premium_annual",
+    name: "Premium Annual", 
+    description: "All premium features with annual billing",
+    price: 99.99,
+    currency: "USD",
+    interval: "year",
+    popular: true,
+    savings: {
+      savingsAmount: 19.89,
+      savingsPercentage: 17
+    },
+    features: [
+      "Unlimited likes",
+      "See who liked you",
+      "Advanced filters", 
+      "Priority support",
+      "Ad-free experience",
+      "17% savings"
+    ]
+  },
+  {
+    id: "premium_plus_monthly",
+    name: "Premium Plus Monthly",
+    description: "All premium features plus exclusive content",
+    price: 19.99,
+    currency: "USD", 
+    interval: "month",
+    features: [
+      "Everything in Premium",
+      "Boost your profile", 
+      "Super likes",
+      "Read receipts",
+      "Incognito mode",
+      "Exclusive events access"
+    ]
+  },
+  {
+    id: "premium_plus_annual",
+    name: "Premium Plus Annual",
+    description: "All premium features plus exclusive content",
+    price: 199.99,
+    currency: "USD",
+    interval: "year",
+    savings: {
+      savingsAmount: 39.89,
+      savingsPercentage: 17
+    },
+    features: [
+      "Everything in Premium",
+      "Boost your profile",
+      "Super likes", 
+      "Read receipts",
+      "Incognito mode",
+      "Exclusive events access",
+      "17% savings"
+    ]
+  }
+];
+
 function SubscriptionPage() {
   const { showNotification } = useNotification();
+  const { user: currentUser } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,20 +131,45 @@ function SubscriptionPage() {
 
   const loadPlansAndSubscription = async () => {
     try {
+      // Always load plans (public data)
+      const headers: Record<string, string> = {};
+      
+      // Only add auth header if user is logged in
+      if (currentUser) {
+        const token = localStorage.getItem("fiorell_auth_token");
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+      }
+
       const response = await fetch("/api/subscription/checkout", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
-        },
+        headers,
       });
 
       if (response.ok) {
         const data = await response.json();
         setPlans(data.plans || []);
-        setUserSubscription(data.userSubscription);
+        // Only set user subscription if user is authenticated
+        if (currentUser) {
+          setUserSubscription(data.userSubscription);
+        }
+      } else {
+        // If unauthorized but we still want to show plans, try without auth
+        if (response.status === 401 && !currentUser) {
+          // Load default plans without user-specific data
+          setPlans(getDefaultPlans());
+        } else {
+          throw new Error('Failed to load plans');
+        }
       }
     } catch (error) {
       console.error("Error loading subscription data:", error);
-      showNotification("Failed to load subscription plans", "error");
+      // For non-authenticated users, show default plans
+      if (!currentUser) {
+        setPlans(getDefaultPlans());
+      } else {
+        showNotification("Failed to load subscription plans", "error");
+      }
     } finally {
       setLoading(false);
     }
@@ -74,6 +177,13 @@ function SubscriptionPage() {
 
   const handleSubscribe = async (planId: string) => {
     if (processingPlan) return;
+
+    // Redirect to login if user is not authenticated
+    if (!currentUser) {
+      showNotification("Please sign in to upgrade to premium", "error");
+      window.location.href = `/login?redirect=${encodeURIComponent('/subscription')}`;
+      return;
+    }
 
     try {
       setProcessingPlan(planId);
@@ -271,7 +381,7 @@ function SubscriptionPage() {
                     <span>Current Plan</span>
                   ) : (
                     <>
-                      <span>Get Started</span>
+                      <span>{currentUser ? "Get Started" : "Sign Up & Subscribe"}</span>
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -361,4 +471,4 @@ function SubscriptionPage() {
   );
 }
 
-export default withAuth(SubscriptionPage);
+export default SubscriptionPage;

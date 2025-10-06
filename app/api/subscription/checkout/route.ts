@@ -7,15 +7,28 @@ import User from "@/models/User";
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const { userId } = verifyAuth(request);
-
-    // Get user
-    const user = await User.findById(userId);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    
+    // Check if user is authenticated (optional for GET requests)
+    let user = null;
+    let userSubscription = null;
+    
+    try {
+      const { userId } = verifyAuth(request);
+      user = await User.findById(userId);
+      
+      if (user) {
+        userSubscription = {
+          type: user.subscription?.type || "free",
+          expiresAt: user.subscription?.expiresAt,
+          isActive: user.subscription?.isActive || false,
+        };
+      }
+    } catch {
+      // User is not authenticated, that's ok for viewing plans
+      console.log("User not authenticated, showing public plans");
     }
 
-    // Get available plans
+    // Get available plans (public data)
     const plans = lemonSqueezyService.getPlans();
 
     // Add savings calculations for annual plans
@@ -44,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       plans: plansWithSavings,
-      userSubscription: user.subscription,
+      userSubscription,
     });
 
   } catch (error) {
