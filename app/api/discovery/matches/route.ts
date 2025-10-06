@@ -161,16 +161,36 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get users who haven't been liked/passed by current user
-    const existingInteractions = await Interaction.find({
+    // Get users who haven't been liked/passed by current user TODAY
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    const todayInteractions = await Interaction.find({
       userId: userId,
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
     }).select("targetUserId");
 
-    const interactedUserIds = existingInteractions.map((interaction) => interaction.targetUserId);
-    if (interactedUserIds.length > 0) {
+    const todayInteractedUserIds = todayInteractions.map((interaction) => interaction.targetUserId);
+    if (todayInteractedUserIds.length > 0) {
       const origId =
         typeof filter._id === "object" && filter._id !== null ? filter._id : {};
-      filter._id = { ...origId, $nin: interactedUserIds };
+      filter._id = { ...origId, $nin: todayInteractedUserIds };
+    }
+
+    // Debug logging for new users with no matches
+    if (diagnostics || process.env.NODE_ENV === 'development') {
+      const hasNinFilter = filter._id && typeof filter._id === 'object' && '$nin' in filter._id;
+      console.log(`Discovery for user ${userId}:`, {
+        todayInteractionsCount: todayInteractedUserIds.length,
+        todayInteractedUsers: todayInteractedUserIds,
+        filterApplied: !!hasNinFilter,
+      });
     }
 
     // Enforce privacy visibility: exclude hidden, restrict mutual-only to matched connections
@@ -303,6 +323,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // If still no results and user has many today interactions, show some profiles they interacted with before
+    // (but not today) to give them something to see - this helps new users who exhaust profiles quickly
+    let showPreviouslyInteracted = false;
+    if (users.length === 0 && todayInteractedUserIds.length >= 5) {
+      // Remove the today interaction filter and try again
+      const relaxedFilter: typeof filter = { ...filter };
+      
+      // Reset the _id filter to exclude only blocked users (not today's interactions)
+      if (excludeIds.size > 0) {
+        (relaxedFilter as { _id?: { $nin: string[] } })._id = { $nin: Array.from(excludeIds) };
+      } else {
+        delete (relaxedFilter as { _id?: unknown })._id;
+      }
+      
+      try {
+        users = await User.find(relaxedFilter)
+          .select(
+            "firstName dateOfBirth location bio interests photos verification lifestyle"
+          )
+          .skip(offset)
+          .limit(Math.min(limit, 3)) // Show fewer when relaxing
+          .lean();
+        showPreviouslyInteracted = true;
+      } catch {
+        // ignore re-query errors
+      }
+    }
+
     // If no results and we have strong deal breakers, attempt a relaxed count to help client adjust
     let relaxedCount: number | undefined;
     if (users.length === 0 && dealBreakers) {
@@ -382,6 +430,9 @@ export async function GET(request: NextRequest) {
               relaxedCount: relaxedCount ?? null,
               dealBreakersApplied: !!dealBreakers,
               distanceRelaxed: distanceRelaxed ?? false,
+              showPreviouslyInteracted,
+              todayInteractionsCount: todayInteractedUserIds.length,
+              todayInteractedUsers: todayInteractedUserIds,
             }
           : undefined,
       },

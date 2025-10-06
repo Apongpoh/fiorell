@@ -80,8 +80,8 @@ const formatMessageTime = (timestamp: string | null) => {
 // Removed unused useClickOutside
 
 function ChatPage() {
-  // Track if user is at bottom of chat
-  const [isAtBottom, setIsAtBottom] = useState(true);
+  // Track if user is at bottom of chat (for scroll to bottom button)
+  const [, setIsAtBottom] = useState(true);
 
   // Handler to check if user is at bottom
   const handleScroll = useCallback(() => {
@@ -147,12 +147,15 @@ function ChatPage() {
     setRetryCount((prev) => prev + 1);
   };
 
-  // Debounced scroll to bottom of messages (stable instance)
+  // Manual scroll to bottom function (no auto-scroll)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const debouncedScrollToBottom = useCallback(() => {
+  const debouncedScrollToBottom = useCallback((force = false) => {
     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     scrollTimeoutRef.current = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      // Only scroll when explicitly forced (manual button click)
+      if (force) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
     }, 80);
   }, []);
 
@@ -246,10 +249,10 @@ function ChatPage() {
       eventSource.onmessage = async (event) => {
         const message = JSON.parse(event.data);
 
-        // Add message and scroll to bottom
+        // Add message without any auto-scroll
         setMessages((prev) => {
           const updated = [...prev, message];
-          setTimeout(() => debouncedScrollToBottom(), 100);
+          // No automatic scrolling
           return updated;
         });
       };
@@ -260,9 +263,9 @@ function ChatPage() {
     }
   }, [id, retryCount, decryptMessages, debouncedScrollToBottom]);
 
-  // Scroll to bottom only on initial load
+  // No auto-scroll on initial load
   useEffect(() => {
-    debouncedScrollToBottom();
+    // Removed auto-scroll on initial load
     // Proactively refresh video URLs for all visible video messages
     const refreshAllVideoUrls = async () => {
       const token =
@@ -511,7 +514,7 @@ function ChatPage() {
       }
       setMessages((prev) => {
         const updated = [...prev, newMsg as Message];
-        setTimeout(() => debouncedScrollToBottom(), 100);
+        // No automatic scrolling when sending messages
         return updated;
       });
       setNewMessage("");
@@ -584,10 +587,7 @@ function ChatPage() {
       };
 
       setMessages((prev) => [...prev, optimistic]);
-      if (isAtBottom) {
-        debouncedScrollToBottom();
-        setTimeout(debouncedScrollToBottom, 50);
-      }
+      // No automatic scrolling when uploading media
 
       // Create form data
       const formData = new FormData();
@@ -1677,6 +1677,29 @@ function ChatPage() {
           )}
           <div ref={messagesEndRef} />
         </div>
+      </div>
+
+      {/* Manual scroll to bottom button - always available */}
+      <div className="fixed bottom-20 right-4 z-20">
+        <button
+          onClick={() => debouncedScrollToBottom(true)}
+          className="bg-pink-500 hover:bg-pink-600 text-white p-3 rounded-full shadow-lg transition-all duration-200 transform hover:scale-105"
+          aria-label="Scroll to bottom"
+        >
+          <svg 
+            className="w-5 h-5" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M19 14l-7 7m0 0l-7-7m7 7V3" 
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Message Input */}
