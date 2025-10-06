@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     await connectToDatabase();
     const { userId } = verifyAuth(req);
     const body = await req.json();
-    const { subject, message } = body || {};
+    const { subject, message, type = "email", priority = "medium" } = body || {};
 
     if (!subject || !message) {
       return NextResponse.json(
@@ -20,10 +20,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate type and priority
+    if (!["chat", "email"].includes(type)) {
+      return NextResponse.json(
+        { error: "Type must be 'chat' or 'email'" },
+        { status: 400 }
+      );
+    }
+
+    if (!["low", "medium", "high"].includes(priority)) {
+      return NextResponse.json(
+        { error: "Priority must be 'low', 'medium', or 'high'" },
+        { status: 400 }
+      );
+    }
+
     const ticket = await SupportTicket.create({
       userId,
       subject: String(subject),
       message: String(message),
+      type: String(type),
+      priority: String(priority),
+      status: "open",
+    });
+
+    // Create initial message from the ticket
+    const SupportMessage = (await import("@/models/SupportMessage")).default;
+    await SupportMessage.create({
+      ticketId: ticket._id,
+      content: String(message),
+      isFromSupport: false,
+      readByUser: true,
+      readBySupport: false,
     });
 
     // Email notification (commented out until email is configured):
@@ -76,7 +104,17 @@ export async function GET(req: NextRequest) {
     const tickets = await SupportTicket.find({ userId })
       .sort({ createdAt: -1 })
       .lean();
-    return NextResponse.json({ tickets }, { status: 200 });
+    return NextResponse.json({ 
+      tickets: tickets.map(ticket => ({
+        id: ticket._id,
+        subject: ticket.subject,
+        status: ticket.status,
+        priority: ticket.priority || "medium",
+        type: ticket.type || "email",
+        createdAt: ticket.createdAt,
+        updatedAt: ticket.updatedAt,
+      }))
+    }, { status: 200 });
   } catch (error: unknown) {
     if (
       typeof error === "object" &&

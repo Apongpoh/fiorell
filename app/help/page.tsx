@@ -10,10 +10,11 @@ import {
   ChevronUp,
   MessageCircle,
   Mail,
-  Phone,
-  ExternalLink,
+  X,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
+import { useNotification } from "@/contexts/NotificationContext";
 
 interface FAQ {
   id: string;
@@ -96,6 +97,15 @@ export default function HelpPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportType, setSupportType] = useState<"chat" | "email">("chat");
+  const [supportForm, setSupportForm] = useState({
+    subject: "",
+    message: "",
+    priority: "medium" as "low" | "medium" | "high",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showNotification } = useNotification();
 
   const filteredFAQs = faqs.filter((faq) => {
     const matchesSearch =
@@ -108,6 +118,60 @@ export default function HelpPage() {
 
   const toggleFAQ = (id: string) => {
     setExpandedFAQ(expandedFAQ === id ? null : id);
+  };
+
+  const handleSupportSubmit = async () => {
+    if (!supportForm.subject.trim() || !supportForm.message.trim()) {
+      showNotification("Please fill in all required fields", "error");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/support", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+        },
+        body: JSON.stringify({
+          type: supportType,
+          subject: supportForm.subject,
+          message: supportForm.message,
+          priority: supportForm.priority,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to submit support request");
+      }
+
+      showNotification(
+        supportType === "chat"
+          ? "Chat request submitted! We'll respond soon."
+          : "Email sent successfully! Check your inbox for confirmation.",
+        "success"
+      );
+
+      // Reset form
+      setSupportForm({ subject: "", message: "", priority: "medium" });
+      setShowSupportModal(false);
+    } catch (error) {
+      console.error("Support submission error:", error);
+      showNotification(
+        error instanceof Error ? error.message : "Failed to submit support request",
+        "error"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openSupportModal = (type: "chat" | "email") => {
+    setSupportType(type);
+    setShowSupportModal(true);
   };
 
   return (
@@ -251,7 +315,10 @@ export default function HelpPage() {
             </div>
 
             <div className="divide-y divide-gray-100">
-              <button className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left">
+              <button 
+                onClick={() => openSupportModal("chat")}
+                className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left"
+              >
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                   <MessageCircle className="h-5 w-5 text-blue-500" />
                 </div>
@@ -261,10 +328,12 @@ export default function HelpPage() {
                     Get instant help from our support team
                   </p>
                 </div>
-                <ExternalLink className="h-5 w-5 text-gray-400" />
               </button>
 
-              <button className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left">
+              <button 
+                onClick={() => openSupportModal("email")}
+                className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left"
+              >
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                   <Mail className="h-5 w-5 text-green-500" />
                 </div>
@@ -272,20 +341,6 @@ export default function HelpPage() {
                   <h3 className="font-medium text-gray-900">Email Support</h3>
                   <p className="text-sm text-gray-600">support@fiorell.com</p>
                 </div>
-                <ExternalLink className="h-5 w-5 text-gray-400" />
-              </button>
-
-              <button className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Phone className="h-5 w-5 text-purple-500" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">Phone Support</h3>
-                  <p className="text-sm text-gray-600">
-                    1-800-FIORELL (Mon-Fri 9AM-6PM EST)
-                  </p>
-                </div>
-                <ExternalLink className="h-5 w-5 text-gray-400" />
               </button>
             </div>
           </div>
@@ -326,6 +381,115 @@ export default function HelpPage() {
           </div>
         </motion.div>
       </main>
+
+      {/* Support Modal */}
+      {showSupportModal && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowSupportModal(false)}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-2xl w-full max-w-md shadow-lg"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center space-x-3">
+                  {supportType === "chat" ? (
+                    <MessageCircle className="h-6 w-6 text-blue-500" />
+                  ) : (
+                    <Mail className="h-6 w-6 text-green-500" />
+                  )}
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {supportType === "chat" ? "Start Live Chat" : "Send Email"}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowSupportModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Subject *
+                  </label>
+                  <input
+                    type="text"
+                    value={supportForm.subject}
+                    onChange={(e) =>
+                      setSupportForm({ ...supportForm, subject: e.target.value })
+                    }
+                    placeholder="Brief description of your issue"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Priority
+                  </label>
+                  <select
+                    value={supportForm.priority}
+                    onChange={(e) =>
+                      setSupportForm({
+                        ...supportForm,
+                        priority: e.target.value as "low" | "medium" | "high",
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                  >
+                    <option value="low">Low - General question</option>
+                    <option value="medium">Medium - Account issue</option>
+                    <option value="high">High - Urgent problem</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Message *
+                  </label>
+                  <textarea
+                    value={supportForm.message}
+                    onChange={(e) =>
+                      setSupportForm({ ...supportForm, message: e.target.value })
+                    }
+                    placeholder="Please describe your issue in detail..."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => setShowSupportModal(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSupportSubmit}
+                    disabled={isSubmitting}
+                    className="flex items-center space-x-2 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 disabled:opacity-50 transition-colors"
+                  >
+                    {isSubmitting ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    <span>{isSubmitting ? "Sending..." : "Send"}</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
