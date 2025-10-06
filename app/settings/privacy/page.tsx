@@ -87,10 +87,40 @@ export default function PrivacySettings() {
   const [verificationCode, setVerificationCode] = useState("");
   const [verifying, setVerifying] = useState(false);
 
-  // Add refs for 2FA input boxes
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  // Password change states - use refs for uncontrolled inputs
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  
+  // Use refs for password inputs to avoid controlled input issues
+  const currentPasswordRef = useRef<HTMLInputElement>(null);
+  const newPasswordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
 
-  // Focus first box when modal opens
+  // Reset password form when modal closes
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    if (currentPasswordRef.current) currentPasswordRef.current.value = "";
+    if (newPasswordRef.current) newPasswordRef.current.value = "";
+    if (confirmPasswordRef.current) confirmPasswordRef.current.value = "";
+    setPasswordErrors([]);
+  };
+
+  // Add refs for 2FA input boxes only
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  
+  // Separate refs for password inputs (completely independent)
+  const passwordInputRefs = useRef<{
+    current: HTMLInputElement | null;
+    new: HTMLInputElement | null;
+    confirm: HTMLInputElement | null;
+  }>({
+    current: null,
+    new: null,
+    confirm: null,
+  });
+
+  // Focus first box when 2FA modal opens
   useEffect(() => {
     if (show2faModal) {
       const first = inputRefs.current[0];
@@ -98,6 +128,15 @@ export default function PrivacySettings() {
       first?.select();
     }
   }, [show2faModal]);
+
+  // Focus first input when password modal opens
+  useEffect(() => {
+    if (showPasswordModal) {
+      setTimeout(() => {
+        currentPasswordRef.current?.focus();
+      }, 100);
+    }
+  }, [showPasswordModal]);
 
   const mapVisibilityToOption = (v: "everyone" | "mutual" | "hidden") => {
     switch (v) {
@@ -483,6 +522,79 @@ export default function PrivacySettings() {
     }
   };
 
+  // Password validation - matches signup validation exactly
+  const validatePassword = (password: string): string[] => {
+    const errors: string[] = [];
+    if (password.length < 8) errors.push("Password must be at least 8 characters");
+    if (password.length > 100) errors.push("Password cannot exceed 100 characters");
+    if (!/[A-Z]/.test(password)) errors.push("Password must contain at least one uppercase letter");
+    if (!/[a-z]/.test(password)) errors.push("Password must contain at least one lowercase letter");
+    if (!/[0-9]/.test(password)) errors.push("Password must contain at least one number");
+    if (!/[^A-Za-z0-9]/.test(password)) errors.push("Password must contain at least one special character");
+    return errors;
+  };
+
+  // Handle password change
+  const handlePasswordChange = async () => {
+    const currentPassword = currentPasswordRef.current?.value || "";
+    const newPassword = newPasswordRef.current?.value || "";
+    const confirmPassword = confirmPasswordRef.current?.value || "";
+    
+    // Reset errors
+    setPasswordErrors([]);
+    
+    // Validate inputs
+    const errors: string[] = [];
+    if (!currentPassword) errors.push("Current password is required");
+    if (!newPassword) errors.push("New password is required");
+    if (newPassword !== confirmPassword) errors.push("Passwords do not match");
+    
+    // Validate new password strength
+    const passwordValidationErrors = validatePassword(newPassword);
+    errors.push(...passwordValidationErrors);
+    
+    if (errors.length > 0) {
+      setPasswordErrors(errors);
+      return;
+    }
+    
+    setChangingPassword(true);
+    
+    try {
+      const token = localStorage.getItem("fiorell_auth_token");
+      const response = await fetch("/api/user/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change password");
+      }
+      
+      // Reset form and close modal
+      if (currentPasswordRef.current) currentPasswordRef.current.value = "";
+      if (newPasswordRef.current) newPasswordRef.current.value = "";
+      if (confirmPasswordRef.current) confirmPasswordRef.current.value = "";
+      setShowPasswordModal(false);
+      setPasswordErrors([]);
+      showNotification("Password changed successfully", "success");
+      
+    } catch (error: any) {
+      setPasswordErrors([error.message || "Failed to change password"]);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -657,16 +769,42 @@ export default function PrivacySettings() {
               </div>
             )}
           </div>
-          {/* Safety Section with 2FA */}
+          {/* Security Section with 2FA */}
           <div className="bg-white rounded-2xl shadow-sm mt-6">
             <div className="p-6 pb-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                Safety
+                Security
               </h2>
               <p className="text-gray-600 text-sm mt-1">
                 Enhance your account security and safety
               </p>
             </div>
+            
+            {/* Password Change Section */}
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-start space-x-4">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shield className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium text-gray-900">
+                      Change Password
+                    </h3>
+                    <button
+                      onClick={() => setShowPasswordModal(true)}
+                      className="px-3 py-1 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Update your password to keep your account secure. Use a strong password with at least 8 characters.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             {/* 2FA Section */}
             <div className="p-6">
               <div className="flex items-start space-x-4">
@@ -760,6 +898,107 @@ export default function PrivacySettings() {
                 >
                   {verifying ? "Verifying..." : "Verify & Enable"}
                 </button>
+              </div>
+            </Modal>
+          )}
+          {/* Password Change Modal */}
+          {showPasswordModal && (
+            <Modal open={showPasswordModal} onClose={closePasswordModal}>
+              <div className="p-6 max-w-md mx-auto">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Change Password</h3>
+                <p className="text-gray-600 mb-4">Enter your current password and choose a new secure password.</p>
+                
+                {passwordErrors.length > 0 && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 className="text-sm font-medium text-red-800 mb-1">Please fix the following errors:</h4>
+                    <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
+                      {passwordErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 mb-1">
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      id="current-password"
+                      name="current-password"
+                      ref={currentPasswordRef}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                      placeholder="Enter current password"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      id="new-password"
+                      name="new-password"
+                      ref={newPasswordRef}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                      placeholder="Enter new password"
+                      autoComplete="new-password"
+                    />
+                    <div className="mt-2 text-xs text-gray-500">
+                      <p className="mb-1">Password must contain:</p>
+                      <ul className="list-disc list-inside space-y-0.5 ml-2">
+                        <li>At least 8 characters</li>
+                        <li>One uppercase letter</li>
+                        <li>One lowercase letter</li>
+                        <li>One number</li>
+                        <li>One special character</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      id="confirm-password"
+                      name="confirm-password"
+                      ref={confirmPasswordRef}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                      placeholder="Confirm new password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex space-x-3 mt-6">
+                  <button
+                    onClick={closePasswordModal}
+                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    disabled={changingPassword}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasswordChange}
+                    disabled={changingPassword}
+                    className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {changingPassword ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Changing...</span>
+                      </div>
+                    ) : (
+                      "Change Password"
+                    )}
+                  </button>
+                </div>
               </div>
             </Modal>
           )}
