@@ -19,15 +19,11 @@ export async function POST(request: NextRequest) {
     // Find user by temp ID and verify they have 2FA enabled
     const user = await User.findById(tempUserId);
     if (!user || !user.twoFA?.enabled) {
-      return NextResponse.json(
-        { error: "Invalid session" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     // Session is valid
     return NextResponse.json({ valid: true });
-
   } catch (error) {
     console.error("Temp session verification error:", error);
     return NextResponse.json(

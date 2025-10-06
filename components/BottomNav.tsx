@@ -27,7 +27,9 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
         <button
           onClick={() => router.push("/dashboard")}
           className={`flex flex-col items-center space-y-1 transition-colors ${
-            isActive("/dashboard") ? "text-pink-500" : "text-gray-400 hover:text-pink-500"
+            isActive("/dashboard")
+              ? "text-pink-500"
+              : "text-gray-400 hover:text-pink-500"
           }`}
         >
           <Users className="h-6 w-6" />
@@ -36,7 +38,9 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
         <button
           onClick={() => router.push("/matches")}
           className={`flex flex-col items-center space-y-1 transition-colors ${
-            isActive("/matches") ? "text-pink-500" : "text-gray-400 hover:text-pink-500"
+            isActive("/matches")
+              ? "text-pink-500"
+              : "text-gray-400 hover:text-pink-500"
           }`}
         >
           <Heart className="h-6 w-6" />
@@ -45,7 +49,9 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
         <button
           onClick={() => router.push("/chat")}
           className={`relative flex flex-col items-center space-y-1 transition-colors ${
-            isActive("/chat") ? "text-pink-500" : "text-gray-400 hover:text-pink-500"
+            isActive("/chat")
+              ? "text-pink-500"
+              : "text-gray-400 hover:text-pink-500"
           }`}
         >
           <MessageCircle className="h-6 w-6" />
@@ -59,7 +65,9 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
         <button
           onClick={() => router.push("/profile")}
           className={`flex flex-col items-center space-y-1 transition-colors ${
-            isActive("/profile") ? "text-pink-500" : "text-gray-400 hover:text-pink-500"
+            isActive("/profile")
+              ? "text-pink-500"
+              : "text-gray-400 hover:text-pink-500"
           }`}
         >
           <Camera className="h-6 w-6" />

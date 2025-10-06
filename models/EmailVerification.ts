@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IEmailVerification extends Document {
   userId: string;
@@ -16,4 +16,8 @@ const EmailVerificationSchema = new Schema<IEmailVerification>({
   verified: { type: Boolean, default: false },
 });
 
-export default mongoose.models.EmailVerification || mongoose.model<IEmailVerification>('EmailVerification', EmailVerificationSchema);
+export default mongoose.models.EmailVerification ||
+  mongoose.model<IEmailVerification>(
+    "EmailVerification",
+    EmailVerificationSchema
+  );

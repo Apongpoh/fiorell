@@ -1,8 +1,8 @@
 "use client";
 
-import { Heart } from 'lucide-react';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { Heart } from "lucide-react";
+import Link from "next/link";
+import { motion } from "framer-motion";
 
 interface NavbarProps {
   showAuthButtons?: boolean;
@@ -22,15 +22,15 @@ export default function Navbar({ showAuthButtons = true }: NavbarProps) {
             <span className="text-2xl font-bold text-gray-900">Fiorell</span>
           </Link>
         </motion.div>
-        
+
         {showAuthButtons && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center space-x-4"
           >
-            <Link 
-              href="/login" 
+            <Link
+              href="/login"
               className="px-4 py-2 text-gray-700 hover:text-pink-600 transition-colors"
             >
               Sign In

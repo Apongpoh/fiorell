@@ -11,9 +11,11 @@ export async function POST(req: NextRequest) {
   }
   const { code } = await req.json();
   const secret = await get2FASecret(payload.userId);
-  if (!secret) return NextResponse.json({ error: "No 2FA setup" }, { status: 400 });
+  if (!secret)
+    return NextResponse.json({ error: "No 2FA setup" }, { status: 400 });
   const valid = verify2FACode(secret, code);
-  if (!valid) return NextResponse.json({ error: "Invalid code" }, { status: 400 });
+  if (!valid)
+    return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   await enable2FAForUser(payload.userId);
   return NextResponse.json({ success: true });
 }

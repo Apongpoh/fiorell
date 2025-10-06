@@ -6,14 +6,20 @@ import User from "@/models/User";
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
-    
+
     if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
     }
 
     let decoded;
@@ -24,23 +30,25 @@ export async function POST(request: NextRequest) {
     }
 
     const { publicKey } = await request.json();
-    
+
     if (!publicKey || typeof publicKey !== "string") {
-      return NextResponse.json({ error: "Public key is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Public key is required" },
+        { status: 400 }
+      );
     }
 
     await connectToDatabase();
-    
+
     // Update user's public key
     await User.findByIdAndUpdate(decoded.userId, {
       publicKey: publicKey,
       publicKeyUpdatedAt: new Date(),
     });
 
-    return NextResponse.json({ 
-      message: "Public key updated successfully" 
+    return NextResponse.json({
+      message: "Public key updated successfully",
     });
-
   } catch (error) {
     console.error("Error updating public key:", error);
     return NextResponse.json(

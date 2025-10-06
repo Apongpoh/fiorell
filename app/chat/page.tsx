@@ -42,17 +42,21 @@ export default function MessagesPage() {
       try {
         setLoading(true);
         const response = await apiRequest("/matches");
-        if (!response || typeof response !== 'object' || !('matches' in response)) {
-          throw new Error('Invalid response from server');
+        if (
+          !response ||
+          typeof response !== "object" ||
+          !("matches" in response)
+        ) {
+          throw new Error("Invalid response from server");
         }
         const matchesValue = (response as { matches?: unknown }).matches;
         if (!Array.isArray(matchesValue)) {
-          throw new Error('Invalid matches data');
+          throw new Error("Invalid matches data");
         }
 
         // The current API returns matches with shape: { _id, user: {...}, lastMessage, unreadCount, ... }
         // but we also keep backward compatibility if user1/user2 are present.
-  const validChats: ChatPreview[] = (matchesValue as unknown[])
+        const validChats: ChatPreview[] = (matchesValue as unknown[])
           .map((rawMatch) => {
             if (typeof rawMatch !== "object" || rawMatch === null) {
               return null;

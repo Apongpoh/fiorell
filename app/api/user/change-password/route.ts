@@ -47,10 +47,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const errors = error.issues.map((issue) => issue.message);
-        return NextResponse.json(
-          { error: errors.join(". ") },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: errors.join(". ") }, { status: 400 });
       }
       return NextResponse.json(
         { error: "Invalid password format" },
@@ -61,14 +58,14 @@ export async function POST(request: NextRequest) {
     // Find user and verify current password
     const user = await User.findById(payload.userId).select("+password");
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Verify current password
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
     if (!isCurrentPasswordValid) {
       return NextResponse.json(
         { error: "Current password is incorrect" },
@@ -92,14 +89,13 @@ export async function POST(request: NextRequest) {
     // Update user password
     await User.findByIdAndUpdate(payload.userId, {
       password: hashedNewPassword,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     return NextResponse.json(
       { message: "Password changed successfully" },
       { status: 200 }
     );
-
   } catch (error) {
     console.error("Password change error:", error);
     return NextResponse.json(

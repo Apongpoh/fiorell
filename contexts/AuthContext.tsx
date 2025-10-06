@@ -1,7 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { authAPI, userAPI } from '@/lib/api';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { authAPI, userAPI } from "@/lib/api";
 
 interface User {
   id: string;
@@ -36,7 +42,7 @@ interface User {
     verifiedAt?: string;
   };
   subscription: {
-    type: 'free' | 'premium' | 'plus';
+    type: "free" | "premium" | "plus";
     expiresAt?: string;
   };
   stats: {
@@ -62,7 +68,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -85,15 +91,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const userData = await userAPI.getProfile();
           if (
             userData &&
-            typeof userData === 'object' &&
-            'user' in userData &&
+            typeof userData === "object" &&
+            "user" in userData &&
             (userData as { user: unknown }).user &&
-            typeof (userData as { user: unknown }).user === 'object'
+            typeof (userData as { user: unknown }).user === "object"
           ) {
             setUser((userData as { user: User }).user);
           }
         } catch (error) {
-          console.error('Failed to load user:', error);
+          console.error("Failed to load user:", error);
           authAPI.logout();
         }
       }
@@ -107,25 +113,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     try {
       const response = await authAPI.login(credentials as any);
-      
+
       // Check if 2FA is required
       if (
         response &&
-        typeof response === 'object' &&
-        'requiresTwoFA' in response &&
+        typeof response === "object" &&
+        "requiresTwoFA" in response &&
         (response as { requiresTwoFA?: boolean }).requiresTwoFA
       ) {
         setIsLoading(false);
         return response; // Return 2FA response
       }
-      
+
       // Normal login - set user
       if (
         response &&
-        typeof response === 'object' &&
-        'user' in response &&
+        typeof response === "object" &&
+        "user" in response &&
         (response as { user: unknown }).user &&
-        typeof (response as { user: unknown }).user === 'object'
+        typeof (response as { user: unknown }).user === "object"
       ) {
         setUser((response as { user: User }).user);
       }
@@ -158,15 +164,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await userAPI.updateProfile(userData as any);
       if (
         response &&
-        typeof response === 'object' &&
-        'user' in response &&
+        typeof response === "object" &&
+        "user" in response &&
         (response as { user: unknown }).user &&
-        typeof (response as { user: unknown }).user === 'object'
+        typeof (response as { user: unknown }).user === "object"
       ) {
         setUser((response as { user: User }).user);
       }
     } catch (error) {
-      console.error('Failed to update user:', error);
+      console.error("Failed to update user:", error);
       throw error;
     }
   };
@@ -177,15 +183,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userData = await userAPI.getProfile();
         if (
           userData &&
-          typeof userData === 'object' &&
-          'user' in userData &&
+          typeof userData === "object" &&
+          "user" in userData &&
           (userData as { user: unknown }).user &&
-          typeof (userData as { user: unknown }).user === 'object'
+          typeof (userData as { user: unknown }).user === "object"
         ) {
           setUser((userData as { user: User }).user);
         }
       } catch (error) {
-        console.error('Failed to refresh user:', error);
+        console.error("Failed to refresh user:", error);
         throw error;
       }
     }
@@ -202,21 +208,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshUser,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // Higher-order component for protected routes
-export const withAuth = <P extends object>(Component: React.ComponentType<P>) => {
+export const withAuth = <P extends object>(
+  Component: React.ComponentType<P>
+) => {
   return function AuthenticatedComponent(props: P) {
     const { isAuthenticated, isLoading } = useAuth();
 
     useEffect(() => {
       if (!isLoading && !isAuthenticated) {
-        window.location.href = '/login';
+        window.location.href = "/login";
       }
     }, [isAuthenticated, isLoading]);
 

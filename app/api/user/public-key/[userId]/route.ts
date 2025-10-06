@@ -9,14 +9,20 @@ export async function GET(
 ) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
-    
+
     if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
     }
 
     try {
@@ -26,28 +32,33 @@ export async function GET(
     }
 
     const { userId } = await params;
-    
+
     if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
     }
 
     await connectToDatabase();
-    
+
     // Get user's public key
     const user = await User.findById(userId).select("publicKey");
-    
+
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     if (!user.publicKey) {
-      return NextResponse.json({ error: "User has no public key" }, { status: 404 });
+      return NextResponse.json(
+        { error: "User has no public key" },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ 
-      publicKey: user.publicKey 
+    return NextResponse.json({
+      publicKey: user.publicKey,
     });
-
   } catch (error) {
     console.error("Error fetching public key:", error);
     return NextResponse.json(

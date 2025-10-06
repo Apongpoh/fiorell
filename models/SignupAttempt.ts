@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface ISignupAttempt extends Document {
   ip: string;
@@ -10,4 +10,5 @@ const SignupAttemptSchema = new Schema<ISignupAttempt>({
   createdAt: { type: Date, default: Date.now, expires: 3600 }, // expires after 1 hour
 });
 
-export default mongoose.models.SignupAttempt || mongoose.model<ISignupAttempt>('SignupAttempt', SignupAttemptSchema);
+export default mongoose.models.SignupAttempt ||
+  mongoose.model<ISignupAttempt>("SignupAttempt", SignupAttemptSchema);

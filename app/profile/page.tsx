@@ -739,17 +739,24 @@ export default function ProfilePage() {
                           const files = e.target.files;
                           if (!files || files.length === 0) return;
                           // Prevent video uploads
-                          const validImages = Array.from(files).filter(f => !f.type.startsWith("video/"));
-                          const hasVideo = Array.from(files).some(f => f.type.startsWith("video/"));
+                          const validImages = Array.from(files).filter(
+                            (f) => !f.type.startsWith("video/")
+                          );
+                          const hasVideo = Array.from(files).some((f) =>
+                            f.type.startsWith("video/")
+                          );
                           if (hasVideo) {
-                            showNotification("Video uploads are not allowed. Please select image files only.", "error");
+                            showNotification(
+                              "Video uploads are not allowed. Please select image files only.",
+                              "error"
+                            );
                           }
                           if (validImages.length === 0) return;
                           setUploading(true);
                           try {
                             // Upload only valid image files
                             const dt = new DataTransfer();
-                            validImages.forEach(file => dt.items.add(file));
+                            validImages.forEach((file) => dt.items.add(file));
                             await userAPI.uploadPhotos(dt.files);
                             // Refresh user data and photos
                             const response = await userAPI.getProfile();
@@ -1501,10 +1508,11 @@ export default function ProfilePage() {
                     <p className="text-gray-600 mb-6">
                       Are you sure you want to delete your account?
                       <br />
-                      You can either deactivate your account (soft delete) so your
-                      profile no longer appears anywhere, or permanently delete it.
-                      Permanent deletion cannot be undone and will remove your
-                      messages, matches, likes, and other related data.
+                      You can either deactivate your account (soft delete) so
+                      your profile no longer appears anywhere, or permanently
+                      delete it. Permanent deletion cannot be undone and will
+                      remove your messages, matches, likes, and other related
+                      data.
                     </p>
                     <div className="mb-4">
                       <label className="flex items-center space-x-2 text-sm text-gray-800">

@@ -20,13 +20,13 @@ export default function Home() {
       {/* SVG background pattern, absolutely positioned, behind all content */}
       <div
         style={{
-          position: 'fixed',
+          position: "fixed",
           inset: 0,
-          width: '100vw',
-          height: '100vh',
+          width: "100vw",
+          height: "100vh",
           zIndex: -1,
-          pointerEvents: 'none',
-          overflow: 'hidden',
+          pointerEvents: "none",
+          overflow: "hidden",
         }}
         aria-hidden="true"
       >
@@ -34,7 +34,7 @@ export default function Home() {
           src="/pattern-randomized.svg"
           alt="Background pattern"
           fill
-          style={{ objectFit: 'cover' }}
+          style={{ objectFit: "cover" }}
           draggable={false}
           priority
         />
