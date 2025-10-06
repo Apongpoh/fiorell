@@ -77,6 +77,8 @@ export interface IUser extends Document {
     enabledAt?: Date;
     disabledAt?: Date;
   };
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -103,6 +105,8 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     lastSeen: { type: Date, default: Date.now },
     twoFA: { enabled: { type: Boolean, default: false }, secret: { type: String }, tempSecret: { type: String }, verified: { type: Boolean, default: false }, recoveryCodes: [{ type: String }], enabledAt: { type: Date }, disabledAt: { type: Date } },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
   },
   {
     timestamps: true,

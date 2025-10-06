@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Shield,
   Eye,
+  EyeOff,
   UserX,
   AlertTriangle,
   MapPin,
@@ -91,11 +92,16 @@ export default function PrivacySettings() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
-  
+
   // Use refs for password inputs to avoid controlled input issues
   const currentPasswordRef = useRef<HTMLInputElement>(null);
   const newPasswordRef = useRef<HTMLInputElement>(null);
   const confirmPasswordRef = useRef<HTMLInputElement>(null);
+
+  // Password visibility states (only for UI, doesn't affect logic)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Reset password form when modal closes
   const closePasswordModal = () => {
@@ -104,11 +110,15 @@ export default function PrivacySettings() {
     if (newPasswordRef.current) newPasswordRef.current.value = "";
     if (confirmPasswordRef.current) confirmPasswordRef.current.value = "";
     setPasswordErrors([]);
+    // Reset visibility states to ensure independence
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
   };
 
   // Add refs for 2FA input boxes only
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  
+
   // Separate refs for password inputs (completely independent)
   const passwordInputRefs = useRef<{
     current: HTMLInputElement | null;
@@ -427,12 +437,12 @@ export default function PrivacySettings() {
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = e.target.value;
-    
+
     // Handle pasted content
     if (value.length > 1) {
       const digits = value.replace(/[^0-9]/g, "").slice(0, 6);
       setVerificationCode(digits.padEnd(6, ""));
-      
+
       // Focus on the last filled position or next empty
       const focusIndex = Math.min(digits.length, 5);
       setTimeout(() => {
@@ -440,15 +450,15 @@ export default function PrivacySettings() {
       }, 0);
       return;
     }
-    
+
     // Handle single digit input
     const digit = value.replace(/[^0-9]/g, "");
     const codeArray = verificationCode.padEnd(6, "").split("");
-    
+
     if (digit) {
       codeArray[index] = digit;
       setVerificationCode(codeArray.join(""));
-      
+
       // Move to next input
       if (index < 5) {
         setTimeout(() => {
@@ -484,7 +494,7 @@ export default function PrivacySettings() {
     if (key === "Backspace") {
       e.preventDefault();
       const codeArray = verificationCode.padEnd(6, "").split("");
-      
+
       if (codeArray[index]) {
         // Clear current digit
         codeArray[index] = "";
@@ -525,12 +535,18 @@ export default function PrivacySettings() {
   // Password validation - matches signup validation exactly
   const validatePassword = (password: string): string[] => {
     const errors: string[] = [];
-    if (password.length < 8) errors.push("Password must be at least 8 characters");
-    if (password.length > 100) errors.push("Password cannot exceed 100 characters");
-    if (!/[A-Z]/.test(password)) errors.push("Password must contain at least one uppercase letter");
-    if (!/[a-z]/.test(password)) errors.push("Password must contain at least one lowercase letter");
-    if (!/[0-9]/.test(password)) errors.push("Password must contain at least one number");
-    if (!/[^A-Za-z0-9]/.test(password)) errors.push("Password must contain at least one special character");
+    if (password.length < 8)
+      errors.push("Password must be at least 8 characters");
+    if (password.length > 100)
+      errors.push("Password cannot exceed 100 characters");
+    if (!/[A-Z]/.test(password))
+      errors.push("Password must contain at least one uppercase letter");
+    if (!/[a-z]/.test(password))
+      errors.push("Password must contain at least one lowercase letter");
+    if (!/[0-9]/.test(password))
+      errors.push("Password must contain at least one number");
+    if (!/[^A-Za-z0-9]/.test(password))
+      errors.push("Password must contain at least one special character");
     return errors;
   };
 
@@ -539,27 +555,27 @@ export default function PrivacySettings() {
     const currentPassword = currentPasswordRef.current?.value || "";
     const newPassword = newPasswordRef.current?.value || "";
     const confirmPassword = confirmPasswordRef.current?.value || "";
-    
+
     // Reset errors
     setPasswordErrors([]);
-    
+
     // Validate inputs
     const errors: string[] = [];
     if (!currentPassword) errors.push("Current password is required");
     if (!newPassword) errors.push("New password is required");
     if (newPassword !== confirmPassword) errors.push("Passwords do not match");
-    
+
     // Validate new password strength
     const passwordValidationErrors = validatePassword(newPassword);
     errors.push(...passwordValidationErrors);
-    
+
     if (errors.length > 0) {
       setPasswordErrors(errors);
       return;
     }
-    
+
     setChangingPassword(true);
-    
+
     try {
       const token = localStorage.getItem("fiorell_auth_token");
       const response = await fetch("/api/user/change-password", {
@@ -573,13 +589,13 @@ export default function PrivacySettings() {
           newPassword,
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || "Failed to change password");
       }
-      
+
       // Reset form and close modal
       if (currentPasswordRef.current) currentPasswordRef.current.value = "";
       if (newPasswordRef.current) newPasswordRef.current.value = "";
@@ -587,7 +603,6 @@ export default function PrivacySettings() {
       setShowPasswordModal(false);
       setPasswordErrors([]);
       showNotification("Password changed successfully", "success");
-      
     } catch (error: any) {
       setPasswordErrors([error.message || "Failed to change password"]);
     } finally {
@@ -772,14 +787,12 @@ export default function PrivacySettings() {
           {/* Security Section with 2FA */}
           <div className="bg-white rounded-2xl shadow-sm mt-6">
             <div className="p-6 pb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Security
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900">Security</h2>
               <p className="text-gray-600 text-sm mt-1">
                 Enhance your account security and safety
               </p>
             </div>
-            
+
             {/* Password Change Section */}
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-start space-x-4">
@@ -799,12 +812,13 @@ export default function PrivacySettings() {
                     </button>
                   </div>
                   <p className="text-sm text-gray-600 mb-3">
-                    Update your password to keep your account secure. Use a strong password with at least 8 characters.
+                    Update your password to keep your account secure. Use a
+                    strong password with at least 8 characters.
                   </p>
                 </div>
               </div>
             </div>
-            
+
             {/* 2FA Section */}
             <div className="p-6">
               <div className="flex items-start space-x-4">
@@ -833,7 +847,8 @@ export default function PrivacySettings() {
                     )}
                   </div>
                   <p className="text-sm text-gray-600 mb-3">
-                    Add an extra layer of security to your account using an authenticator app (Google Authenticator, Authy, etc).
+                    Add an extra layer of security to your account using an
+                    authenticator app (Google Authenticator, Authy, etc).
                   </p>
                 </div>
               </div>
@@ -843,18 +858,33 @@ export default function PrivacySettings() {
           {show2faModal && (
             <Modal open={show2faModal} onClose={() => setShow2faModal(false)}>
               <div className="p-6 max-w-md mx-auto">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Set up Two-Factor Authentication</h3>
-                <p className="text-gray-600 mb-4">Scan the QR code below with your authenticator app, then enter the 6-digit code to verify.</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Set up Two-Factor Authentication
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Scan the QR code below with your authenticator app, then enter
+                  the 6-digit code to verify.
+                </p>
                 {qrCodeUrl ? (
                   <div className="text-center mb-4">
                     <div className="flex justify-center mb-4">
-                      <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
+                      <img
+                        src={qrCodeUrl}
+                        alt="2FA QR Code"
+                        className="w-40 h-40"
+                      />
                     </div>
-                    <p className="text-sm text-gray-600 mb-4">or enter this code manually:</p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      or enter this code manually:
+                    </p>
                     <div className="bg-gray-50 p-3 rounded-lg border">
                       <div className="flex items-center justify-between">
                         <code className="text-sm font-mono text-gray-800">
-                          {secretKey ? `${secretKey.slice(0, 8)}...${secretKey.slice(-4)}` : ''}
+                          {secretKey
+                            ? `${secretKey.slice(0, 8)}...${secretKey.slice(
+                                -4
+                              )}`
+                            : ""}
                         </code>
                         <button
                           onClick={copySecretKey}
@@ -867,11 +897,13 @@ export default function PrivacySettings() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-500 mb-4">Loading QR code...</div>
+                  <div className="text-center text-gray-500 mb-4">
+                    Loading QR code...
+                  </div>
                 )}
                 {/* Six box input for 2FA code */}
                 <div className="flex justify-between gap-2 mb-4">
-                  {[0,1,2,3,4,5].map(i => (
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
                     <input
                       key={i}
                       type="text"
@@ -884,8 +916,12 @@ export default function PrivacySettings() {
                       onChange={(e) => handleDigitChange(i, e)}
                       onKeyDown={(e) => handleDigitKeyDown(i, e)}
                       onPaste={handlePasteCode}
-                      onFocus={(e) => { e.currentTarget.select(); }}
-                      ref={(el) => { inputRefs.current[i] = el; }}
+                      onFocus={(e) => {
+                        e.currentTarget.select();
+                      }}
+                      ref={(el) => {
+                        inputRefs.current[i] = el;
+                      }}
                       id={`2fa-box-${i}`}
                       autoFocus={i === 0 && verificationCode.length === 0}
                     />
@@ -905,12 +941,18 @@ export default function PrivacySettings() {
           {showPasswordModal && (
             <Modal open={showPasswordModal} onClose={closePasswordModal}>
               <div className="p-6 max-w-md mx-auto">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Change Password</h3>
-                <p className="text-gray-600 mb-4">Enter your current password and choose a new secure password.</p>
-                
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Change Password
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Enter your current password and choose a new secure password.
+                </p>
+
                 {passwordErrors.length > 0 && (
                   <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <h4 className="text-sm font-medium text-red-800 mb-1">Please fix the following errors:</h4>
+                    <h4 className="text-sm font-medium text-red-800 mb-1">
+                      Please fix the following errors:
+                    </h4>
                     <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
                       {passwordErrors.map((error, index) => (
                         <li key={index}>{error}</li>
@@ -918,36 +960,68 @@ export default function PrivacySettings() {
                     </ul>
                   </div>
                 )}
-                
+
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="current-password"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Current Password
                     </label>
-                    <input
-                      type="password"
-                      id="current-password"
-                      name="current-password"
-                      ref={currentPasswordRef}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                      placeholder="Enter current password"
-                      autoComplete="current-password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showCurrentPassword ? "text" : "password"}
+                        id="current-password"
+                        name="current-password"
+                        ref={currentPasswordRef}
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                        placeholder="Enter current password"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      >
+                        {showCurrentPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  
+
                   <div>
-                    <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-password"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       New Password
                     </label>
-                    <input
-                      type="password"
-                      id="new-password"
-                      name="new-password"
-                      ref={newPasswordRef}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                      placeholder="Enter new password"
-                      autoComplete="new-password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        id="new-password"
+                        name="new-password"
+                        ref={newPasswordRef}
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                        placeholder="Enter new password"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                     <div className="mt-2 text-xs text-gray-500">
                       <p className="mb-1">Password must contain:</p>
                       <ul className="list-disc list-inside space-y-0.5 ml-2">
@@ -959,23 +1033,39 @@ export default function PrivacySettings() {
                       </ul>
                     </div>
                   </div>
-                  
+
                   <div>
-                    <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="confirm-password"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Confirm New Password
                     </label>
-                    <input
-                      type="password"
-                      id="confirm-password"
-                      name="confirm-password"
-                      ref={confirmPasswordRef}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                      placeholder="Confirm new password"
-                      autoComplete="new-password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        id="confirm-password"
+                        name="confirm-password"
+                        ref={confirmPasswordRef}
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                        placeholder="Confirm new password"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-                
+
                 <div className="flex space-x-3 mt-6">
                   <button
                     onClick={closePasswordModal}

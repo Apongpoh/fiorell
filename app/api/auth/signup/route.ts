@@ -5,7 +5,7 @@ import { generateToken } from "@/lib/auth";
 import { z } from "zod";
 import SignupAttempt from "@/models/SignupAttempt";
 import EmailVerification from "@/models/EmailVerification";
-// import { sendVerificationEmail } from "@/lib/sendVerificationEmail";
+import { sendVerificationEmail } from "@/lib/sendVerificationEmail";
 // Use the native fetch API available in Next.js
 
 // Define signup validation schema
@@ -264,7 +264,7 @@ export async function POST(_request: NextRequest) {
       code: verificationCode,
       verified: false,
     });
-    // await sendVerificationEmail(savedUser.email, verificationCode); // Disabled for local/dev
+    await sendVerificationEmail(savedUser.email, verificationCode);
 
     // Generate JWT token
     const token = generateToken({

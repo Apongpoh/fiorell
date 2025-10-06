@@ -102,6 +102,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if email is verified
+    if (!user.verification?.isVerified) {
+      return NextResponse.json(
+        {
+          error:
+            "Please verify your email address before signing in. Check your inbox for a verification email.",
+          requiresVerification: true,
+          email: user.email,
+        },
+        {
+          status: 403,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    }
+
     // Check if user has 2FA enabled
     if (user.twoFA?.enabled) {
       // If 2FA is enabled, don't generate full token yet
@@ -111,7 +131,7 @@ export async function POST(request: NextRequest) {
           requiresTwoFA: true,
           message: "Two-factor authentication required",
           tempUserId: user._id.toString(),
-          expiresAt: Date.now() + (5 * 60 * 1000), // 5 minutes expiry
+          expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes expiry
         },
         {
           status: 200,
