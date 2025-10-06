@@ -118,7 +118,16 @@ function SupportChatPage() {
         
         // Add auto-response if present
         if (data.autoResponse) {
-          newMessages.push(data.autoResponse);
+          // Ensure auto-response has proper structure for UI
+          const autoResponseMessage = {
+            id: data.autoResponse.id,
+            content: data.autoResponse.content,
+            isFromSupport: true,
+            createdAt: data.autoResponse.timestamp || new Date().toISOString(),
+            readByUser: false,
+            readBySupport: true,
+          };
+          newMessages.push(autoResponseMessage);
         }
         
         setConversation({
@@ -256,12 +265,12 @@ function SupportChatPage() {
             >
               <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
                 message.isFromSupport
-                  ? "bg-gray-100 text-gray-900"
+                  ? "bg-white border border-gray-200 text-gray-900 shadow-sm"
                   : "bg-pink-500 text-white"
               }`}>
                 <div className="flex items-center space-x-2 mb-1">
                   {message.isFromSupport ? (
-                    <Bot className="h-4 w-4" />
+                    <Bot className="h-4 w-4 text-gray-500" />
                   ) : (
                     <User className="h-4 w-4" />
                   )}

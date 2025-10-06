@@ -62,7 +62,7 @@ export async function GET(
 
     // Mark all user messages as read by support
     await SupportMessage.updateMany(
-      { ticketId, sender: "user", readBySupport: false },
+      { ticketId, isFromSupport: false, readBySupport: false },
       { readBySupport: true }
     );
 
@@ -71,9 +71,9 @@ export async function GET(
       messages: messages.map(msg => ({
         id: msg._id,
         content: msg.content,
-        sender: msg.sender,
-        senderName: msg.senderName,
-        agentName: msg.agentName,
+        sender: msg.isFromSupport ? "support" : "user",
+        senderName: msg.isFromSupport ? msg.supportAgentName : ticket.userName,
+        agentName: msg.supportAgentName,
         timestamp: msg.createdAt,
       }))
     });

@@ -47,6 +47,10 @@ const SupportMessageSchema = new Schema<ISupportMessage>(
       required: false,
       trim: true,
     },
+    isAutoResponse: {
+      type: Boolean,
+      default: false,
+    },
     readByUser: {
       type: Boolean,
       default: false,
@@ -56,10 +60,6 @@ const SupportMessageSchema = new Schema<ISupportMessage>(
       type: Boolean,
       default: false,
       index: true,
-    },
-    isAutoResponse: {
-      type: Boolean,
-      default: false,
     },
     attachments: [
       {

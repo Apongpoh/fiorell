@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
       const responseMessage = new SupportMessage({
         ticketId,
         content: autoResponse,
-        sender: "support",
-        agentName: "Auto-Assistant",
+        isFromSupport: true,
+        supportAgentName: "Auto-Assistant",
         readByUser: false,
         readBySupport: true,
         isAutoResponse: true,
@@ -97,8 +97,8 @@ export async function POST(request: NextRequest) {
         autoResponse: {
           id: responseMessage._id,
           content: autoResponse,
-          sender: "support",
-          agentName: "Auto-Assistant",
+          isFromSupport: true,
+          supportAgentName: "Auto-Assistant",
           timestamp: responseMessage.createdAt,
           isAutoResponse: true,
         }
