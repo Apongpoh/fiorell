@@ -9,8 +9,10 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
 
     const body = await request.json();
-    const { tempUserId, code, timestamp } = body;
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const { tempUserId, code } = body;
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "unknown";
 
     // Basic validation
     if (!tempUserId || !code) {
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
       email: tempUserId, // Use tempUserId as identifier for 2FA attempts
       createdAt: { $gte: fifteenMinutesAgo },
     });
-    
+
     if (recentAttempts >= 5) {
       return NextResponse.json(
         { error: "Too many verification attempts. Please try again later." },

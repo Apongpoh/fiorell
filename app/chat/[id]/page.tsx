@@ -256,7 +256,7 @@ export default function ChatPage() {
         eventSource.close();
       };
     }
-  }, [id, retryCount, decryptMessages]);
+  }, [id, retryCount, decryptMessages, debouncedScrollToBottom]);
 
 
   // Scroll to bottom only on initial load
@@ -288,7 +288,7 @@ export default function ChatPage() {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       clearInterval(interval);
     };
-  }, []);
+  }, [debouncedScrollToBottom, messages]);
 
   // Check for expired disappearing messages
   useEffect(() => {

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 const resetPasswordSchema = z
   .object({
@@ -38,7 +38,6 @@ function ResetPasswordContent() {
   const [token, setToken] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const {
     register,

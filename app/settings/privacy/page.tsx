@@ -119,17 +119,6 @@ export default function PrivacySettings() {
   // Add refs for 2FA input boxes only
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-  // Separate refs for password inputs (completely independent)
-  const passwordInputRefs = useRef<{
-    current: HTMLInputElement | null;
-    new: HTMLInputElement | null;
-    confirm: HTMLInputElement | null;
-  }>({
-    current: null,
-    new: null,
-    confirm: null,
-  });
-
   // Focus first box when 2FA modal opens
   useEffect(() => {
     if (show2faModal) {
@@ -353,8 +342,10 @@ export default function PrivacySettings() {
       setShow2faModal(false);
       setTwoFAEnabled(true);
       showNotification("Two-factor authentication enabled", "success");
-    } catch (e: any) {
-      showNotification(e.message || "Failed to verify 2FA", "error");
+    } catch (e: unknown) {
+      const errorMessage =
+        e instanceof Error ? e.message : "Failed to verify 2FA";
+      showNotification(errorMessage, "error");
     } finally {
       setVerifying(false);
     }
@@ -423,13 +414,6 @@ export default function PrivacySettings() {
       </div>
     );
   }
-
-  // Helper: always work with 6-char array
-  const codeArr = () => {
-    const arr = verificationCode.split("").slice(0, 6);
-    while (arr.length < 6) arr.push("");
-    return arr;
-  };
 
   // Helper: set code at index and move focus
   const handleDigitChange = (
@@ -603,8 +587,10 @@ export default function PrivacySettings() {
       setShowPasswordModal(false);
       setPasswordErrors([]);
       showNotification("Password changed successfully", "success");
-    } catch (error: any) {
-      setPasswordErrors([error.message || "Failed to change password"]);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to change password";
+      setPasswordErrors([errorMessage]);
     } finally {
       setChangingPassword(false);
     }
@@ -868,9 +854,11 @@ export default function PrivacySettings() {
                 {qrCodeUrl ? (
                   <div className="text-center mb-4">
                     <div className="flex justify-center mb-4">
-                      <img
+                      <Image
                         src={qrCodeUrl}
                         alt="2FA QR Code"
+                        width={160}
+                        height={160}
                         className="w-40 h-40"
                       />
                     </div>
@@ -981,7 +969,9 @@ export default function PrivacySettings() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        onClick={() =>
+                          setShowCurrentPassword(!showCurrentPassword)
+                        }
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                       >
                         {showCurrentPassword ? (
@@ -1053,7 +1043,9 @@ export default function PrivacySettings() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                       >
                         {showConfirmPassword ? (
