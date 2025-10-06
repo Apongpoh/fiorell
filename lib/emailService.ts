@@ -16,8 +16,12 @@ class EmailService {
 
   private initializeTransporter() {
     try {
+      // Get email provider from environment or default to smtp if SMTP config exists
+      const emailProvider = process.env.EMAIL_PROVIDER || 
+        (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS ? 'smtp' : null);
+
       // Support multiple email providers
-      if (process.env.EMAIL_PROVIDER === 'gmail') {
+      if (emailProvider === 'gmail') {
         this.transporter = nodemailer.createTransport({
           service: 'gmail',
           auth: {
@@ -25,7 +29,7 @@ class EmailService {
             pass: process.env.GMAIL_APP_PASSWORD, // Use App Password, not regular password
           },
         });
-      } else if (process.env.EMAIL_PROVIDER === 'sendgrid') {
+      } else if (emailProvider === 'sendgrid') {
         this.transporter = nodemailer.createTransport({
           host: 'smtp.sendgrid.net',
           port: 587,
@@ -35,18 +39,18 @@ class EmailService {
             pass: process.env.SENDGRID_API_KEY,
           },
         });
-      } else if (process.env.EMAIL_PROVIDER === 'smtp') {
+      } else if (emailProvider === 'smtp') {
         this.transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
           port: parseInt(process.env.SMTP_PORT || '587'),
           secure: process.env.SMTP_SECURE === 'true',
           auth: {
             user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASSWORD,
+            pass: process.env.SMTP_PASS,
           },
         });
       } else {
-        console.log('Email service not configured. Set EMAIL_PROVIDER environment variable.');
+        console.log('Email service not configured. Set EMAIL_PROVIDER environment variable or provide SMTP credentials.');
       }
     } catch (error) {
       console.error('Failed to initialize email transporter:', error);
@@ -61,7 +65,7 @@ class EmailService {
 
     try {
       const mailOptions = {
-        from: process.env.EMAIL_FROM || process.env.GMAIL_USER || 'noreply@fiorell.com',
+        from: process.env.EMAIL_FROM || 'noreply@fiorell.com',
         to: emailData.to,
         subject: emailData.subject,
         html: emailData.html,
