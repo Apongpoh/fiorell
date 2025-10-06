@@ -171,11 +171,22 @@ function ProfilePage() {
     if (likePending) return;
     try {
       setLikePending(true);
-      // Toggle like status
+      // Toggle like status optimistically
       setIsLiked(!isLiked);
-      await userAPI.likeProfile(id as string);
-    } catch {
+      
+      const response = await userAPI.likeProfile(id as string);
+      console.log("Like response:", response);
+      
+      showNotification("Profile liked successfully!", "success");
+    } catch (error) {
+      console.error("Error liking profile:", error);
       setIsLiked(!isLiked); // Revert on error
+      
+      let errorMessage = "Failed to like profile";
+      if (error && typeof error === "object" && "message" in error) {
+        errorMessage = (error as { message: string }).message;
+      }
+      showNotification(errorMessage, "error");
     } finally {
       setLikePending(false);
     }
@@ -553,12 +564,6 @@ function ProfilePage() {
               className="p-2 rounded-full hover:bg-gray-100 transition-all transform active:scale-90"
             >
               <MessageCircle className="h-6 w-6" />
-              {startingChat && (
-                <span className="absolute top-0 right-0 h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-pink-500"></span>
-                </span>
-              )}
             </button>
             <button
               onClick={() => setShowActionsMenu(true)}

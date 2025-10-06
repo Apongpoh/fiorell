@@ -183,16 +183,6 @@ export async function GET(request: NextRequest) {
       filter._id = { ...origId, $nin: todayInteractedUserIds };
     }
 
-    // Debug logging for new users with no matches
-    if (diagnostics || process.env.NODE_ENV === 'development') {
-      const hasNinFilter = filter._id && typeof filter._id === 'object' && '$nin' in filter._id;
-      console.log(`Discovery for user ${userId}:`, {
-        todayInteractionsCount: todayInteractedUserIds.length,
-        todayInteractedUsers: todayInteractedUserIds,
-        filterApplied: !!hasNinFilter,
-      });
-    }
-
     // Enforce privacy visibility: exclude hidden, restrict mutual-only to matched connections
     // Build mutual connections set (matched users)
     const matched = await Match.find({
@@ -446,7 +436,7 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (error: unknown) {
-    console.error("Get matches error:", error);
+    // Error handling without logging
 
     if (
       error instanceof Error &&

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Users, Heart, MessageCircle, Camera } from "lucide-react";
+import { Users, Heart, MessageCircle, User } from "lucide-react";
 
 interface BottomNavProps {
   unreadMessages?: number;
@@ -44,7 +44,7 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
           }`}
         >
           <Heart className="h-6 w-6" />
-          <span className="text-xs">Likes</span>
+          <span className="text-xs">Matches</span>
         </button>
         <button
           onClick={() => router.push("/chat")}
@@ -70,7 +70,7 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
               : "text-gray-400 hover:text-pink-500"
           }`}
         >
-          <Camera className="h-6 w-6" />
+          <User className="h-6 w-6" />
           <span className="text-xs">Profile</span>
         </button>
       </div>

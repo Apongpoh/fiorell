@@ -164,7 +164,23 @@ export const userAPI = {
   likeProfile: async (targetUserId: string) => {
     return await apiRequest("/interactions/likes", {
       method: "POST",
-      body: JSON.stringify({ targetUserId }),
+      body: JSON.stringify({ targetUserId, action: "like" }),
+    });
+  },
+
+  // Super like a profile
+  superLikeProfile: async (targetUserId: string) => {
+    return await apiRequest("/interactions/likes", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId, action: "super_like" }),
+    });
+  },
+
+  // Pass a profile
+  passProfile: async (targetUserId: string) => {
+    return await apiRequest("/interactions/likes", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId, action: "pass" }),
     });
   },
 
