@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, withAuth } from "@/contexts/AuthContext";
 import { userAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -160,7 +160,7 @@ function parsePhotos(raw: unknown): Photo[] {
     });
 }
 
-export default function ProfilePage() {
+function ProfilePage() {
   const { logout } = useAuth();
   const router = useRouter();
   const { showNotification } = useNotification();
@@ -1621,3 +1621,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+export default withAuth(ProfilePage);

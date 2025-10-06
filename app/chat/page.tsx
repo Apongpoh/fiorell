@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, withAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Users, Heart, Camera } from "lucide-react";
 import { apiRequest } from "@/lib/api";
@@ -22,7 +22,7 @@ interface ChatPreview {
   lastMessageAt?: string | null;
 }
 
-export default function MessagesPage() {
+function MessagesPage() {
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -351,3 +351,5 @@ export default function MessagesPage() {
     </div>
   );
 }
+
+export default withAuth(MessagesPage);

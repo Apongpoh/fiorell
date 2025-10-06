@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNotification } from "@/contexts/NotificationContext";
 import { useRouter, useParams } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, withAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -79,7 +79,7 @@ const formatMessageTime = (timestamp: string | null) => {
 
 // Removed unused useClickOutside
 
-export default function ChatPage() {
+function ChatPage() {
   // Track if user is at bottom of chat
   const [isAtBottom, setIsAtBottom] = useState(true);
 
@@ -1737,3 +1737,5 @@ export default function ChatPage() {
     </div>
   );
 }
+
+export default withAuth(ChatPage);

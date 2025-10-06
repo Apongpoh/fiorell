@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { useNotification } from "@/contexts/NotificationContext";
+import { withAuth } from "@/contexts/AuthContext";
 
 interface PrivacySetting {
   id: string;
@@ -29,7 +30,7 @@ interface PrivacySetting {
   selectedOption?: string;
 }
 
-export default function PrivacySettings() {
+function PrivacySettings() {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<PrivacySetting[]>([
@@ -1169,3 +1170,5 @@ export default function PrivacySettings() {
     </div>
   );
 }
+
+export default withAuth(PrivacySettings);

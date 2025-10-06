@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useNotification } from "@/contexts/NotificationContext";
 import { apiRequest } from "@/lib/api";
 import { pushNotificationManager } from "@/lib/pushNotificationManager";
+import { withAuth } from "@/contexts/AuthContext";
 
 interface NotificationSetting {
   id: string;
@@ -52,7 +53,7 @@ interface NotificationSettings {
   [key: string]: NotificationPreference | QuietHours | undefined;
 }
 
-export default function NotificationSettings() {
+function NotificationSettings() {
   const { showNotification } = useNotification();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -641,3 +642,5 @@ export default function NotificationSettings() {
     </div>
   );
 }
+
+export default withAuth(NotificationSettings);

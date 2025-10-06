@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { withAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { Heart, ArrowLeft, Shield } from "lucide-react";
 import Link from "next/link";
@@ -38,7 +39,7 @@ interface Match {
   lastMessageAt?: string;
 }
 
-export default function MatchesPage() {
+function MatchesPage() {
   const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [newMatches, setNewMatches] = useState<Match[]>([]);
@@ -383,3 +384,5 @@ export default function MatchesPage() {
     </div>
   );
 }
+
+export default withAuth(MatchesPage);

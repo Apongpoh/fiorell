@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { withAuth } from "@/contexts/AuthContext";
 
 type ProfileStats = {
   likes: number;
@@ -50,7 +51,7 @@ interface Profile extends Omit<import("@/models/User").IUser, "stats"> {
   blockedYou?: boolean;
 }
 
-export default function ProfilePage() {
+function ProfilePage() {
   const { id } = useParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -979,3 +980,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+export default withAuth(ProfilePage);

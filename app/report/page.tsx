@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useNotification } from "@/contexts/NotificationContext";
+import { withAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { ArrowLeft, Flag } from "lucide-react";
 
-export default function ReportPage() {
+function ReportPage() {
   const { showNotification } = useNotification();
   const [targetUserId, setTargetUserId] = useState("");
   const [reason, setReason] = useState("");
@@ -97,3 +98,5 @@ export default function ReportPage() {
     </div>
   );
 }
+
+export default withAuth(ReportPage);
