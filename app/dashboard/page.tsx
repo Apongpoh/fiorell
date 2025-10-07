@@ -87,7 +87,7 @@ function DashboardPage() {
   const [autoApply, setAutoApply] = useState(false); // manual apply by default
   const [appliedFiltersSignature, setAppliedFiltersSignature] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
-  
+
   // Premium features state
   const [showProfileBoost, setShowProfileBoost] = useState(false);
   const [showTravelMode, setShowTravelMode] = useState(false);
@@ -95,11 +95,11 @@ function DashboardPage() {
     recipientId: string;
     recipientName: string;
   } | null>(null);
-  
+
   // Premium subscription hooks
   const { likes, superLikes, refetch: refetchUsage } = useDailyLimits();
   const { showPrompt, PremiumPrompt } = usePremiumPrompt();
-  
+
   // (Deal breakers removed from inline filters; managed in Profile page)
 
   // Persist filters (A)
@@ -661,8 +661,8 @@ function DashboardPage() {
     if (action === "like") {
       if (likes.limit !== -1 && likes.current >= likes.limit) {
         showPrompt(
-          'likes',
-          'Daily Like Limit Reached',
+          "likes",
+          "Daily Like Limit Reached",
           `You've used all ${likes.limit} likes for today. Upgrade to Premium for unlimited likes!`,
           false
         );
@@ -673,8 +673,8 @@ function DashboardPage() {
     if (action === "super_like") {
       if (superLikes.limit !== -1 && superLikes.current >= superLikes.limit) {
         showPrompt(
-          'super_likes',
-          'Daily Super Like Limit Reached',
+          "super_likes",
+          "Daily Super Like Limit Reached",
           `You've used all ${superLikes.limit} super likes for today. Upgrade to Premium for more super likes!`,
           false
         );
@@ -695,12 +695,12 @@ function DashboardPage() {
             profileSnapshot.id,
             action
           );
-          
+
           // Refresh usage counts after successful action
           if (action === "like" || action === "super_like") {
             refetchUsage();
           }
-          
+
           if (response && typeof response === "object" && "match" in response) {
             const matchField = (response as { match?: unknown }).match;
             if (matchField) {
@@ -723,19 +723,29 @@ function DashboardPage() {
             typeof (err as { message?: unknown }).message === "string"
               ? (err as { message: string }).message
               : String(err);
-          
-          if (/DAILY_LIMIT_EXCEEDED/i.test(msg) || /once per day/i.test(msg)) {
+
+          // Handle "once per day" errors silently - this is expected behavior
+          if (/once per day/i.test(msg)) {
+            // Silently ignore - user already interacted with this person today
+            return;
+          }
+
+          if (/DAILY_LIMIT_EXCEEDED/i.test(msg)) {
             // Daily limit reached - show premium prompt
             const isLike = action === "like";
             showPrompt(
               action,
-              `Daily ${isLike ? 'Like' : 'Super Like'} Limit Reached`,
-              `You've reached your daily ${isLike ? 'like' : 'super like'} limit. Upgrade to Premium for ${isLike ? 'unlimited likes' : 'more super likes'}!`,
+              `Daily ${isLike ? "Like" : "Super Like"} Limit Reached`,
+              `You've reached your daily ${
+                isLike ? "like" : "super like"
+              } limit. Upgrade to Premium for ${
+                isLike ? "unlimited likes" : "more super likes"
+              }!`,
               false
             );
             return;
           }
-          
+
           if (/already performed/i.test(msg)) {
             // Duplicate – silently ignore (user already moved on)
             return;
@@ -1474,10 +1484,12 @@ function DashboardPage() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setPreMatchMessage({
-              recipientId: currentProfile.id,
-              recipientName: currentProfile.firstName
-            })}
+            onClick={() =>
+              setPreMatchMessage({
+                recipientId: currentProfile.id,
+                recipientName: currentProfile.firstName,
+              })
+            }
             className="px-6 py-2 bg-purple-500 text-white rounded-full shadow-lg hover:bg-purple-600 transition-colors flex items-center gap-2"
           >
             <MessageCircle className="h-4 w-4" />
@@ -1561,7 +1573,15 @@ function DashboardPage() {
       {/* Match Modal */}
       {showMatchModal && matchedProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center mx-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center mx-4 relative">
+            {/* Close button */}
+            <button
+              onClick={() => setShowMatchModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+            >
+              <X className="h-4 w-4 text-gray-600" />
+            </button>
+
             <Star className="h-12 w-12 text-pink-500 mx-auto mb-4" />
             <h3 className="text-2xl font-semibold mb-2">It&apos;s a Match!</h3>
             <Image
@@ -1634,18 +1654,18 @@ function DashboardPage() {
           </button>
         </div>
       </nav>
-      
+
       {/* Premium Feature Modals */}
-      <ProfileBoost 
-        isOpen={showProfileBoost} 
-        onClose={() => setShowProfileBoost(false)} 
+      <ProfileBoost
+        isOpen={showProfileBoost}
+        onClose={() => setShowProfileBoost(false)}
       />
-      
-      <TravelMode 
-        isOpen={showTravelMode} 
-        onClose={() => setShowTravelMode(false)} 
+
+      <TravelMode
+        isOpen={showTravelMode}
+        onClose={() => setShowTravelMode(false)}
       />
-      
+
       {preMatchMessage && (
         <PreMatchMessage
           recipientId={preMatchMessage.recipientId}
@@ -1653,11 +1673,11 @@ function DashboardPage() {
           onClose={() => setPreMatchMessage(null)}
           onMessageSent={() => {
             // Optional: Show success message or navigate
-            console.log('Pre-match message sent!');
+            console.log("Pre-match message sent!");
           }}
         />
       )}
-      
+
       {/* Premium Prompt Modal */}
       <PremiumPrompt />
     </div>

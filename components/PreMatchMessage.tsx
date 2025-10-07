@@ -32,7 +32,7 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
 
     setLoading(true);
     try {
-      const response = await apiRequest('/api/messages/pre-match', {
+      const response = await apiRequest('/messages/pre-match', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,15 +62,23 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full"
+        className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full relative"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
+        >
+          <span className="text-gray-600 dark:text-gray-300 text-lg">×</span>
+        </button>
+        
         <div className="text-center mb-6">
           <div className="text-3xl mb-2">💌</div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">

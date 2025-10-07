@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import Button from './ui/Button';
-import { Card } from './ui/Card';
-import { useSubscription } from '../hooks/useSubscription';
-import { apiRequest } from '../lib/api';
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import Button from "./ui/Button";
+import { Card } from "./ui/Card";
+import { useSubscription } from "../hooks/useSubscription";
+import { apiRequest } from "../lib/api";
 
 interface IncognitoModeProps {
   className?: string;
 }
 
-const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
+const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = "" }) => {
   const { subscription } = useSubscription();
   const [isIncognito, setIsIncognito] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,15 +25,15 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
 
   const fetchIncognitoStatus = async () => {
     try {
-      const response = await apiRequest('/api/user/incognito', {
-        method: 'GET',
-      }) as Response;
+      const response = (await apiRequest("/user/incognito", {
+        method: "GET",
+      })) as Response;
       if (response.ok) {
         const data = await response.json();
         setIsIncognito(data.isIncognito);
       }
     } catch (error) {
-      console.error('Failed to fetch incognito status:', error);
+      console.error("Failed to fetch incognito status:", error);
     }
   };
 
@@ -45,24 +45,24 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
 
     setLoading(true);
     try {
-      const response = await apiRequest('/api/user/incognito', {
-        method: 'POST',
+      const response = (await apiRequest("/user/incognito", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ enabled: !isIncognito }),
-      }) as Response;
+      })) as Response;
 
       if (response.ok) {
         const data = await response.json();
         setIsIncognito(data.isIncognito);
       } else {
         const error = await response.json();
-        alert(error.message || 'Failed to toggle incognito mode');
+        alert(error.message || "Failed to toggle incognito mode");
       }
     } catch (error) {
-      console.error('Failed to toggle incognito mode:', error);
-      alert('Failed to toggle incognito mode');
+      console.error("Failed to toggle incognito mode:", error);
+      alert("Failed to toggle incognito mode");
     } finally {
       setLoading(false);
     }
@@ -93,21 +93,23 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
               </p>
             )}
           </div>
-          
+
           <div className="ml-4">
             <motion.button
               onClick={toggleIncognito}
               disabled={loading}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 isIncognito && canUseIncognito
-                  ? 'bg-purple-600'
-                  : 'bg-gray-200 dark:bg-gray-700'
-              } ${loading ? 'opacity-50' : ''}`}
+                  ? "bg-purple-600"
+                  : "bg-gray-200 dark:bg-gray-700"
+              } ${loading ? "opacity-50" : ""}`}
               whileTap={{ scale: 0.95 }}
             >
               <motion.span
                 className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition ${
-                  isIncognito && canUseIncognito ? 'translate-x-6' : 'translate-x-1'
+                  isIncognito && canUseIncognito
+                    ? "translate-x-6"
+                    : "translate-x-1"
                 }`}
                 layout
               />
@@ -135,7 +137,7 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={() => setShowUpgrade(false)}
         >
           <motion.div
@@ -150,9 +152,10 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
                 Incognito Mode
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Browse profiles without being seen. Your visits won&apos;t appear in their visitor history.
+                Browse profiles without being seen. Your visits won&apos;t
+                appear in their visitor history.
               </p>
-              
+
               <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 mb-6">
                 <h3 className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
                   Premium Plus Features
@@ -178,7 +181,7 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = '' }) => {
                 <Button
                   onClick={() => {
                     // Navigate to subscription page
-                    window.location.href = '/subscription';
+                    window.location.href = "/subscription";
                   }}
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
                 >

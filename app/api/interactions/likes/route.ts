@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
       const limitCheck = await checkDailyLimits(userId, action);
       if (!limitCheck.allowed) {
         return NextResponse.json(
-          { 
+          {
             error: limitCheck.reason,
             code: "DAILY_LIMIT_EXCEEDED",
             upgradeRequired: limitCheck.upgradeRequired,
             currentUsage: limitCheck.currentUsage,
-            limit: limitCheck.limit
+            limit: limitCheck.limit,
           },
           { status: 403 }
         );
@@ -107,10 +107,15 @@ export async function POST(request: NextRequest) {
         $lte: endOfDay,
       },
     });
-    
+
     if (existingTodayLike) {
       return NextResponse.json(
-        { error: `You can only ${action.replace('_', ' ')} this user once per day. Try again tomorrow!` },
+        {
+          error: `You can only ${action.replace(
+            "_",
+            " "
+          )} this user once per day. Try again tomorrow!`,
+        },
         { status: 400 }
       );
     }
@@ -148,27 +153,46 @@ export async function POST(request: NextRequest) {
           { isMatch: true }
         );
 
-        // Create a match
-        const match = new Match({
-          user1: userId,
-          user2: targetUserId,
-          status: "matched",
-          initiatedBy: userId,
-          matchedAt: new Date(),
+        // Check if a match already exists between these users
+        const existingMatch = await Match.findOne({
+          $or: [
+            { user1: userId, user2: targetUserId },
+            { user1: targetUserId, user2: userId },
+          ],
         });
 
-        await match.save();
+        if (!existingMatch) {
+          // Create a match only if one doesn't exist
+          const match = new Match({
+            user1: userId,
+            user2: targetUserId,
+            status: "matched",
+            initiatedBy: userId,
+            matchedAt: new Date(),
+          });
 
-        // Update user stats
-        await User.findByIdAndUpdate(userId, {
-          $inc: { "stats.totalMatches": 1 },
-        });
-        await User.findByIdAndUpdate(targetUserId, {
-          $inc: { "stats.totalMatches": 1 },
-        });
+          await match.save();
+
+          // Update user stats
+          await User.findByIdAndUpdate(userId, {
+            $inc: { "stats.totalMatches": 1 },
+          });
+          await User.findByIdAndUpdate(targetUserId, {
+            $inc: { "stats.totalMatches": 1 },
+          });
+
+          matchId = match._id;
+        } else {
+          // If match already exists, just update it to ensure it's active and matched
+          await Match.findByIdAndUpdate(existingMatch._id, {
+            status: "matched",
+            matchedAt: new Date(),
+            isActive: true,
+          });
+          matchId = existingMatch._id;
+        }
 
         isMatch = true;
-        matchId = match._id;
       }
 
       // Update target user's like count
@@ -240,14 +264,14 @@ export async function GET(request: NextRequest) {
 
     // Check premium restrictions for "see who liked you" feature
     if (type === "received") {
-      const canSeeResult = await canUserPerformAction(userId, 'see_who_liked');
+      const canSeeResult = await canUserPerformAction(userId, "see_who_liked");
       if (!canSeeResult.allowed) {
         return NextResponse.json(
           {
             error: canSeeResult.reason,
             code: "PREMIUM_FEATURE_REQUIRED",
             upgradeRequired: true,
-            feature: "see_who_liked_you"
+            feature: "see_who_liked_you",
           },
           { status: 403 }
         );
@@ -304,20 +328,39 @@ export async function GET(request: NextRequest) {
 
     // Format likes for response
     const formattedLikes =
-      likes?.map((interaction: { _id: unknown; action: string; targetUserId: { _id: unknown; firstName: string; dateOfBirth: Date; photos: unknown }; userId: { _id: unknown; firstName: string; dateOfBirth: Date; photos: unknown }; createdAt: Date }) => {
-        const user = type === "sent" ? interaction.targetUserId : interaction.userId;
-        return {
-          id: interaction._id,
-          type: interaction.action,
-          user: {
-            id: user._id,
-            firstName: user.firstName,
-            age: new Date().getFullYear() - user.dateOfBirth.getFullYear(),
-            photos: user.photos,
-          },
-          createdAt: interaction.createdAt,
-        };
-      }) || [];
+      likes?.map(
+        (interaction: {
+          _id: unknown;
+          action: string;
+          targetUserId: {
+            _id: unknown;
+            firstName: string;
+            dateOfBirth: Date;
+            photos: unknown;
+          };
+          userId: {
+            _id: unknown;
+            firstName: string;
+            dateOfBirth: Date;
+            photos: unknown;
+          };
+          createdAt: Date;
+        }) => {
+          const user =
+            type === "sent" ? interaction.targetUserId : interaction.userId;
+          return {
+            id: interaction._id,
+            type: interaction.action,
+            user: {
+              id: user._id,
+              firstName: user.firstName,
+              age: new Date().getFullYear() - user.dateOfBirth.getFullYear(),
+              photos: user.photos,
+            },
+            createdAt: interaction.createdAt,
+          };
+        }
+      ) || [];
 
     return NextResponse.json({ likes: formattedLikes }, { status: 200 });
   } catch (error: unknown) {

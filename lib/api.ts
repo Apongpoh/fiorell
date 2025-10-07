@@ -94,7 +94,7 @@ export const authAPI = {
       method: "POST",
       body: JSON.stringify(credentials),
     });
-    
+
     // Check if 2FA is required
     if (
       response &&
@@ -105,7 +105,7 @@ export const authAPI = {
       // Don't set token for 2FA response
       return response;
     }
-    
+
     // Normal login - set token
     if (
       response &&
