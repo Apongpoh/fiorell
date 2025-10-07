@@ -59,9 +59,9 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
         )}
 
         <button
-          onClick={() => router.push("/matches")}
+          onClick={() => router.push("/dashboard")}
           className={`flex flex-col items-center space-y-1 transition-all duration-200 transform active:scale-90 hover:scale-105 ${
-            isActive("/matches")
+            isActive("/dashboard")
               ? "text-pink-500 animate-pulse"
               : "text-gray-400 hover:text-pink-500"
           }`}
