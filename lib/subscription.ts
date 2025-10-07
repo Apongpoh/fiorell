@@ -529,24 +529,6 @@ function getSubscriptionFeatures(planId: string): string[] {
 }
 
 /**
- * Helper function to get plan display name
- */
-function getPlanDisplayName(planId: string): string {
-  switch (planId) {
-    case 'premium':
-      return 'Premium Monthly';
-    case 'premium_annual':
-      return 'Premium Annual';
-    case 'premium_plus':
-      return 'Premium Plus Monthly';
-    case 'premium_plus_annual':
-      return 'Premium Plus Annual';
-    default:
-      return 'Unknown Plan';
-  }
-}
-
-/**
  * Middleware function to check subscription before API actions
  */
 export async function requirePremiumFeature(
