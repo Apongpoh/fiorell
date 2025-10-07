@@ -1,4 +1,5 @@
 import { apiRequest } from "./api";
+import { logger } from "@/lib/logger";
 
 interface NotificationData {
   senderName?: string;
@@ -35,7 +36,12 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error("Failed to send match notification:", error);
+      logger.error("Failed to send match notification", {
+        action: "match_notification_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }
@@ -66,7 +72,12 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error("Failed to send message notification:", error);
+      logger.error("Failed to send message notification", {
+        action: "message_notification_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }
@@ -96,7 +107,12 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error("Failed to send like notification:", error);
+      logger.error("Failed to send like notification", {
+        action: "like_notification_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }
@@ -126,7 +142,12 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error("Failed to send profile view notification:", error);
+      logger.error("Failed to send profile view notification", {
+        action: "profile_view_notification_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }
@@ -156,7 +177,12 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error("Failed to send notification:", error);
+      logger.error("Failed to send notification", {
+        action: "notification_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }

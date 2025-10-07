@@ -3,6 +3,9 @@ import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import Boost from "@/models/Boost";
 import { checkDailyLimits, getUserSubscription } from "@/lib/subscription";
+import { logger } from "@/lib/logger";
+
+// Activate a new boost (daily, weekly, or premium)
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,13 +27,13 @@ export async function POST(request: NextRequest) {
 
     // Check subscription permissions
     const subscription = await getUserSubscription(userId);
-    
+
     if (boostType === "weekly" && !subscription.hasPremium) {
       return NextResponse.json(
         {
           error: "Weekly boosts require Premium subscription",
           code: "UPGRADE_REQUIRED",
-          upgradeRequired: true
+          upgradeRequired: true,
         },
         { status: 403 }
       );
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Premium boosts require Premium Plus subscription",
           code: "UPGRADE_REQUIRED",
-          upgradeRequired: true
+          upgradeRequired: true,
         },
         { status: 403 }
       );
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Check daily limits for daily boosts only
     if (boostType === "daily") {
-      const boostCheck = await checkDailyLimits(userId, 'boost');
+      const boostCheck = await checkDailyLimits(userId, "boost");
       if (!boostCheck.allowed) {
         return NextResponse.json(
           {
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
             code: "DAILY_LIMIT_EXCEEDED",
             upgradeRequired: boostCheck.upgradeRequired,
             currentUsage: boostCheck.currentUsage,
-            limit: boostCheck.limit
+            limit: boostCheck.limit,
           },
           { status: 403 }
         );
@@ -69,16 +72,18 @@ export async function POST(request: NextRequest) {
       userId: userId,
       type: boostType,
       status: "active",
-      expiresAt: { $gt: new Date() }
+      expiresAt: { $gt: new Date() },
     });
 
     if (existingBoost) {
-      const remainingTime = Math.ceil((existingBoost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60));
+      const remainingTime = Math.ceil(
+        (existingBoost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60)
+      );
       return NextResponse.json(
         {
           error: `You already have an active ${boostType} boost for ${remainingTime} more minutes.`,
           code: "BOOST_ALREADY_ACTIVE",
-          remainingTime
+          remainingTime,
         },
         { status: 409 }
       );
@@ -94,25 +99,33 @@ export async function POST(request: NextRequest) {
 
     await boost.save();
 
-    const remainingTime = Math.ceil((boost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60));
+    const remainingTime = Math.ceil(
+      (boost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60)
+    );
 
     return NextResponse.json(
       {
-        message: `${boostType.charAt(0).toUpperCase() + boostType.slice(1)} boost activated successfully!`,
+        message: `${
+          boostType.charAt(0).toUpperCase() + boostType.slice(1)
+        } boost activated successfully!`,
         boost: {
           id: boost._id,
           type: boostType,
           status: boost.status,
           activatedAt: boost.activatedAt,
           expiresAt: boost.expiresAt,
-          remainingTime
-        }
+          remainingTime,
+        },
       },
       { status: 201 }
     );
-
   } catch (error) {
-    console.error("Profile boost error:", error);
+    logger.error("Profile boost error:", {
+      action: "activate_boost_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&
@@ -141,7 +154,7 @@ export async function GET(request: NextRequest) {
     const activeBoosts = await Boost.find({
       userId: userId,
       status: "active",
-      expiresAt: { $gt: new Date() }
+      expiresAt: { $gt: new Date() },
     });
 
     // Get today's boost usage for daily limits
@@ -154,7 +167,7 @@ export async function GET(request: NextRequest) {
     const dailyBoostsUsed = await Boost.countDocuments({
       userId: userId,
       type: "daily",
-      createdAt: { $gte: startOfDay, $lte: endOfDay }
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
     });
 
     const subscription = await getUserSubscription(userId);
@@ -162,11 +175,14 @@ export async function GET(request: NextRequest) {
 
     if (!hasActiveBoost) {
       return NextResponse.json(
-        { 
+        {
           hasActiveBoost: false,
           dailyBoostsUsed,
-          dailyBoostsLimit: subscription.hasPremiumPlus ? -1 : 
-                           subscription.hasPremium ? 5 : 1
+          dailyBoostsLimit: subscription.hasPremiumPlus
+            ? -1
+            : subscription.hasPremium
+            ? 5
+            : 1,
         },
         { status: 200 }
       );
@@ -174,12 +190,14 @@ export async function GET(request: NextRequest) {
 
     // Return info about active boosts
     const primaryBoost = activeBoosts[0]; // Get the first active boost for compatibility
-    const boostInfo = activeBoosts.map(boost => ({
+    const boostInfo = activeBoosts.map((boost) => ({
       id: boost._id,
       type: boost.type,
       activatedAt: boost.activatedAt,
       expiresAt: boost.expiresAt,
-      remainingTime: Math.ceil((boost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60))
+      remainingTime: Math.ceil(
+        (boost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60)
+      ),
     }));
 
     return NextResponse.json(
@@ -189,14 +207,21 @@ export async function GET(request: NextRequest) {
         expiresAt: primaryBoost.expiresAt, // For frontend compatibility
         boosts: boostInfo, // Full boost details
         dailyBoostsUsed,
-        dailyBoostsLimit: subscription.hasPremiumPlus ? -1 : 
-                         subscription.hasPremium ? 5 : 1
+        dailyBoostsLimit: subscription.hasPremiumPlus
+          ? -1
+          : subscription.hasPremium
+          ? 5
+          : 1,
       },
       { status: 200 }
     );
-
   } catch (error) {
-    console.error("Get boost status error:", error);
+    logger.error("Get boost status error:", {
+      action: "get_boost_status_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&

@@ -38,7 +38,9 @@ function SupportPage() {
         setLoading(true);
         const response = await fetch("/api/support", {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+            Authorization: `Bearer ${localStorage.getItem(
+              "fiorell_auth_token"
+            )}`,
           },
         });
 
@@ -60,8 +62,11 @@ function SupportPage() {
   }, [showNotification]);
 
   const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch = ticket.subject.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
+    const matchesSearch = ticket.subject
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" || ticket.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -130,7 +135,9 @@ function SupportPage() {
             <ArrowLeft className="h-5 w-5" />
             <span>Back to Help</span>
           </Link>
-          <h1 className="text-xl font-bold text-gray-900">My Support Tickets</h1>
+          <h1 className="text-xl font-bold text-gray-900">
+            My Support Tickets
+          </h1>
           <Link
             href="/help"
             className="flex items-center space-x-2 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
@@ -179,7 +186,9 @@ function SupportPage() {
             {filteredTickets.length === 0 ? (
               <div className="p-12 text-center">
                 <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No support tickets</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No support tickets
+                </h3>
                 <p className="text-gray-600 mb-6">
                   {searchQuery || statusFilter !== "all"
                     ? "No tickets match your search criteria."
@@ -210,17 +219,33 @@ function SupportPage() {
                           </h3>
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-600">
-                          <span>Created {new Date(ticket.createdAt).toLocaleDateString()}</span>
-                          <span>Updated {new Date(ticket.updatedAt).toLocaleDateString()}</span>
+                          <span>
+                            Created{" "}
+                            {new Date(ticket.createdAt).toLocaleDateString()}
+                          </span>
+                          <span>
+                            Updated{" "}
+                            {new Date(ticket.updatedAt).toLocaleDateString()}
+                          </span>
                           <span className="capitalize">{ticket.type}</span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 ml-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
-                          {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                            ticket.status
+                          )}`}
+                        >
+                          {ticket.status.charAt(0).toUpperCase() +
+                            ticket.status.slice(1)}
                         </span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
-                          {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(
+                            ticket.priority
+                          )}`}
+                        >
+                          {ticket.priority.charAt(0).toUpperCase() +
+                            ticket.priority.slice(1)}
                         </span>
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { logger } from "@/lib/logger";
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, "Reset token is required"),
@@ -53,7 +54,12 @@ export async function POST(request: NextRequest) {
       message: "Password reset successfully",
     });
   } catch (error) {
-    console.error("Reset password error:", error);
+    logger.error("Reset password error:", {
+      action: "reset_password_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

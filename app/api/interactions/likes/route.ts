@@ -7,6 +7,7 @@ import { verifyAuth } from "@/lib/auth";
 import Block from "../../../../models/Block";
 import { isObjectId } from "@/lib/validators";
 import { checkDailyLimits, canUserPerformAction } from "@/lib/subscription";
+import { logger } from "@/lib/logger";
 
 // Like or pass a user
 export async function POST(request: NextRequest) {
@@ -232,7 +233,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response, { status: 200 });
   } catch (error: unknown) {
-    console.error("Like/pass error:", error);
+    logger.error("Like/pass action error:", {
+      action: "like_pass_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       (typeof error === "object" &&
@@ -364,7 +370,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ likes: formattedLikes }, { status: 200 });
   } catch (error: unknown) {
-    console.error("Get likes error:", error);
+    logger.error("Get likes error:", {
+      action: "get_likes_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       (typeof error === "object" &&

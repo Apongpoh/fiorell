@@ -30,7 +30,12 @@ InteractionSchema.index({ userId: 1, action: 1, createdAt: 1 });
 InteractionSchema.index({ userId: 1, isMatch: 1 });
 
 // Index for daily interaction queries
-InteractionSchema.index({ userId: 1, targetUserId: 1, action: 1, createdAt: 1 });
+InteractionSchema.index({
+  userId: 1,
+  targetUserId: 1,
+  action: 1,
+  createdAt: 1,
+});
 
 // Helper function to get start of day in UTC
 function getStartOfDay(date = new Date()) {
@@ -64,8 +69,10 @@ InteractionSchema.pre("save", async function (next) {
     });
 
     if (existingTodayInteraction) {
-      const error = new Error(`You can only ${this.action} this user once per day`);
-      error.name = 'ValidationError';
+      const error = new Error(
+        `You can only ${this.action} this user once per day`
+      );
+      error.name = "ValidationError";
       return next(error);
     }
   }
@@ -73,7 +80,11 @@ InteractionSchema.pre("save", async function (next) {
 });
 
 // Add static method to check daily interaction limit
-InteractionSchema.statics.hasUserInteractedToday = async function(userId: string, targetUserId: string, action: string) {
+InteractionSchema.statics.hasUserInteractedToday = async function (
+  userId: string,
+  targetUserId: string,
+  action: string
+) {
   const today = new Date();
   const startOfDay = getStartOfDay(today);
   const endOfDay = getEndOfDay(today);

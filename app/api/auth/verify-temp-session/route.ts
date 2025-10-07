@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
+import logger from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +26,12 @@ export async function POST(request: NextRequest) {
     // Session is valid
     return NextResponse.json({ valid: true });
   } catch (error) {
-    console.error("Temp session verification error:", error);
+    logger.error("Temp session verification error:", {
+      action: "temp_session_verification_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

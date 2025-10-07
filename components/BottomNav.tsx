@@ -76,15 +76,15 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
         >
           <Crown
             className={`h-6 w-6 transition-transform duration-300 ${
-              isActive("/subscription") || pathname?.startsWith("/subscription") 
-                ? "scale-110 fill-current" 
+              isActive("/subscription") || pathname?.startsWith("/subscription")
+                ? "scale-110 fill-current"
                 : ""
             }`}
           />
           <span
             className={`text-xs transition-all duration-200 ${
-              isActive("/subscription") || pathname?.startsWith("/subscription") 
-                ? "font-semibold" 
+              isActive("/subscription") || pathname?.startsWith("/subscription")
+                ? "font-semibold"
                 : ""
             }`}
           >

@@ -1,17 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const width = parseInt(searchParams.get('width') || '400');
-  const height = parseInt(searchParams.get('height') || '600');
-  
+  const width = parseInt(searchParams.get("width") || "400");
+  const height = parseInt(searchParams.get("height") || "600");
+
   // Generate a random attractive color
   const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
-    '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+    "#FF6B6B",
+    "#4ECDC4",
+    "#45B7D1",
+    "#96CEB4",
+    "#FFEAA7",
+    "#DDA0DD",
+    "#98D8C8",
+    "#F7DC6F",
   ];
   const color = colors[Math.floor(Math.random() * colors.length)];
-  
+
   // Create SVG placeholder
   const svg = `
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -31,8 +37,8 @@ export async function GET(request: NextRequest) {
 
   return new NextResponse(svg, {
     headers: {
-      'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=31536000',
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=31536000",
     },
   });
 }

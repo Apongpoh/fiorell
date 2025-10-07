@@ -1,6 +1,12 @@
-
-import { S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import {
+  S3Client,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { logger } from "@/lib/logger";
 
 // Configure AWS S3 Client
 const s3Client = new S3Client({
@@ -20,13 +26,22 @@ export const deleteFileFromS3 = async (key: string): Promise<void> => {
     });
     await s3Client.send(command);
   } catch (error) {
-    console.error('Error deleting file from S3:', error);
-    throw new Error('Failed to delete file from S3');
+    logger.error("Error deleting file from S3:", {
+      action: "s3_delete_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+        key,
+      },
+    });
+    throw new Error("Failed to delete file from S3");
   }
 };
 
 // Function to generate presigned URL for private files
-export const generatePresignedUrl = async (key: string, expiresIn: number = 3600): Promise<string> => {
+export const generatePresignedUrl = async (
+  key: string,
+  expiresIn: number = 3600
+): Promise<string> => {
   try {
     const command = new GetObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET_NAME!,
@@ -35,8 +50,14 @@ export const generatePresignedUrl = async (key: string, expiresIn: number = 3600
     const url = await getSignedUrl(s3Client, command, { expiresIn });
     return url;
   } catch (error) {
-    console.error('Error generating presigned URL:', error);
-    throw new Error('Failed to generate presigned URL');
+    logger.error("Error generating presigned URL:", {
+      action: "s3_presign_url_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+        key,
+      },
+    });
+    throw new Error("Failed to generate presigned URL");
   }
 };
 
@@ -54,16 +75,19 @@ export const checkFileExists = async (key: string): Promise<boolean> => {
   }
 };
 
-
 // Upload file to S3 using AWS SDK v3
-export const uploadFileToS3 = async (buffer: Buffer, filename: string, contentType: string): Promise<{ location: string; key: string }> => {
+export const uploadFileToS3 = async (
+  buffer: Buffer,
+  filename: string,
+  contentType: string
+): Promise<{ location: string; key: string }> => {
   const key = `profile-photos/${Date.now()}-${filename}`;
 
   const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME!,
     Key: key,
     Body: buffer,
-    ContentType: contentType
+    ContentType: contentType,
   });
 
   await s3Client.send(command);

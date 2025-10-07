@@ -4,6 +4,7 @@ import lemonSqueezyService from "@/lib/lemonSqueezy";
 import User from "@/models/User";
 import Subscription from "@/models/Subscription";
 import Payment from "@/models/Payment";
+import logger from "@/lib/logger";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -60,12 +61,20 @@ export async function POST(request: NextRequest) {
         await handleSubscriptionPaymentFailed(event);
         break;
       default:
-        console.log(`Unhandled event type: ${eventName}`);
+        logger.info(`Unhandled event type: ${eventName}`, {
+          action: "webhook_processing",
+          metadata: { eventName },
+        });
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Webhook processing error:", error);
+    logger.error("Webhook processing error:", {
+      action: "webhook_processing",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Webhook processing failed" },
       { status: 500 }
@@ -77,8 +86,9 @@ async function handleOrderCreated(event: any) {
   try {
     const order = event.data;
     const attributes = order.attributes;
-    const customData = attributes.first_order_item?.product_options?.custom_data;
-    
+    const customData =
+      attributes.first_order_item?.product_options?.custom_data;
+
     if (!customData?.userId) {
       console.error("No userId in order custom data");
       return;
@@ -97,9 +107,17 @@ async function handleOrderCreated(event: any) {
     });
 
     await payment.save();
-    console.log(`Payment record created for user ${customData.userId}`);
+    logger.info(`Payment record created for user ${customData.userId}`, {
+      action: "handle_order_created",
+      metadata: { userId: customData.userId, orderId: order.id },
+    });
   } catch (error) {
-    console.error("Error handling order_created:", error);
+    logger.error("Error handling order_created:", {
+      action: "handle_order_created",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -108,7 +126,7 @@ async function handleSubscriptionCreated(event: any) {
     const subscription = event.data;
     const attributes = subscription.attributes;
     const customData = event.meta.custom_data;
-    
+
     if (!customData?.userId) {
       console.error("No userId in subscription custom data");
       return;
@@ -127,7 +145,9 @@ async function handleSubscriptionCreated(event: any) {
       currentPeriodStart: new Date(attributes.created_at),
       currentPeriodEnd: new Date(attributes.renews_at),
       cancelAtPeriodEnd: attributes.cancelled,
-      trialEnd: attributes.trial_ends_at ? new Date(attributes.trial_ends_at) : null,
+      trialEnd: attributes.trial_ends_at
+        ? new Date(attributes.trial_ends_at)
+        : null,
       createdAt: new Date(attributes.created_at),
       updatedAt: new Date(attributes.updated_at),
     });
@@ -141,9 +161,17 @@ async function handleSubscriptionCreated(event: any) {
       "subscription.isActive": true,
     });
 
-    console.log(`Subscription created for user ${customData.userId}`);
+    logger.info(`Subscription created for user ${customData.userId}`, {
+      action: "handle_subscription_created",
+      metadata: { userId: customData.userId, subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_created:", error);
+    logger.error("Error handling subscription_created:", {
+      action: "handle_subscription_created",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -170,15 +198,24 @@ async function handleSubscriptionUpdated(event: any) {
 
     if (subscriptionDoc) {
       await User.findByIdAndUpdate(subscriptionDoc.userId, {
-        "subscription.type": attributes.status === "active" ? "premium" : "free",
+        "subscription.type":
+          attributes.status === "active" ? "premium" : "free",
         "subscription.expiresAt": new Date(attributes.renews_at),
         "subscription.isActive": attributes.status === "active",
       });
     }
 
-    console.log(`Subscription updated: ${subscription.id}`);
+    logger.info(`Subscription updated: ${subscription.id}`, {
+      action: "handle_subscription_updated",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_updated:", error);
+    logger.error("Error handling subscription_updated:", {
+      action: "handle_subscription_updated",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -196,9 +233,17 @@ async function handleSubscriptionCancelled(event: any) {
       }
     );
 
-    console.log(`Subscription cancelled: ${subscription.id}`);
+    logger.info(`Subscription cancelled: ${subscription.id}`, {
+      action: "handle_subscription_cancelled",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_cancelled:", error);
+    logger.error("Error handling subscription_cancelled:", {
+      action: "handle_subscription_cancelled",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -228,9 +273,17 @@ async function handleSubscriptionResumed(event: any) {
       });
     }
 
-    console.log(`Subscription resumed: ${subscription.id}`);
+    logger.info(`Subscription resumed: ${subscription.id}`, {
+      action: "handle_subscription_resumed",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_resumed:", error);
+    logger.error("Error handling subscription_resumed:", {
+      action: "handle_subscription_resumed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -259,9 +312,17 @@ async function handleSubscriptionExpired(event: any) {
       });
     }
 
-    console.log(`Subscription expired: ${subscription.id}`);
+    logger.info(`Subscription expired: ${subscription.id}`, {
+      action: "handle_subscription_expired",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_expired:", error);
+    logger.error("Error handling subscription_expired:", {
+      action: "handle_subscription_expired",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -275,14 +336,24 @@ async function handleSubscriptionPaused(event: any) {
       {
         status: "paused",
         pausedAt: new Date(),
-        resumesAt: attributes.pause?.resumes_at ? new Date(attributes.pause.resumes_at) : null,
+        resumesAt: attributes.pause?.resumes_at
+          ? new Date(attributes.pause.resumes_at)
+          : null,
         updatedAt: new Date(attributes.updated_at),
       }
     );
 
-    console.log(`Subscription paused: ${subscription.id}`);
+    logger.info(`Subscription paused: ${subscription.id}`, {
+      action: "handle_subscription_paused",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_paused:", error);
+    logger.error("Error handling subscription_paused:", {
+      action: "handle_subscription_paused",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -301,9 +372,17 @@ async function handleSubscriptionUnpaused(event: any) {
       }
     );
 
-    console.log(`Subscription unpaused: ${subscription.id}`);
+    logger.info(`Subscription unpaused: ${subscription.id}`, {
+      action: "handle_subscription_unpaused",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_unpaused:", error);
+    logger.error("Error handling subscription_unpaused:", {
+      action: "handle_subscription_unpaused",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -322,9 +401,17 @@ async function handleSubscriptionPaymentSuccess(event: any) {
       }
     );
 
-    console.log(`Subscription payment successful: ${subscription.id}`);
+    logger.info(`Subscription payment successful: ${subscription.id}`, {
+      action: "handle_subscription_payment_success",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_payment_success:", error);
+    logger.error("Error handling subscription_payment_success:", {
+      action: "handle_subscription_payment_success",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
@@ -341,8 +428,16 @@ async function handleSubscriptionPaymentFailed(event: any) {
       }
     );
 
-    console.log(`Subscription payment failed: ${subscription.id}`);
+    logger.info(`Subscription payment failed: ${subscription.id}`, {
+      action: "handle_subscription_payment_failed",
+      metadata: { subscriptionId: subscription.id },
+    });
   } catch (error) {
-    console.error("Error handling subscription_payment_failed:", error);
+    logger.error("Error handling subscription_payment_failed:", {
+      action: "handle_subscription_payment_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }

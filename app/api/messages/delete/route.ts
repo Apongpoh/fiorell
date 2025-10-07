@@ -3,6 +3,9 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import Message from "@/models/Message";
 import jwt from "jsonwebtoken";
+import logger from "@/lib/logger";
+
+// Clear chat messages for a match (soft delete for the user)
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,14 +20,13 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId: string;
+    };
+
     const user = await User.findById(decoded.userId);
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { messageId } = await request.json();
@@ -39,10 +41,7 @@ export async function POST(request: NextRequest) {
     // Find the message and verify the user is the sender
     const message = await Message.findById(messageId);
     if (!message) {
-      return NextResponse.json(
-        { error: "Message not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
     if (message.sender.toString() !== user._id.toString()) {
@@ -58,9 +57,13 @@ export async function POST(request: NextRequest) {
     await message.save();
 
     return NextResponse.json({ success: true });
-
   } catch (error) {
-    console.error("Delete message error:", error);
+    logger.error("Message deletion error:", {
+      action: "message_deletion_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

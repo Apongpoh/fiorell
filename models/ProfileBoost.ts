@@ -64,4 +64,5 @@ ProfileBoostSchema.virtual("isCurrentlyActive").get(function () {
   return this.isActive && now >= this.startTime && now <= this.endTime;
 });
 
-export default mongoose.models.ProfileBoost || mongoose.model<IProfileBoost>("ProfileBoost", ProfileBoostSchema);
+export default mongoose.models.ProfileBoost ||
+  mongoose.model<IProfileBoost>("ProfileBoost", ProfileBoostSchema);

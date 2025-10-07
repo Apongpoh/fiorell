@@ -4,7 +4,7 @@ import User from "@/models/User";
 import { verifyAuth } from "@/lib/auth";
 import { deleteFileFromS3 } from "@/lib/aws";
 import { uploadFileToS3 } from "@/lib/aws";
-// import { Formidable, Fields, Files } from 'formidable';
+import logger from "@/lib/logger";
 
 export const config = {
   api: {
@@ -166,7 +166,12 @@ export async function DELETE(request: NextRequest) {
     try {
       await deleteFileFromS3(photo.key);
     } catch (s3Error) {
-      console.error("S3 delete error:", s3Error);
+      logger.error("S3 delete error:", {
+        action: "delete_photo_from_s3_failed",
+        metadata: {
+          error: s3Error instanceof Error ? s3Error.message : String(s3Error),
+        },
+      });
       // Continue with database deletion even if S3 deletion fails
     }
 
@@ -185,7 +190,12 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Delete photo error:", error);
+    logger.error("Delete photo error:", {
+      action: "delete_photo_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     if (typeof error === "object" && error !== null) {
       const errObj = error as { message?: string };
       if (
@@ -246,7 +256,13 @@ export async function PUT(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Set main photo error:", error);
+    logger.error("Set main photo error:", {
+      action: "set_main_photo_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+
     if (typeof error === "object" && error !== null) {
       const errObj = error as { message?: string };
       if (

@@ -94,7 +94,9 @@ function SubscriptionManagePage() {
     } catch (error) {
       console.error("Error cancelling subscription:", error);
       showNotification(
-        error instanceof Error ? error.message : "Failed to cancel subscription",
+        error instanceof Error
+          ? error.message
+          : "Failed to cancel subscription",
         "error"
       );
     } finally {
@@ -128,7 +130,9 @@ function SubscriptionManagePage() {
     } catch (error) {
       console.error("Error resuming subscription:", error);
       showNotification(
-        error instanceof Error ? error.message : "Failed to resume subscription",
+        error instanceof Error
+          ? error.message
+          : "Failed to resume subscription",
         "error"
       );
     } finally {
@@ -181,7 +185,8 @@ function SubscriptionManagePage() {
               No Active Subscription
             </h1>
             <p className="text-lg text-gray-600 mb-8">
-              You don&apos;t have an active subscription. Upgrade to premium to unlock exclusive features!
+              You don&apos;t have an active subscription. Upgrade to premium to
+              unlock exclusive features!
             </p>
             <div className="space-y-4">
               <Link
@@ -220,7 +225,9 @@ function SubscriptionManagePage() {
               <ArrowLeft className="h-5 w-5" />
               <span>Back to Profile</span>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Subscription Management</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Subscription Management
+            </h1>
             <div></div>
           </div>
         </div>
@@ -239,9 +246,12 @@ function SubscriptionManagePage() {
                 <div className="flex items-center space-x-3">
                   <Crown className="h-8 w-8" />
                   <div>
-                    <h2 className="text-2xl font-bold">{subscription.planName}</h2>
+                    <h2 className="text-2xl font-bold">
+                      {subscription.planName}
+                    </h2>
                     <p className="text-pink-100">
-                      {formatPrice(subscription.price)} per {subscription.interval}
+                      {formatPrice(subscription.price)} per{" "}
+                      {subscription.interval}
                     </p>
                   </div>
                 </div>
@@ -251,23 +261,35 @@ function SubscriptionManagePage() {
                 {/* Status */}
                 <div className="flex items-center justify-between">
                   <span className="text-gray-700 font-medium">Status</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(subscription.status)}`}>
-                    {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                      subscription.status
+                    )}`}
+                  >
+                    {subscription.status.charAt(0).toUpperCase() +
+                      subscription.status.slice(1)}
                   </span>
                 </div>
 
                 {/* Billing Period */}
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-700 font-medium">Current Period</span>
+                  <span className="text-gray-700 font-medium">
+                    Current Period
+                  </span>
                   <div className="text-right">
                     <div className="text-sm text-gray-900">
-                      {new Date(subscription.currentPeriodStart).toLocaleDateString()} - {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                      {new Date(
+                        subscription.currentPeriodStart
+                      ).toLocaleDateString()}{" "}
+                      -{" "}
+                      {new Date(
+                        subscription.currentPeriodEnd
+                      ).toLocaleDateString()}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {subscription.daysRemaining > 0 
+                      {subscription.daysRemaining > 0
                         ? `${subscription.daysRemaining} days remaining`
-                        : "Expired"
-                      }
+                        : "Expired"}
                     </div>
                   </div>
                 </div>
@@ -275,10 +297,14 @@ function SubscriptionManagePage() {
                 {/* Next Billing */}
                 {subscription.isActive && !subscription.cancelAtPeriodEnd && (
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-700 font-medium">Next Billing</span>
+                    <span className="text-gray-700 font-medium">
+                      Next Billing
+                    </span>
                     <div className="text-right">
                       <div className="text-sm text-gray-900">
-                        {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                        {new Date(
+                          subscription.currentPeriodEnd
+                        ).toLocaleDateString()}
                       </div>
                       <div className="text-xs text-gray-500">
                         {formatPrice(subscription.price)}
@@ -292,7 +318,9 @@ function SubscriptionManagePage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center space-x-2">
                       <AlertCircle className="h-5 w-5 text-blue-600" />
-                      <span className="text-blue-900 font-medium">You&apos;re in your free trial period</span>
+                      <span className="text-blue-900 font-medium">
+                        You&apos;re in your free trial period
+                      </span>
                     </div>
                   </div>
                 )}
@@ -303,10 +331,16 @@ function SubscriptionManagePage() {
                     <div className="flex items-center space-x-2">
                       <AlertCircle className="h-5 w-5 text-yellow-600" />
                       <div>
-                        <span className="text-yellow-900 font-medium">Subscription Cancelled</span>
+                        <span className="text-yellow-900 font-medium">
+                          Subscription Cancelled
+                        </span>
                         <p className="text-yellow-800 text-sm mt-1">
-                          Your subscription will end on {new Date(subscription.currentPeriodEnd).toLocaleDateString()}. 
-                          You&apos;ll still have access to premium features until then.
+                          Your subscription will end on{" "}
+                          {new Date(
+                            subscription.currentPeriodEnd
+                          ).toLocaleDateString()}
+                          . You&apos;ll still have access to premium features
+                          until then.
                         </p>
                       </div>
                     </div>
@@ -317,7 +351,9 @@ function SubscriptionManagePage() {
 
             {/* Features */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Premium Features</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Your Premium Features
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {subscription.features.map((feature, index) => (
                   <div key={index} className="flex items-center space-x-3">
@@ -330,16 +366,21 @@ function SubscriptionManagePage() {
 
             {/* Actions */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Subscription</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Manage Subscription
+              </h3>
               <div className="space-y-4">
-                
                 {/* Customer Portal */}
                 <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <ExternalLink className="h-5 w-5 text-gray-400" />
                     <div>
-                      <h4 className="font-medium text-gray-900">Billing Portal</h4>
-                      <p className="text-sm text-gray-600">Update payment method, download invoices</p>
+                      <h4 className="font-medium text-gray-900">
+                        Billing Portal
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Update payment method, download invoices
+                      </p>
                     </div>
                   </div>
                   <a
@@ -359,18 +400,23 @@ function SubscriptionManagePage() {
                       <Settings className="h-5 w-5 text-gray-400" />
                       <div>
                         <h4 className="font-medium text-gray-900">
-                          {subscription.cancelAtPeriodEnd ? "Resume Subscription" : "Cancel Subscription"}
+                          {subscription.cancelAtPeriodEnd
+                            ? "Resume Subscription"
+                            : "Cancel Subscription"}
                         </h4>
                         <p className="text-sm text-gray-600">
-                          {subscription.cancelAtPeriodEnd 
+                          {subscription.cancelAtPeriodEnd
                             ? "Reactivate your subscription"
-                            : "Cancel at the end of your billing period"
-                          }
+                            : "Cancel at the end of your billing period"}
                         </p>
                       </div>
                     </div>
                     <button
-                      onClick={subscription.cancelAtPeriodEnd ? handleResumeSubscription : handleCancelSubscription}
+                      onClick={
+                        subscription.cancelAtPeriodEnd
+                          ? handleResumeSubscription
+                          : handleCancelSubscription
+                      }
                       disabled={actionLoading !== null}
                       className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
                         subscription.cancelAtPeriodEnd
@@ -398,7 +444,9 @@ function SubscriptionManagePage() {
                     <Crown className="h-5 w-5 text-gray-400" />
                     <div>
                       <h4 className="font-medium text-gray-900">Change Plan</h4>
-                      <p className="text-sm text-gray-600">Upgrade or downgrade your subscription</p>
+                      <p className="text-sm text-gray-600">
+                        Upgrade or downgrade your subscription
+                      </p>
                     </div>
                   </div>
                   <Link

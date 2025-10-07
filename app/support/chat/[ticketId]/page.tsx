@@ -45,7 +45,9 @@ function SupportChatPage() {
   const { ticketId } = useParams();
   const router = useRouter();
   const { showNotification } = useNotification();
-  const [conversation, setConversation] = useState<SupportConversation | null>(null);
+  const [conversation, setConversation] = useState<SupportConversation | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -67,7 +69,9 @@ function SupportChatPage() {
         setLoading(true);
         const response = await fetch(`/api/support/${ticketId}`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+            Authorization: `Bearer ${localStorage.getItem(
+              "fiorell_auth_token"
+            )}`,
           },
         });
 
@@ -111,11 +115,11 @@ function SupportChatPage() {
       }
 
       const data = await response.json();
-      
+
       // Add new message to conversation
       if (conversation) {
         const newMessages = [...conversation.messages, data.message];
-        
+
         // Add auto-response if present
         if (data.autoResponse) {
           // Ensure auto-response has proper structure for UI
@@ -129,7 +133,7 @@ function SupportChatPage() {
           };
           newMessages.push(autoResponseMessage);
         }
-        
+
         setConversation({
           ...conversation,
           messages: newMessages,
@@ -220,14 +224,25 @@ function SupportChatPage() {
             <ArrowLeft className="h-5 w-5" />
             <span>Back to Support</span>
           </Link>
-          
+
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(conversation.ticket.status)}`}>
-                {conversation.ticket.status.charAt(0).toUpperCase() + conversation.ticket.status.slice(1)}
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                  conversation.ticket.status
+                )}`}
+              >
+                {conversation.ticket.status.charAt(0).toUpperCase() +
+                  conversation.ticket.status.slice(1)}
               </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(conversation.ticket.priority)}`}>
-                {conversation.ticket.priority.charAt(0).toUpperCase() + conversation.ticket.priority.slice(1)} Priority
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(
+                  conversation.ticket.priority
+                )}`}
+              >
+                {conversation.ticket.priority.charAt(0).toUpperCase() +
+                  conversation.ticket.priority.slice(1)}{" "}
+                Priority
               </span>
             </div>
           </div>
@@ -243,11 +258,18 @@ function SupportChatPage() {
           <div className="flex items-center space-x-4 text-sm text-gray-600">
             <div className="flex items-center space-x-1">
               <Clock className="h-4 w-4" />
-              <span>Created {new Date(conversation.ticket.createdAt).toLocaleDateString()}</span>
+              <span>
+                Created{" "}
+                {new Date(conversation.ticket.createdAt).toLocaleDateString()}
+              </span>
             </div>
             <div className="flex items-center space-x-1">
               <MessageCircle className="h-4 w-4" />
-              <span>{conversation.ticket.type === "chat" ? "Live Chat" : "Email Support"}</span>
+              <span>
+                {conversation.ticket.type === "chat"
+                  ? "Live Chat"
+                  : "Email Support"}
+              </span>
             </div>
           </div>
         </div>
@@ -261,13 +283,17 @@ function SupportChatPage() {
               key={message.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex ${message.isFromSupport ? "justify-start" : "justify-end"}`}
+              className={`flex ${
+                message.isFromSupport ? "justify-start" : "justify-end"
+              }`}
             >
-              <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
-                message.isFromSupport
-                  ? "bg-white border border-gray-200 text-gray-900 shadow-sm"
-                  : "bg-pink-500 text-white"
-              }`}>
+              <div
+                className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
+                  message.isFromSupport
+                    ? "bg-white border border-gray-200 text-gray-900 shadow-sm"
+                    : "bg-pink-500 text-white"
+                }`}
+              >
                 <div className="flex items-center space-x-2 mb-1">
                   {message.isFromSupport ? (
                     <Bot className="h-4 w-4 text-gray-500" />
@@ -280,12 +306,14 @@ function SupportChatPage() {
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 <div className="flex items-center justify-between mt-2">
-                  <span className={`text-xs ${
-                    message.isFromSupport ? "text-gray-500" : "text-pink-200"
-                  }`}>
+                  <span
+                    className={`text-xs ${
+                      message.isFromSupport ? "text-gray-500" : "text-pink-200"
+                    }`}
+                  >
                     {new Date(message.createdAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit'
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </span>
                   {!message.isFromSupport && (
@@ -343,7 +371,10 @@ function SupportChatPage() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="flex items-center justify-center space-x-2 text-gray-600">
               <AlertCircle className="h-5 w-5" />
-              <span>This support ticket has been closed. No new messages can be sent.</span>
+              <span>
+                This support ticket has been closed. No new messages can be
+                sent.
+              </span>
             </div>
           </div>
         </div>

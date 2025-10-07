@@ -5,6 +5,9 @@ import User from "@/models/User";
 import Message from "@/models/Message";
 import { canUserPerformAction } from "@/lib/subscription";
 import mongoose from "mongoose";
+import { logger } from "@/lib/logger";
+
+// Send a pre-match message
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +36,9 @@ export async function POST(request: NextRequest) {
 
     if (content.length > 500) {
       return NextResponse.json(
-        { error: "Message too long. Maximum 500 characters for first messages." },
+        {
+          error: "Message too long. Maximum 500 characters for first messages.",
+        },
         { status: 400 }
       );
     }
@@ -46,14 +51,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user can message before matching (Premium Plus feature)
-    const messageCheck = await canUserPerformAction(userId, 'message_before_match');
+    const messageCheck = await canUserPerformAction(
+      userId,
+      "message_before_match"
+    );
     if (!messageCheck.allowed) {
       return NextResponse.json(
         {
           error: messageCheck.reason,
           code: "PREMIUM_FEATURE_REQUIRED",
           upgradeRequired: true,
-          feature: "message_before_match"
+          feature: "message_before_match",
         },
         { status: 403 }
       );
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
     // Check if recipient exists and is active
     const recipient = await User.findOne({
       _id: recipientId,
-      isActive: true
+      isActive: true,
     }).select("_id firstName privacy");
 
     if (!recipient) {
@@ -76,8 +84,8 @@ export async function POST(request: NextRequest) {
     const existingMessages = await Message.findOne({
       $or: [
         { sender: userId, recipient: recipientId },
-        { sender: recipientId, recipient: userId }
-      ]
+        { sender: recipientId, recipient: userId },
+      ],
     });
 
     if (existingMessages) {
@@ -102,13 +110,13 @@ export async function POST(request: NextRequest) {
       content: content.trim(),
       type: "text",
       readStatus: {
-        isRead: false
+        isRead: false,
       },
       isDeleted: false,
       hiddenFrom: [],
       // Special flag for pre-match messages
       isPreMatch: true,
-      match: new mongoose.Types.ObjectId() // Temporary match ID for pre-match messages
+      match: new mongoose.Types.ObjectId(), // Temporary match ID for pre-match messages
     });
 
     await message.save();
@@ -123,14 +131,18 @@ export async function POST(request: NextRequest) {
         preview: {
           senderName: sender?.firstName,
           content: content.trim(),
-          sentAt: message.createdAt
-        }
+          sentAt: message.createdAt,
+        },
       },
       { status: 201 }
     );
-
   } catch (error) {
-    console.error("Pre-match message error:", error);
+    logger.error("Pre-match message error:", {
+      action: "send_pre_match_message_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&
@@ -159,34 +171,38 @@ export async function GET(request: NextRequest) {
     const preMatchMessages = await Message.find({
       recipient: userId,
       isPreMatch: true,
-      isDeleted: false
+      isDeleted: false,
     })
-    .populate("sender", "firstName photos")
-    .sort({ createdAt: -1 })
-    .limit(20);
+      .populate("sender", "firstName photos")
+      .sort({ createdAt: -1 })
+      .limit(20);
 
-    const formattedMessages = preMatchMessages.map(msg => ({
+    const formattedMessages = preMatchMessages.map((msg) => ({
       id: msg._id,
       content: msg.content,
       sender: {
         id: msg.sender._id,
         firstName: msg.sender.firstName,
-        photo: msg.sender.photos?.[0]?.url
+        photo: msg.sender.photos?.[0]?.url,
       },
       sentAt: msg.createdAt,
-      isRead: msg.readStatus.isRead
+      isRead: msg.readStatus.isRead,
     }));
 
     return NextResponse.json(
       {
         messages: formattedMessages,
-        count: formattedMessages.length
+        count: formattedMessages.length,
       },
       { status: 200 }
     );
-
   } catch (error) {
-    console.error("Get pre-match messages error:", error);
+    logger.error("Get pre-match messages error:", {
+      action: "get_pre_match_messages_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&

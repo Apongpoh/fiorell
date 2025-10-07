@@ -4,6 +4,7 @@ import lemonSqueezyService from "@/lib/lemonSqueezy";
 import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
 import Subscription from "@/models/Subscription";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,15 +12,15 @@ export async function GET(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     // Get user's current subscription
-    const subscription = await Subscription.findOne({ 
-      userId, 
-      status: { $in: ["active", "on_trial", "past_due"] } 
+    const subscription = await Subscription.findOne({
+      userId,
+      status: { $in: ["active", "on_trial", "past_due"] },
     }).sort({ createdAt: -1 });
 
     if (!subscription) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         hasSubscription: false,
-        subscription: null 
+        subscription: null,
       });
     }
 
@@ -45,7 +46,6 @@ export async function GET(request: NextRequest) {
         features: plan?.features || [],
       },
     });
-
   } catch (error) {
     console.error("Error fetching subscription status:", error);
     return NextResponse.json(
@@ -61,9 +61,9 @@ export async function DELETE(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     // Get user's active subscription
-    const subscription = await Subscription.findOne({ 
-      userId, 
-      status: { $in: ["active", "on_trial"] } 
+    const subscription = await Subscription.findOne({
+      userId,
+      status: { $in: ["active", "on_trial"] },
     });
 
     if (!subscription) {
@@ -79,10 +79,7 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
     // Update subscription in database
@@ -102,7 +99,6 @@ export async function DELETE(request: NextRequest) {
         currentPeriodEnd: subscription.currentPeriodEnd,
       },
     });
-
   } catch (error) {
     console.error("Error cancelling subscription:", error);
     return NextResponse.json(
@@ -120,10 +116,10 @@ export async function POST(request: NextRequest) {
 
     if (action === "resume") {
       // Resume a cancelled subscription
-      const subscription = await Subscription.findOne({ 
-        userId, 
+      const subscription = await Subscription.findOne({
+        userId,
         cancelAtPeriodEnd: true,
-        status: { $in: ["active", "on_trial"] }
+        status: { $in: ["active", "on_trial"] },
       });
 
       if (!subscription) {
@@ -139,10 +135,7 @@ export async function POST(request: NextRequest) {
       );
 
       if (!result.success) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: result.error }, { status: 500 });
       }
 
       // Update subscription in database
@@ -164,13 +157,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      { error: "Invalid action" },
-      { status: 400 }
-    );
-
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
-    console.error("Error managing subscription:", error);
+    logger.error("Error managing subscription:", {
+      action: "manage_subscription_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Failed to manage subscription" },
       { status: 500 }

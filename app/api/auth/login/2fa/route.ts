@@ -3,6 +3,7 @@ import { verify2FACode } from "@/lib/2fa";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
+import logger from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -159,7 +160,12 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("2FA verification error:", error);
+    logger.error("2FA login error:", {
+      action: "2fa_login_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       {
         error: "Internal server error",

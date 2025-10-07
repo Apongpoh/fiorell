@@ -3,19 +3,22 @@ import connectDB from "@/lib/mongodb";
 import lemonSqueezyService from "@/lib/lemonSqueezy";
 import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
+import { logger } from "@/lib/logger";
+
+// Get available plans and user's current subscription
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    
+
     // Check if user is authenticated (optional for GET requests)
     let user = null;
     let userSubscription = null;
-    
+
     try {
       const { userId } = verifyAuth(request);
       user = await User.findById(userId);
-      
+
       if (user) {
         userSubscription = {
           type: user.subscription?.type || "free",
@@ -32,16 +35,17 @@ export async function GET(request: NextRequest) {
     const plans = lemonSqueezyService.getPlans();
 
     // Add savings calculations for annual plans
-    const plansWithSavings = plans.map(plan => {
-      if (plan.interval === 'year') {
-        const monthlyEquivalent = plans.find(p => 
-          p.id.replace('_annual', '') === plan.id.replace('_annual', '') && 
-          p.interval === 'month'
+    const plansWithSavings = plans.map((plan) => {
+      if (plan.interval === "year") {
+        const monthlyEquivalent = plans.find(
+          (p) =>
+            p.id.replace("_annual", "") === plan.id.replace("_annual", "") &&
+            p.interval === "month"
         );
-        
+
         if (monthlyEquivalent) {
           const savings = lemonSqueezyService.calculateAnnualSavings(
-            monthlyEquivalent.price, 
+            monthlyEquivalent.price,
             plan.price
           );
           return {
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
           };
         }
       }
-      
+
       return plan;
     });
 
@@ -59,7 +63,6 @@ export async function GET(request: NextRequest) {
       plans: plansWithSavings,
       userSubscription,
     });
-
   } catch (error) {
     console.error("Error fetching subscription plans:", error);
     return NextResponse.json(
@@ -76,7 +79,10 @@ export async function POST(request: NextRequest) {
     const { planId } = await request.json();
 
     if (!planId) {
-      return NextResponse.json({ error: "Plan ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Plan ID is required" },
+        { status: 400 }
+      );
     }
 
     // Get user
@@ -92,7 +98,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already has an active subscription
-    if (user.subscription?.type !== "free" && user.subscription?.expiresAt && new Date() < user.subscription.expiresAt) {
+    if (
+      user.subscription?.type !== "free" &&
+      user.subscription?.expiresAt &&
+      new Date() < user.subscription.expiresAt
+    ) {
       return NextResponse.json(
         { error: "User already has an active subscription" },
         { status: 400 }
@@ -113,19 +123,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (!checkout.success) {
-      return NextResponse.json(
-        { error: checkout.error },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: checkout.error }, { status: 500 });
     }
 
     return NextResponse.json({
       checkoutUrl: checkout.checkoutUrl,
       checkoutId: checkout.checkoutId,
     });
-
   } catch (error) {
-    console.error("Error creating subscription checkout:", error);
+    logger.error("Error creating subscription checkout:", {
+      action: "create_subscription_checkout_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Failed to create checkout session" },
       { status: 500 }

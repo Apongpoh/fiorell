@@ -3,6 +3,9 @@ import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import ProfileView from "@/models/ProfileView";
 import { verifyAuth } from "@/lib/auth";
+import { logger } from "@/lib/logger";
+
+// Record a profile view
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,7 +73,12 @@ export async function POST(request: NextRequest) {
       session.endSession();
     }
   } catch (error: unknown) {
-    console.error("Profile view error:", error);
+    logger.error("Profile view error:", {
+      action: "record_profile_view_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       (typeof error === "object" &&

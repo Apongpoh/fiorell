@@ -5,6 +5,7 @@ import Block from "@/models/Block";
 import ProfileView from "@/models/ProfileView";
 import { verifyAuth } from "@/lib/auth";
 import { computeProfileCompletion } from "@/lib/profileCompletion";
+import { logger } from "@/lib/logger";
 
 // NOTE: Next.js (v15+) typed dynamic route context.params as a Promise in this project configuration.
 // Accept the promised params object and await it to extract the id, matching the inferred RouteHandlerConfig.
@@ -168,7 +169,12 @@ export async function GET(
 
     return NextResponse.json({ user: formattedUser });
   } catch (error: unknown) {
-    console.error("Error fetching user profile:", error);
+    logger.error("Error fetching user profile:", {
+      action: "get_user_profile_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     let message = "Failed to fetch profile";
     if (
       typeof error === "object" &&

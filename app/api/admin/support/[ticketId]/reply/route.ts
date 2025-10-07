@@ -4,6 +4,7 @@ import SupportTicket from "@/models/SupportTicket";
 import SupportMessage from "@/models/SupportMessage";
 import { verifyAuth } from "@/lib/auth";
 import { isObjectId } from "@/lib/validators";
+import { logger } from "@/lib/logger";
 
 // Admin endpoint to reply to support tickets
 export async function POST(
@@ -20,10 +21,7 @@ export async function POST(
     const { content, agentName = "Support Team", updateStatus } = body;
 
     if (!isObjectId(ticketId)) {
-      return NextResponse.json(
-        { error: "Invalid ticket ID" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid ticket ID" }, { status: 400 });
     }
 
     if (!content || content.trim().length === 0) {
@@ -65,7 +63,10 @@ export async function POST(
     await message.save();
 
     // Update ticket status if specified
-    if (updateStatus && ["open", "pending", "in-progress", "closed"].includes(updateStatus)) {
+    if (
+      updateStatus &&
+      ["open", "pending", "in-progress", "closed"].includes(updateStatus)
+    ) {
       ticket.status = updateStatus;
       ticket.updatedAt = new Date();
       await ticket.save();
@@ -92,7 +93,12 @@ export async function POST(
       },
     });
   } catch (error: unknown) {
-    console.error("Admin support reply error:", error);
+    logger.error("Admin support reply error:", {
+      action: "admin_support_reply_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&

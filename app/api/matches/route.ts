@@ -7,6 +7,7 @@ import { verifyAuth } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 import Block from "../../../models/Block";
 import { isObjectId } from "@/lib/validators";
+import { logger } from "@/lib/logger";
 
 // Get user's matches
 export async function GET(request: NextRequest) {
@@ -15,7 +16,12 @@ export async function GET(request: NextRequest) {
     try {
       await connectToDatabase();
     } catch (error) {
-      console.error("Database connection error:", error);
+      logger.error("Database connection error", {
+        action: "db_connection_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return NextResponse.json(
         { error: "Database connection failed" },
         { status: 500 }
@@ -111,7 +117,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ matches: formattedMatches });
   } catch (error: unknown) {
-    console.error("Error getting matches:", error);
+    logger.error("Error getting matches:", {
+      action: "get_matches_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     let message = "Failed to get matches";
     if (
       typeof error === "object" &&
@@ -220,7 +231,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ match: newMatch });
   } catch (error: unknown) {
-    console.error("Error creating match:", error);
+    logger.error("Error creating match:", {
+      action: "create_match_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     let message = "Failed to create match";
     if (
       typeof error === "object" &&

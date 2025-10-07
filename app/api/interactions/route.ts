@@ -4,12 +4,9 @@ import connectToDatabase from "@/lib/mongodb";
 import Interaction from "@/models/Interaction";
 import User from "@/models/User";
 import { verifyAuth } from "@/lib/auth";
-// Block model (ensure path alias resolves)
 import Block from "../../../models/Block";
 import { isObjectId } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rateLimit";
-
-
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
-        { 
+        {
           error: "Too many actions, slow down",
           remainingAttempts: rateLimitResult.remainingAttempts,
           resetTime: rateLimitResult.resetTime,
@@ -105,7 +102,12 @@ export async function POST(request: NextRequest) {
       if (existingTodayInteraction) {
         await session.abortTransaction();
         return NextResponse.json(
-          { error: `You can only ${body.action.replace('_', ' ')} this user once per day. Try again tomorrow!` },
+          {
+            error: `You can only ${body.action.replace(
+              "_",
+              " "
+            )} this user once per day. Try again tomorrow!`,
+          },
           { status: 409 }
         );
       }

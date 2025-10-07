@@ -20,12 +20,23 @@ export interface RateLimitResult {
 /**
  * Check if an action is rate limited
  */
-export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimitResult> {
-  const { resourceType, userId, resourceId, windowMs, maxAttempts, contentHash } = config;
-  
+export async function checkRateLimit(
+  config: RateLimitConfig
+): Promise<RateLimitResult> {
+  const {
+    resourceType,
+    userId,
+    resourceId,
+    windowMs,
+    maxAttempts,
+    contentHash,
+  } = config;
+
   // Create unique identifier
-  const identifier = resourceId ? `${userId}:${resourceType}:${resourceId}` : `${userId}:${resourceType}`;
-  
+  const identifier = resourceId
+    ? `${userId}:${resourceType}:${resourceId}`
+    : `${userId}:${resourceType}`;
+
   const now = new Date();
   const windowStart = new Date(now.getTime() - windowMs);
 
@@ -33,7 +44,7 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimit
     // Find existing rate limit record
     let rateLimit = await RateLimit.findOne({
       identifier,
-      expiresAt: { $gt: now }
+      expiresAt: { $gt: now },
     });
 
     if (!rateLimit) {
@@ -48,9 +59,9 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimit
         actionCount: 1,
         windowStart: now,
       });
-      
+
       await rateLimit.save();
-      
+
       return {
         allowed: true,
         remainingAttempts: maxAttempts - 1,
@@ -83,7 +94,9 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimit
           allowed: false,
           remainingAttempts: 0,
           resetTime: new Date(rateLimit.windowStart.getTime() + windowMs),
-          error: `Rate limit exceeded. Maximum ${maxAttempts} actions per ${Math.round(windowMs / 1000)} seconds.`,
+          error: `Rate limit exceeded. Maximum ${maxAttempts} actions per ${Math.round(
+            windowMs / 1000
+          )} seconds.`,
         };
       }
 
@@ -100,7 +113,6 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimit
       remainingAttempts: Math.max(0, maxAttempts - rateLimit.actionCount),
       resetTime: new Date(rateLimit.windowStart.getTime() + windowMs),
     };
-
   } catch (error) {
     console.error("Rate limit check error:", error);
     // In case of error, allow the action but log it
@@ -121,8 +133,10 @@ export async function resetRateLimit(
   resourceType: "message" | "like" | "superlike" | "boost" | "media_upload",
   resourceId?: string
 ): Promise<boolean> {
-  const identifier = resourceId ? `${userId}:${resourceType}:${resourceId}` : `${userId}:${resourceType}`;
-  
+  const identifier = resourceId
+    ? `${userId}:${resourceType}:${resourceId}`
+    : `${userId}:${resourceType}`;
+
   try {
     await RateLimit.deleteOne({ identifier });
     return true;
@@ -138,7 +152,7 @@ export async function resetRateLimit(
 export async function cleanupExpiredRateLimits(): Promise<number> {
   try {
     const result = await RateLimit.deleteMany({
-      expiresAt: { $lt: new Date() }
+      expiresAt: { $lt: new Date() },
     });
     return result.deletedCount || 0;
   } catch (error) {

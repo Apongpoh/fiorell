@@ -6,6 +6,7 @@ import connectToDatabase from "@/lib/mongodb";
 import Match from "@/models/Match";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
+import logger from "@/lib/logger";
 
 // Basic per-match media throttle & duplicate detection
 const recentMedia: Map<string, { size: number; mime: string; ts: number }> =
@@ -171,7 +172,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message }, { status: 200 });
   } catch (error: unknown) {
-    console.error("Upload media error:", error);
+    logger.error("Upload media error:", {
+      action: "upload_media_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     const message = "Internal server error";
     if (

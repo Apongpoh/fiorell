@@ -1,4 +1,5 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
+import { logger } from "@/lib/logger";
 
 interface EmailData {
   to: string;
@@ -17,66 +18,87 @@ class EmailService {
   private initializeTransporter() {
     try {
       // Get email provider from environment or default to smtp if SMTP config exists
-      const emailProvider = process.env.EMAIL_PROVIDER || 
-        (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS ? 'smtp' : null);
+      const emailProvider =
+        process.env.EMAIL_PROVIDER ||
+        (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
+          ? "smtp"
+          : null);
 
       // Support multiple email providers
-      if (emailProvider === 'gmail') {
+      if (emailProvider === "gmail") {
         this.transporter = nodemailer.createTransport({
-          service: 'gmail',
+          service: "gmail",
           auth: {
             user: process.env.GMAIL_USER,
             pass: process.env.GMAIL_APP_PASSWORD, // Use App Password, not regular password
           },
         });
-      } else if (emailProvider === 'sendgrid') {
+      } else if (emailProvider === "sendgrid") {
         this.transporter = nodemailer.createTransport({
-          host: 'smtp.sendgrid.net',
+          host: "smtp.sendgrid.net",
           port: 587,
           secure: false,
           auth: {
-            user: 'apikey',
+            user: "apikey",
             pass: process.env.SENDGRID_API_KEY,
           },
         });
-      } else if (emailProvider === 'smtp') {
+      } else if (emailProvider === "smtp") {
         this.transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: process.env.SMTP_SECURE === 'true',
+          port: parseInt(process.env.SMTP_PORT || "587"),
+          secure: process.env.SMTP_SECURE === "true",
           auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS,
           },
         });
       } else {
-        console.log('Email service not configured. Set EMAIL_PROVIDER environment variable or provide SMTP credentials.');
+        logger.warn(
+          "Email service not configured. Set EMAIL_PROVIDER environment variable or provide SMTP credentials.",
+          { action: "email_service_not_configured" }
+        );
       }
     } catch (error) {
-      console.error('Failed to initialize email transporter:', error);
+      logger.error("Failed to initialize email transporter", {
+        action: "email_transporter_init_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+      return;
     }
   }
 
   public async sendEmail(emailData: EmailData): Promise<boolean> {
     if (!this.transporter) {
-      console.log('Email transporter not configured');
+      console.log("Email transporter not configured");
       return false;
     }
 
     try {
       const mailOptions = {
-        from: process.env.EMAIL_FROM || 'noreply@fiorell.com',
+        from: process.env.EMAIL_FROM || "noreply@fiorell.com",
         to: emailData.to,
         subject: emailData.subject,
         html: emailData.html,
-        text: emailData.text || emailData.html.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+        text: emailData.text || emailData.html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
       };
 
       const result = await this.transporter.sendMail(mailOptions);
-      console.log('Email sent successfully:', result.messageId);
+      logger.info("Email sent successfully", {
+        metadata: { messageId: result.messageId },
+      });
       return true;
     } catch (error) {
-      console.error('Failed to send email:', error);
+      logger.error("Failed to send email", {
+        action: "email_send_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+          to: emailData.to,
+          subject: emailData.subject,
+        },
+      });
       return false;
     }
   }
@@ -89,23 +111,28 @@ class EmailService {
     priority: string;
     userEmail?: string;
   }): Promise<boolean> {
-    const supportEmails = (process.env.SUPPORT_EMAILS || process.env.SUPPORT_EMAIL || '')
-      .split(',')
-      .map(email => email.trim())
-      .filter(email => email.length > 0);
+    const supportEmails = (
+      process.env.SUPPORT_EMAILS ||
+      process.env.SUPPORT_EMAIL ||
+      ""
+    )
+      .split(",")
+      .map((email) => email.trim())
+      .filter((email) => email.length > 0);
 
     if (supportEmails.length === 0) {
-      console.log('No support emails configured');
+      console.log("No support emails configured");
       return false;
     }
 
     const priorityColors = {
-      high: '#dc2626',
-      medium: '#d97706',
-      low: '#2563eb'
+      high: "#dc2626",
+      medium: "#d97706",
+      low: "#2563eb",
     };
 
-    const priorityColor = priorityColors[data.priority as keyof typeof priorityColors] || '#6b7280';
+    const priorityColor =
+      priorityColors[data.priority as keyof typeof priorityColors] || "#6b7280";
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -253,10 +280,14 @@ class EmailService {
             </div>
             
             <div class="action-buttons">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support/chat/${data.ticketId}" class="btn">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support/chat/${
+      data.ticketId
+    }" class="btn">
                 View & Reply
               </a>
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support" class="btn" style="background: #6b7280;">
+              <a href="${
+                process.env.NEXT_PUBLIC_APP_URL
+              }/admin/support" class="btn" style="background: #6b7280;">
                 Dashboard
               </a>
             </div>
@@ -265,7 +296,9 @@ class EmailService {
           <div class="footer">
             <p>
               Fiorell Support System • 
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support">Admin Dashboard</a>
+              <a href="${
+                process.env.NEXT_PUBLIC_APP_URL
+              }/admin/support">Admin Dashboard</a>
             </p>
             <p>This is an automated notification. Please do not reply to this email.</p>
           </div>
@@ -278,7 +311,9 @@ class EmailService {
     for (const email of supportEmails) {
       const success = await this.sendEmail({
         to: email,
-        subject: `[${data.priority.toUpperCase()} PRIORITY] New Message - ${data.ticketSubject}`,
+        subject: `[${data.priority.toUpperCase()} PRIORITY] New Message - ${
+          data.ticketSubject
+        }`,
         html: emailHtml,
       });
       if (success) successCount++;
@@ -295,23 +330,30 @@ class EmailService {
     priority: string;
     description: string;
   }): Promise<boolean> {
-    const supportEmails = (process.env.SUPPORT_EMAILS || process.env.SUPPORT_EMAIL || '')
-      .split(',')
-      .map(email => email.trim())
-      .filter(email => email.length > 0);
+    const supportEmails = (
+      process.env.SUPPORT_EMAILS ||
+      process.env.SUPPORT_EMAIL ||
+      ""
+    )
+      .split(",")
+      .map((email) => email.trim())
+      .filter((email) => email.length > 0);
 
     if (supportEmails.length === 0) {
-      console.log('No support emails configured');
+      logger.info("No support emails configured", {
+        action: "no_support_emails",
+      });
       return false;
     }
 
     const priorityColors = {
-      high: '#dc2626',
-      medium: '#d97706', 
-      low: '#2563eb'
+      high: "#dc2626",
+      medium: "#d97706",
+      low: "#2563eb",
     };
 
-    const priorityColor = priorityColors[data.priority as keyof typeof priorityColors] || '#6b7280';
+    const priorityColor =
+      priorityColors[data.priority as keyof typeof priorityColors] || "#6b7280";
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -441,7 +483,9 @@ class EmailService {
               </div>
               <div class="info-row">
                 <span class="label">Type:</span>
-                <span style="text-transform: capitalize;">${data.ticketType}</span>
+                <span style="text-transform: capitalize;">${
+                  data.ticketType
+                }</span>
               </div>
               <div class="info-row">
                 <span class="label">Priority:</span>
@@ -463,10 +507,14 @@ class EmailService {
             </div>
             
             <div class="action-buttons">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support/chat/${data.ticketId}" class="btn">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support/chat/${
+      data.ticketId
+    }" class="btn">
                 View Ticket
               </a>
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support" class="btn" style="background: #6b7280;">
+              <a href="${
+                process.env.NEXT_PUBLIC_APP_URL
+              }/admin/support" class="btn" style="background: #6b7280;">
                 Dashboard
               </a>
             </div>
@@ -475,7 +523,9 @@ class EmailService {
           <div class="footer">
             <p>
               Fiorell Support System • 
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/support">Admin Dashboard</a>
+              <a href="${
+                process.env.NEXT_PUBLIC_APP_URL
+              }/admin/support">Admin Dashboard</a>
             </p>
             <p>This is an automated notification. Please do not reply to this email.</p>
           </div>
@@ -488,7 +538,9 @@ class EmailService {
     for (const email of supportEmails) {
       const success = await this.sendEmail({
         to: email,
-        subject: `[NEW TICKET] ${data.ticketSubject} - ${data.priority.toUpperCase()} Priority`,
+        subject: `[NEW TICKET] ${
+          data.ticketSubject
+        } - ${data.priority.toUpperCase()} Priority`,
         html: emailHtml,
       });
       if (success) successCount++;

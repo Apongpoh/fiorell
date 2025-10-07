@@ -4,6 +4,8 @@ import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
 import { canUserPerformAction } from "@/lib/subscription";
 
+// Get or update user's travel mode status
+
 export async function GET(request: NextRequest) {
   try {
     await connectToDatabase();

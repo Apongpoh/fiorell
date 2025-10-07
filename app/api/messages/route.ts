@@ -5,6 +5,7 @@ import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
 import Block from "@/models/Block";
 import { checkRateLimit } from "@/lib/rateLimit";
+import logger from "@/lib/logger";
 
 // Very small profanity placeholder list (extend or replace with dedicated service)
 const BANNED_WORDS = [
@@ -362,10 +363,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Database-backed rate limiting with duplicate detection
-    const contentHash = type === "text" && content
-      ? `${content.length}:${content.slice(0, 32)}`
-      : `${type}:${Date.now()}`;
-    
+    const contentHash =
+      type === "text" && content
+        ? `${content.length}:${content.slice(0, 32)}`
+        : `${type}:${Date.now()}`;
+
     const rateLimitResult = await checkRateLimit({
       resourceType: "message",
       userId: userId,
@@ -382,7 +384,7 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-      
+
       return NextResponse.json(
         {
           error: "You are sending messages too quickly. Please wait a moment.",
@@ -476,7 +478,12 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
-    console.error("Send message error:", error);
+    logger.error("Send message error:", {
+      action: "send_message_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       typeof error === "object" &&
@@ -538,7 +545,12 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Delete message error:", error);
+    logger.error("Delete message error:", {
+      action: "delete_message_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       typeof error === "object" &&

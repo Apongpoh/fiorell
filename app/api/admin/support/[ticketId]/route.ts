@@ -4,6 +4,7 @@ import SupportTicket from "@/models/SupportTicket";
 import SupportMessage from "@/models/SupportMessage";
 import User from "@/models/User";
 import jwt from "jsonwebtoken";
+import logger from "@/lib/logger";
 
 export async function GET(
   request: NextRequest,
@@ -16,15 +17,23 @@ export async function GET(
     // Get auth token
     const token = request.headers.get("authorization")?.split(" ")[1];
     if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     // Verify token and check admin status
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId: string;
+    };
     const user = await User.findById(decoded.userId);
-    
+
     if (!user || !user.isAdmin) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Admin access required" },
+        { status: 403 }
+      );
     }
 
     // Get ticket with user info
@@ -35,19 +44,19 @@ export async function GET(
           from: "users",
           localField: "userId",
           foreignField: "_id",
-          as: "userInfo"
-        }
+          as: "userInfo",
+        },
       },
       {
         $addFields: {
-          userName: { $arrayElemAt: ["$userInfo.name", 0] }
-        }
+          userName: { $arrayElemAt: ["$userInfo.name", 0] },
+        },
       },
       {
         $project: {
-          userInfo: 0
-        }
-      }
+          userInfo: 0,
+        },
+      },
     ]);
 
     const ticket = ticketWithUser[0];
@@ -68,17 +77,22 @@ export async function GET(
 
     return NextResponse.json({
       ticket,
-      messages: messages.map(msg => ({
+      messages: messages.map((msg) => ({
         id: msg._id,
         content: msg.content,
         sender: msg.isFromSupport ? "support" : "user",
         senderName: msg.isFromSupport ? msg.supportAgentName : ticket.userName,
         agentName: msg.supportAgentName,
         timestamp: msg.createdAt,
-      }))
+      })),
     });
   } catch (error) {
-    console.error("Error fetching admin ticket:", error);
+    logger.error("Error fetching admin ticket:", {
+      action: "admin_support_ticket_fetch_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Failed to fetch ticket" },
       { status: 500 }

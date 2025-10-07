@@ -42,14 +42,17 @@ export async function GET(request: NextRequest) {
 
     // Check if advanced filters are being used
     const usingAdvancedFilters = Boolean(
-      gender && gender !== 'all' || verifiedOnly || interestsParam
+      (gender && gender !== "all") || verifiedOnly || interestsParam
     );
 
     let advancedFiltersAvailable = true;
     let gracePeriodMessage = null;
 
     if (usingAdvancedFilters) {
-      const canUseAdvancedFilters = await canUserPerformAction(userId, 'advanced_filters');
+      const canUseAdvancedFilters = await canUserPerformAction(
+        userId,
+        "advanced_filters"
+      );
       if (!canUseAdvancedFilters.allowed) {
         advancedFiltersAvailable = false;
         gracePeriodMessage = canUseAdvancedFilters.reason;
@@ -85,7 +88,8 @@ export async function GET(request: NextRequest) {
     // Only apply advanced filters if user has access
     if (advancedFiltersAvailable) {
       // Filter by gender (advanced)
-      const effectiveGender = gender && gender !== "all"
+      const effectiveGender =
+        gender && gender !== "all"
           ? gender
           : currentUser.preferences?.genderPreference &&
             currentUser.preferences.genderPreference !== "all"
@@ -114,10 +118,11 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Use basic gender preference from user profile for free users
-      const basicGender = currentUser.preferences?.genderPreference &&
+      const basicGender =
+        currentUser.preferences?.genderPreference &&
         currentUser.preferences.genderPreference !== "all"
-        ? currentUser.preferences.genderPreference
-        : null;
+          ? currentUser.preferences.genderPreference
+          : null;
       if (basicGender) {
         filter.gender = basicGender;
       }
@@ -135,10 +140,10 @@ export async function GET(request: NextRequest) {
         Array.isArray(dealBreakers.mustHaveInterests) &&
         dealBreakers.mustHaveInterests.length
       ) {
-        if (filter.interests && typeof filter.interests === 'object') {
+        if (filter.interests && typeof filter.interests === "object") {
           filter.interests = {
             ...filter.interests,
-            $all: dealBreakers.mustHaveInterests
+            $all: dealBreakers.mustHaveInterests,
           };
         } else {
           filter.interests = { $all: dealBreakers.mustHaveInterests };
@@ -149,10 +154,10 @@ export async function GET(request: NextRequest) {
         Array.isArray(dealBreakers.excludeInterests) &&
         dealBreakers.excludeInterests.length
       ) {
-        if (filter.interests && typeof filter.interests === 'object') {
+        if (filter.interests && typeof filter.interests === "object") {
           filter.interests = {
             ...filter.interests,
-            $nin: dealBreakers.excludeInterests
+            $nin: dealBreakers.excludeInterests,
           };
         } else {
           filter.interests = { $nin: dealBreakers.excludeInterests };
@@ -219,7 +224,9 @@ export async function GET(request: NextRequest) {
       },
     }).select("targetUserId");
 
-    const todayInteractedUserIds = todayInteractions.map((interaction) => interaction.targetUserId);
+    const todayInteractedUserIds = todayInteractions.map(
+      (interaction) => interaction.targetUserId
+    );
     if (todayInteractedUserIds.length > 0) {
       const origId =
         typeof filter._id === "object" && filter._id !== null ? filter._id : {};
@@ -335,14 +342,16 @@ export async function GET(request: NextRequest) {
     if (users.length === 0 && todayInteractedUserIds.length >= 5) {
       // Remove the today interaction filter and try again
       const relaxedFilter: typeof filter = { ...filter };
-      
+
       // Reset the _id filter to exclude only blocked users (not today's interactions)
       if (excludeIds.size > 0) {
-        (relaxedFilter as { _id?: { $nin: string[] } })._id = { $nin: Array.from(excludeIds) };
+        (relaxedFilter as { _id?: { $nin: string[] } })._id = {
+          $nin: Array.from(excludeIds),
+        };
       } else {
         delete (relaxedFilter as { _id?: unknown })._id;
       }
-      
+
       try {
         users = await User.find(relaxedFilter)
           .select(

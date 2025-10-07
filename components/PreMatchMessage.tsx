@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import Button from './ui/Button';
-import { Card } from './ui/Card';
-import { useSubscription } from '../hooks/useSubscription';
-import { apiRequest } from '../lib/api';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import Button from "./ui/Button";
+import { Card } from "./ui/Card";
+import { useSubscription } from "../hooks/useSubscription";
+import { apiRequest } from "../lib/api";
 
 interface PreMatchMessageProps {
   recipientId: string;
@@ -21,7 +21,7 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
   onMessageSent,
 }) => {
   const { subscription } = useSubscription();
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const canSendPreMatchMessage = subscription?.hasPremiumPlus;
@@ -32,27 +32,27 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
 
     setLoading(true);
     try {
-      const response = await apiRequest('/messages/pre-match', {
-        method: 'POST',
+      const response = (await apiRequest("/messages/pre-match", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           recipientId,
           content: message.trim(),
         }),
-      }) as Response;
+      })) as Response;
 
       if (response.ok) {
         onMessageSent?.();
         onClose();
       } else {
         const error = await response.json();
-        alert(error.message || 'Failed to send message');
+        alert(error.message || "Failed to send message");
       }
     } catch (error) {
-      console.error('Failed to send pre-match message:', error);
-      alert('Failed to send message');
+      console.error("Failed to send pre-match message:", error);
+      alert("Failed to send message");
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
         >
           <span className="text-gray-600 dark:text-gray-300 text-lg">×</span>
         </button>
-        
+
         <div className="text-center mb-6">
           <div className="text-3xl mb-2">💌</div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
@@ -97,7 +97,7 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
                 Upgrade to send messages before matching
               </p>
               <Button
-                onClick={() => window.location.href = '/subscription'}
+                onClick={() => (window.location.href = "/subscription")}
                 className="bg-white text-purple-600 hover:bg-gray-100"
               >
                 Upgrade Now
@@ -126,11 +126,13 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
                 <p className="text-xs text-gray-500">
                   Be respectful and genuine to increase your chances
                 </p>
-                <p className={`text-xs ${
-                  message.length > maxLength * 0.9 
-                    ? 'text-red-500' 
-                    : 'text-gray-500'
-                }`}>
+                <p
+                  className={`text-xs ${
+                    message.length > maxLength * 0.9
+                      ? "text-red-500"
+                      : "text-gray-500"
+                  }`}
+                >
                   {message.length}/{maxLength}
                 </p>
               </div>
@@ -162,7 +164,7 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
                 disabled={!message.trim() || loading}
                 className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {loading ? 'Sending...' : 'Send Message'}
+                {loading ? "Sending..." : "Send Message"}
               </Button>
             </div>
           </div>

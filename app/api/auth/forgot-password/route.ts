@@ -4,6 +4,9 @@ import User from "@/models/User";
 import { z } from "zod";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "@/lib/sendPasswordResetEmail";
+import { logger } from "@/lib/logger";
+
+// Schema for request body validation
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -36,7 +39,15 @@ export async function POST(request: NextRequest) {
       try {
         await sendPasswordResetEmail(email, resetToken);
       } catch (emailError) {
-        console.error("Failed to send password reset email:", emailError);
+        logger.error("Failed to send password reset email:", {
+          action: "forgot_password_send_email_failed",
+          metadata: {
+            error:
+              emailError instanceof Error
+                ? emailError.message
+                : String(emailError),
+          },
+        });
         // Don't expose email sending failures to client
       }
     }
@@ -46,7 +57,12 @@ export async function POST(request: NextRequest) {
         "If an account with that email exists, we've sent a password reset link.",
     });
   } catch (error) {
-    console.error("Forgot password error:", error);
+    logger.error("Forgot password error:", {
+      action: "forgot_password_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

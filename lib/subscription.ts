@@ -1,6 +1,6 @@
-import { Types } from 'mongoose';
-import Subscription from '@/models/Subscription';
-import User from '@/models/User';
+import { Types } from "mongoose";
+import Subscription from "@/models/Subscription";
+import User from "@/models/User";
 
 export interface UserSubscriptionInfo {
   hasPremium: boolean;
@@ -85,26 +85,34 @@ export const PREMIUM_PLUS_USER_LIMITS: FeatureLimits = {
 /**
  * Get user's subscription information
  */
-export async function getUserSubscription(userId: string | Types.ObjectId): Promise<UserSubscriptionInfo> {
+export async function getUserSubscription(
+  userId: string | Types.ObjectId
+): Promise<UserSubscriptionInfo> {
   try {
     // Check for external subscription first (Lemon Squeezy)
-    const externalSubscription = await Subscription.findOne({
+    const externalSubscription = (await Subscription.findOne({
       userId: userId,
-      status: { $in: ['active', 'on_trial'] },
-      currentPeriodEnd: { $gt: new Date() }
-    }).lean() as {
+      status: { $in: ["active", "on_trial"] },
+      currentPeriodEnd: { $gt: new Date() },
+    }).lean()) as {
       planId: string;
       currentPeriodEnd: Date;
       [key: string]: unknown;
     } | null;
 
     if (externalSubscription) {
-      const isPremium = ['premium', 'premium_annual'].includes(externalSubscription.planId);
-      const isPremiumPlus = ['premium_plus', 'premium_plus_annual'].includes(externalSubscription.planId);
+      const isPremium = ["premium", "premium_annual"].includes(
+        externalSubscription.planId
+      );
+      const isPremiumPlus = ["premium_plus", "premium_plus_annual"].includes(
+        externalSubscription.planId
+      );
 
       const features = getSubscriptionFeatures(externalSubscription.planId);
       const daysRemaining = Math.ceil(
-        (externalSubscription.currentPeriodEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+        (externalSubscription.currentPeriodEnd.getTime() -
+          new Date().getTime()) /
+          (1000 * 60 * 60 * 24)
       );
 
       return {
@@ -119,9 +127,11 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
     }
 
     // Fallback to user's embedded subscription field
-    const user = await User.findById(userId).select('subscription').lean() as {
+    const user = (await User.findById(userId)
+      .select("subscription")
+      .lean()) as {
       subscription?: {
-        type: 'free' | 'premium' | 'premium_plus';
+        type: "free" | "premium" | "premium_plus";
         expiresAt?: Date;
         features?: string[];
       };
@@ -136,10 +146,11 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
     }
 
     const userSubscription = user.subscription;
-    
+
     // Check if embedded subscription is active
-    const isActive = !userSubscription.expiresAt || userSubscription.expiresAt > new Date();
-    
+    const isActive =
+      !userSubscription.expiresAt || userSubscription.expiresAt > new Date();
+
     if (!isActive) {
       return {
         hasPremium: false,
@@ -149,13 +160,20 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
       };
     }
 
-    const isPremium = userSubscription.type === 'premium' || userSubscription.type === 'premium_plus';
-    const isPremiumPlus = userSubscription.type === 'premium_plus';
+    const isPremium =
+      userSubscription.type === "premium" ||
+      userSubscription.type === "premium_plus";
+    const isPremiumPlus = userSubscription.type === "premium_plus";
 
-    const features = userSubscription.features || getSubscriptionFeatures(userSubscription.type);
-    const daysRemaining = userSubscription.expiresAt ? Math.ceil(
-      (userSubscription.expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-    ) : -1;
+    const features =
+      userSubscription.features ||
+      getSubscriptionFeatures(userSubscription.type);
+    const daysRemaining = userSubscription.expiresAt
+      ? Math.ceil(
+          (userSubscription.expiresAt.getTime() - new Date().getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      : -1;
 
     return {
       hasPremium: isPremium,
@@ -167,7 +185,7 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
       planId: userSubscription.type,
     };
   } catch (error) {
-    console.error('Error getting user subscription:', error);
+    console.error("Error getting user subscription:", error);
     return {
       hasPremium: false,
       hasPremiumPlus: false,
@@ -180,7 +198,9 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
 /**
  * Get feature limits based on user's subscription
  */
-export async function getUserFeatureLimits(userId: string | Types.ObjectId): Promise<FeatureLimits> {
+export async function getUserFeatureLimits(
+  userId: string | Types.ObjectId
+): Promise<FeatureLimits> {
   const subscriptionInfo = await getUserSubscription(userId);
 
   if (subscriptionInfo.hasPremiumPlus) {
@@ -197,17 +217,17 @@ export async function getUserFeatureLimits(userId: string | Types.ObjectId): Pro
 // Check if user is in grace period (first 7 days)
 export async function isUserInGracePeriod(userId: string): Promise<boolean> {
   try {
-    const User = (await import('@/models/User')).default;
+    const User = (await import("@/models/User")).default;
     const user = await User.findById(userId);
     if (!user) return false;
-    
+
     const accountAge = Date.now() - user.createdAt.getTime();
     const gracePeriodDays = 7; // 7 days grace period
     const gracePeriodMs = gracePeriodDays * 24 * 60 * 60 * 1000;
-    
+
     return accountAge < gracePeriodMs;
   } catch (error) {
-    console.error('Error checking grace period:', error);
+    console.error("Error checking grace period:", error);
     return false;
   }
 }
@@ -235,7 +255,7 @@ export async function canUserPerformAction(
   try {
     const subscriptionInfo = await getUserSubscription(userId);
     const isInGracePeriod = await isUserInGracePeriod(userId);
-    
+
     // Determine user limits based on subscription and grace period
     let userLimits: FeatureLimits;
     if (subscriptionInfo.hasPremiumPlus) {
@@ -250,109 +270,123 @@ export async function canUserPerformAction(
 
     // Check feature-specific permissions
     switch (action) {
-      case 'like':
+      case "like":
         if (!skipUsageCheck) {
           const usage = await getUserDailyUsage(userId);
-          if (userLimits.dailyLikes !== -1 && usage.likes >= userLimits.dailyLikes) {
-            return {
-              allowed: false,
-              reason: isInGracePeriod 
-                ? 'You\'ve reached your daily like limit. Upgrade to Premium for unlimited likes!'
-                : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
-                ? 'Daily limit reached'
-                : 'Daily limit reached. Upgrade to Premium for unlimited likes!',
-              usage
-            };
-          }
-          return { allowed: true, usage };
-        }
-        return { allowed: true };
-
-      case 'super_like':
-        if (!skipUsageCheck) {
-          const usage = await getUserDailyUsage(userId);
-          if (userLimits.dailySuperLikes !== -1 && usage.superLikes >= userLimits.dailySuperLikes) {
+          if (
+            userLimits.dailyLikes !== -1 &&
+            usage.likes >= userLimits.dailyLikes
+          ) {
             return {
               allowed: false,
               reason: isInGracePeriod
-                ? 'You\'ve used all your super likes today. Upgrade for more!'
+                ? "You've reached your daily like limit. Upgrade to Premium for unlimited likes!"
                 : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
-                ? 'Daily super like limit reached'
-                : 'Daily super like limit reached. Upgrade to Premium for more!',
-              usage
+                ? "Daily limit reached"
+                : "Daily limit reached. Upgrade to Premium for unlimited likes!",
+              usage,
             };
           }
           return { allowed: true, usage };
         }
         return { allowed: true };
 
-      case 'advanced_filters':
+      case "super_like":
+        if (!skipUsageCheck) {
+          const usage = await getUserDailyUsage(userId);
+          if (
+            userLimits.dailySuperLikes !== -1 &&
+            usage.superLikes >= userLimits.dailySuperLikes
+          ) {
+            return {
+              allowed: false,
+              reason: isInGracePeriod
+                ? "You've used all your super likes today. Upgrade for more!"
+                : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
+                ? "Daily super like limit reached"
+                : "Daily super like limit reached. Upgrade to Premium for more!",
+              usage,
+            };
+          }
+          return { allowed: true, usage };
+        }
+        return { allowed: true };
+
+      case "advanced_filters":
         if (!userLimits.canUseAdvancedFilters) {
           return {
             allowed: false,
             reason: isInGracePeriod
-              ? 'Grace period expired. Upgrade to Premium to continue using advanced filters!'
-              : 'Advanced filters are a Premium feature. Upgrade to find your perfect match!'
+              ? "Grace period expired. Upgrade to Premium to continue using advanced filters!"
+              : "Advanced filters are a Premium feature. Upgrade to find your perfect match!",
           };
         }
         return { allowed: true };
 
-      case 'incognito_mode':
+      case "incognito_mode":
         if (!userLimits.canUseIncognitoMode) {
           return {
             allowed: false,
-            reason: 'Incognito mode is a Premium Plus feature. Upgrade to browse anonymously!'
+            reason:
+              "Incognito mode is a Premium Plus feature. Upgrade to browse anonymously!",
           };
         }
         return { allowed: true };
 
-      case 'message_before_matching':
+      case "message_before_matching":
         if (!userLimits.canMessageBeforeMatching) {
           return {
             allowed: false,
-            reason: 'Message before matching is a Premium Plus feature. Upgrade to break the ice!'
+            reason:
+              "Message before matching is a Premium Plus feature. Upgrade to break the ice!",
           };
         }
         return { allowed: true };
 
-      case 'travel_mode':
+      case "travel_mode":
         if (!userLimits.canUseTravelMode) {
           return {
             allowed: false,
-            reason: 'Travel mode is a Premium Plus feature. Upgrade to explore the world!'
+            reason:
+              "Travel mode is a Premium Plus feature. Upgrade to explore the world!",
           };
         }
         return { allowed: true };
 
-      case 'read_receipts':
+      case "read_receipts":
         if (!userLimits.hasReadReceipts) {
           return {
             allowed: false,
-            reason: 'Read receipts are a Premium Plus feature. Upgrade to see when messages are read!'
+            reason:
+              "Read receipts are a Premium Plus feature. Upgrade to see when messages are read!",
           };
         }
         return { allowed: true };
 
-      case 'see_who_liked_you':
+      case "see_who_liked_you":
         if (!userLimits.canSeeWhoLikedYou) {
           return {
             allowed: false,
-            reason: 'See who liked you is a Premium feature. Upgrade to discover your admirers!'
+            reason:
+              "See who liked you is a Premium feature. Upgrade to discover your admirers!",
           };
         }
         return { allowed: true };
 
-      case 'profile_boost':
+      case "profile_boost":
         const usage = await getUserDailyUsage(userId);
-        if (userLimits.dailyBoosts !== -1 && usage.boosts >= userLimits.dailyBoosts) {
+        if (
+          userLimits.dailyBoosts !== -1 &&
+          usage.boosts >= userLimits.dailyBoosts
+        ) {
           return {
             allowed: false,
             reason: isInGracePeriod
-              ? 'You\'ve used all your daily boosts. Upgrade for unlimited boosts!'
+              ? "You've used all your daily boosts. Upgrade for unlimited boosts!"
               : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
-              ? 'Daily boost limit reached'
-              : 'Daily boost limit reached. Upgrade to Premium for more boosts!',
-            usage
+              ? "Daily boost limit reached"
+              : "Daily boost limit reached. Upgrade to Premium for more boosts!",
+            usage,
           };
         }
         return { allowed: true, usage };
@@ -361,15 +395,17 @@ export async function canUserPerformAction(
         return { allowed: true };
     }
   } catch (error) {
-    console.error('Error checking user permissions:', error);
-    return { allowed: false, reason: 'Unable to verify permissions' };
+    console.error("Error checking user permissions:", error);
+    return { allowed: false, reason: "Unable to verify permissions" };
   }
 }
 
 /**
  * Get current daily usage for a user
  */
-export async function getUserDailyUsage(userId: string | Types.ObjectId): Promise<{
+export async function getUserDailyUsage(
+  userId: string | Types.ObjectId
+): Promise<{
   likes: number;
   superLikes: number;
   boosts: number;
@@ -382,23 +418,23 @@ export async function getUserDailyUsage(userId: string | Types.ObjectId): Promis
     endOfDay.setHours(23, 59, 59, 999);
 
     // Import here to avoid circular dependencies
-    const Interaction = (await import('@/models/Interaction')).default;
-    const Boost = (await import('@/models/Boost')).default;
-    
+    const Interaction = (await import("@/models/Interaction")).default;
+    const Boost = (await import("@/models/Boost")).default;
+
     const [likes, superLikes, boosts] = await Promise.all([
       Interaction.countDocuments({
         userId: userId,
-        action: 'like',
+        action: "like",
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       }),
       Interaction.countDocuments({
         userId: userId,
-        action: 'super_like',
+        action: "super_like",
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       }),
       Boost.countDocuments({
         userId: userId,
-        type: 'daily',
+        type: "daily",
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       }),
     ]);
@@ -409,7 +445,7 @@ export async function getUserDailyUsage(userId: string | Types.ObjectId): Promis
       boosts,
     };
   } catch (error) {
-    console.error('Error getting user daily usage:', error);
+    console.error("Error getting user daily usage:", error);
     return {
       likes: 0,
       superLikes: 0,
@@ -421,7 +457,10 @@ export async function getUserDailyUsage(userId: string | Types.ObjectId): Promis
 /**
  * Check if user has exceeded their daily limits
  */
-export async function checkDailyLimits(userId: string | Types.ObjectId, action: 'like' | 'super_like' | 'boost'): Promise<{
+export async function checkDailyLimits(
+  userId: string | Types.ObjectId,
+  action: "like" | "super_like" | "boost"
+): Promise<{
   allowed: boolean;
   reason?: string;
   currentUsage: number;
@@ -437,22 +476,22 @@ export async function checkDailyLimits(userId: string | Types.ObjectId, action: 
   let limit: number;
 
   switch (action) {
-    case 'like':
+    case "like":
       currentUsage = usage.likes;
       limit = limits.dailyLikes;
       break;
-    case 'super_like':
+    case "super_like":
       currentUsage = usage.superLikes;
       limit = limits.dailySuperLikes;
       break;
-    case 'boost':
+    case "boost":
       currentUsage = usage.boosts;
       limit = limits.dailyBoosts;
       break;
     default:
       return {
         allowed: false,
-        reason: 'Unknown action',
+        reason: "Unknown action",
         currentUsage: 0,
         limit: 0,
       };
@@ -474,16 +513,17 @@ export async function checkDailyLimits(userId: string | Types.ObjectId, action: 
   if (!allowed) {
     upgradeRequired = true;
     switch (action) {
-      case 'like':
+      case "like":
         reason = `Daily like limit reached (${limit}). Upgrade to Premium for unlimited likes!`;
         break;
-      case 'super_like':
+      case "super_like":
         reason = `Daily super like limit reached (${limit}). Upgrade for more super likes!`;
         break;
-      case 'boost':
-        reason = limit === 0 
-          ? 'Profile boosts are a Premium feature. Upgrade to get daily boosts!'
-          : `Daily boost limit reached (${limit}). Upgrade to Premium Plus for unlimited boosts!`;
+      case "boost":
+        reason =
+          limit === 0
+            ? "Profile boosts are a Premium feature. Upgrade to get daily boosts!"
+            : `Daily boost limit reached (${limit}). Upgrade to Premium Plus for unlimited boosts!`;
         break;
     }
   }
@@ -502,26 +542,26 @@ export async function checkDailyLimits(userId: string | Types.ObjectId, action: 
  */
 function getSubscriptionFeatures(planId: string): string[] {
   switch (planId) {
-    case 'premium':
-    case 'premium_annual':
+    case "premium":
+    case "premium_annual":
       return [
-        'Unlimited likes',
-        'See who liked you',
-        '5 Super Boosts per month',
-        'Read receipts',
-        'Priority customer support',
-        'Advanced filters',
+        "Unlimited likes",
+        "See who liked you",
+        "5 Super Boosts per month",
+        "Read receipts",
+        "Priority customer support",
+        "Advanced filters",
       ];
-    case 'premium_plus':
-    case 'premium_plus_annual':
+    case "premium_plus":
+    case "premium_plus_annual":
       return [
-        'Everything in Premium',
-        'Unlimited Super Boosts',
-        'Incognito mode',
-        'Message before matching',
-        'Travel mode',
-        'Profile boost 3x per week',
-        'VIP customer support',
+        "Everything in Premium",
+        "Unlimited Super Boosts",
+        "Incognito mode",
+        "Message before matching",
+        "Travel mode",
+        "Profile boost 3x per week",
+        "VIP customer support",
       ];
     default:
       return [];
@@ -533,24 +573,38 @@ function getSubscriptionFeatures(planId: string): string[] {
  */
 export async function requirePremiumFeature(
   userId: string | Types.ObjectId,
-  feature: 'see_who_liked' | 'advanced_filters' | 'incognito' | 'message_before_match' | 'travel_mode'
+  feature:
+    | "see_who_liked"
+    | "advanced_filters"
+    | "incognito"
+    | "message_before_match"
+    | "travel_mode"
 ): Promise<{ allowed: boolean; message?: string }> {
   const subscriptionInfo = await getUserSubscription(userId);
 
-  const premiumFeatures = ['see_who_liked', 'advanced_filters'];
-  const premiumPlusFeatures = ['incognito', 'message_before_match', 'travel_mode'];
+  const premiumFeatures = ["see_who_liked", "advanced_filters"];
+  const premiumPlusFeatures = [
+    "incognito",
+    "message_before_match",
+    "travel_mode",
+  ];
 
-  if (premiumPlusFeatures.includes(feature) && !subscriptionInfo.hasPremiumPlus) {
+  if (
+    premiumPlusFeatures.includes(feature) &&
+    !subscriptionInfo.hasPremiumPlus
+  ) {
     return {
       allowed: false,
-      message: 'This feature requires Premium Plus. Upgrade to unlock all premium features!'
+      message:
+        "This feature requires Premium Plus. Upgrade to unlock all premium features!",
     };
   }
 
   if (premiumFeatures.includes(feature) && !subscriptionInfo.hasPremium) {
     return {
       allowed: false,
-      message: 'This feature requires Premium. Upgrade to enhance your dating experience!'
+      message:
+        "This feature requires Premium. Upgrade to enhance your dating experience!",
     };
   }
 

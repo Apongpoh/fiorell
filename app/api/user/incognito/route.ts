@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
 import { canUserPerformAction } from "@/lib/subscription";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,14 +16,14 @@ export async function POST(request: NextRequest) {
     const { enabled } = body;
 
     // Check if user can use incognito mode (Premium Plus feature)
-    const incognitoCheck = await canUserPerformAction(userId, 'incognito');
+    const incognitoCheck = await canUserPerformAction(userId, "incognito");
     if (!incognitoCheck.allowed) {
       return NextResponse.json(
         {
           error: incognitoCheck.reason,
           code: "PREMIUM_FEATURE_REQUIRED",
           upgradeRequired: true,
-          feature: "incognito_mode"
+          feature: "incognito_mode",
         },
         { status: 403 }
       );
@@ -31,30 +32,28 @@ export async function POST(request: NextRequest) {
     // Update user's incognito mode setting
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           "privacy.incognitoMode": enabled,
-          "privacy.incognitoModeUpdatedAt": new Date()
-        } 
+          "privacy.incognitoModeUpdatedAt": new Date(),
+        },
       },
       { new: true, select: "privacy.incognitoMode" }
     );
 
     if (!updatedUser) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json(
       {
-        message: `Incognito mode ${enabled ? 'enabled' : 'disabled'} successfully`,
-        incognitoMode: updatedUser.privacy?.incognitoMode || false
+        message: `Incognito mode ${
+          enabled ? "enabled" : "disabled"
+        } successfully`,
+        incognitoMode: updatedUser.privacy?.incognitoMode || false,
       },
       { status: 200 }
     );
-
   } catch (error) {
     console.error("Incognito mode error:", error);
 
@@ -84,21 +83,22 @@ export async function GET(request: NextRequest) {
     const user = await User.findById(userId).select("privacy.incognitoMode");
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json(
       {
-        incognitoMode: user.privacy?.incognitoMode || false
+        incognitoMode: user.privacy?.incognitoMode || false,
       },
       { status: 200 }
     );
-
   } catch (error) {
-    console.error("Get incognito status error:", error);
+    logger.error("Get incognito status error:", {
+      action: "get_incognito_status_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&

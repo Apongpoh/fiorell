@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import logger from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,7 +46,12 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    console.error("SSE error:", error);
+    logger.error("SSE error:", {
+      action: "sse_error",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       typeof error === "object" &&

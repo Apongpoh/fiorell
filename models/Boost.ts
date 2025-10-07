@@ -72,4 +72,5 @@ BoostSchema.pre("save", function (next) {
   next();
 });
 
-export default mongoose.models.Boost || mongoose.model<IBoost>("Boost", BoostSchema);
+export default mongoose.models.Boost ||
+  mongoose.model<IBoost>("Boost", BoostSchema);

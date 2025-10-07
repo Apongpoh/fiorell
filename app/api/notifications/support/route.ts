@@ -4,21 +4,27 @@ import SupportTicket from "@/models/SupportTicket";
 import User from "@/models/User";
 import emailService from "@/lib/emailService";
 import jwt from "jsonwebtoken";
+import logger from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const { message, ticketId } = await request.json();
 
     // Get auth token
     const token = request.headers.get("authorization")?.split(" ")[1];
     if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
     // Verify user
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId: string;
+    };
     const user = await User.findById(decoded.userId);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -43,7 +49,7 @@ export async function POST(request: NextRequest) {
       userName: user.name || "Unknown User",
       userMessage: message.content,
       priority: ticket.priority,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Send email notification if enabled
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
         userName: user.name || "Unknown User",
         userMessage: message.content,
         priority: ticket.priority,
-        userEmail: user.email
+        userEmail: user.email,
       });
     }
 
@@ -81,28 +87,34 @@ async function sendNotificationToSupport(data: {
   try {
     // In a real implementation, you would use WebSockets, Server-Sent Events,
     // or a real-time service like Pusher, Socket.io, or Firebase
-    
+
     // For now, we'll store notifications in the database
     const notification = {
       type: data.type,
       title: `New message from ${data.userName}`,
-      message: `${data.ticketSubject}: ${data.userMessage.substring(0, 100)}${data.userMessage.length > 100 ? '...' : ''}`,
+      message: `${data.ticketSubject}: ${data.userMessage.substring(0, 100)}${
+        data.userMessage.length > 100 ? "..." : ""
+      }`,
       priority: data.priority,
       ticketId: data.ticketId,
       timestamp: data.timestamp,
       read: false,
-      recipients: ["support_team"] // In real app, this would be specific support agent IDs
+      recipients: ["support_team"], // In real app, this would be specific support agent IDs
     };
 
     // Store in database for support team to retrieve
     // You could also implement WebSocket broadcasting here
-    console.log("Real-time notification:", notification);
-    
+    logger.info("Storing support notification:", { metadata: notification });
+
     // TODO: Implement actual real-time notification system
     // Example with Socket.io:
     // io.to("support-team").emit("new_support_message", notification);
-    
   } catch (error) {
-    console.error("Error sending real-time notification:", error);
+    logger.error("Error sending real-time notification:", {
+      action: "send_real_time_notification_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }

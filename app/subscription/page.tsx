@@ -54,12 +54,12 @@ const getDefaultPlans = (): Plan[] => [
       "See who liked you",
       "Advanced filters",
       "Priority support",
-      "Ad-free experience"
-    ]
+      "Ad-free experience",
+    ],
   },
   {
     id: "premium_annual",
-    name: "Premium Annual", 
+    name: "Premium Annual",
     description: "All premium features with annual billing",
     price: 99.99,
     currency: "USD",
@@ -67,32 +67,32 @@ const getDefaultPlans = (): Plan[] => [
     popular: true,
     savings: {
       savingsAmount: 19.89,
-      savingsPercentage: 17
+      savingsPercentage: 17,
     },
     features: [
       "Unlimited likes",
       "See who liked you",
-      "Advanced filters", 
+      "Advanced filters",
       "Priority support",
       "Ad-free experience",
-      "17% savings"
-    ]
+      "17% savings",
+    ],
   },
   {
     id: "premium_plus_monthly",
     name: "Premium Plus Monthly",
     description: "All premium features plus exclusive content",
     price: 19.99,
-    currency: "USD", 
+    currency: "USD",
     interval: "month",
     features: [
       "Everything in Premium",
-      "Boost your profile", 
+      "Boost your profile",
       "Super likes",
       "Read receipts",
       "Incognito mode",
-      "Exclusive events access"
-    ]
+      "Exclusive events access",
+    ],
   },
   {
     id: "premium_plus_annual",
@@ -103,25 +103,26 @@ const getDefaultPlans = (): Plan[] => [
     interval: "year",
     savings: {
       savingsAmount: 39.89,
-      savingsPercentage: 17
+      savingsPercentage: 17,
     },
     features: [
       "Everything in Premium",
       "Boost your profile",
-      "Super likes", 
+      "Super likes",
       "Read receipts",
       "Incognito mode",
       "Exclusive events access",
-      "17% savings"
-    ]
-  }
+      "17% savings",
+    ],
+  },
 ];
 
 function SubscriptionPage() {
   const { showNotification } = useNotification();
   const { user: currentUser } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
+  const [userSubscription, setUserSubscription] =
+    useState<UserSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
@@ -133,7 +134,7 @@ function SubscriptionPage() {
     try {
       // Always load plans (public data)
       const headers: Record<string, string> = {};
-      
+
       // Only add auth header if user is logged in
       if (currentUser) {
         const token = localStorage.getItem("fiorell_auth_token");
@@ -159,7 +160,7 @@ function SubscriptionPage() {
           // Load default plans without user-specific data
           setPlans(getDefaultPlans());
         } else {
-          throw new Error('Failed to load plans');
+          throw new Error("Failed to load plans");
         }
       }
     } catch (error) {
@@ -181,7 +182,9 @@ function SubscriptionPage() {
     // Redirect to login if user is not authenticated
     if (!currentUser) {
       showNotification("Please sign in to upgrade to premium", "error");
-      window.location.href = `/login?redirect=${encodeURIComponent('/subscription')}`;
+      window.location.href = `/login?redirect=${encodeURIComponent(
+        "/subscription"
+      )}`;
       return;
     }
 
@@ -224,12 +227,24 @@ function SubscriptionPage() {
   };
 
   const getFeatureIcon = (feature: string) => {
-    if (feature.toLowerCase().includes("like")) return <Heart className="h-4 w-4" />;
-    if (feature.toLowerCase().includes("boost")) return <Zap className="h-4 w-4" />;
-    if (feature.toLowerCase().includes("see") || feature.toLowerCase().includes("view")) return <Eye className="h-4 w-4" />;
-    if (feature.toLowerCase().includes("message")) return <MessageCircle className="h-4 w-4" />;
-    if (feature.toLowerCase().includes("support")) return <Shield className="h-4 w-4" />;
-    if (feature.toLowerCase().includes("incognito") || feature.toLowerCase().includes("travel")) return <Sparkles className="h-4 w-4" />;
+    if (feature.toLowerCase().includes("like"))
+      return <Heart className="h-4 w-4" />;
+    if (feature.toLowerCase().includes("boost"))
+      return <Zap className="h-4 w-4" />;
+    if (
+      feature.toLowerCase().includes("see") ||
+      feature.toLowerCase().includes("view")
+    )
+      return <Eye className="h-4 w-4" />;
+    if (feature.toLowerCase().includes("message"))
+      return <MessageCircle className="h-4 w-4" />;
+    if (feature.toLowerCase().includes("support"))
+      return <Shield className="h-4 w-4" />;
+    if (
+      feature.toLowerCase().includes("incognito") ||
+      feature.toLowerCase().includes("travel")
+    )
+      return <Sparkles className="h-4 w-4" />;
     return <Check className="h-4 w-4" />;
   };
 
@@ -259,7 +274,8 @@ function SubscriptionPage() {
               Upgrade Your Dating Experience
             </h1>
             <p className="text-xl text-pink-100 max-w-2xl mx-auto">
-              Get unlimited access to premium features and find your perfect match faster
+              Get unlimited access to premium features and find your perfect
+              match faster
             </p>
           </motion.div>
         </div>
@@ -277,11 +293,14 @@ function SubscriptionPage() {
               <Crown className="h-6 w-6 text-green-600" />
               <div>
                 <h3 className="text-lg font-semibold text-green-900">
-                  You&apos;re currently on {userSubscription.type.replace("_", " ").toUpperCase()}
+                  You&apos;re currently on{" "}
+                  {userSubscription.type.replace("_", " ").toUpperCase()}
                 </h3>
                 <p className="text-green-700">
                   {userSubscription.expiresAt
-                    ? `Your subscription expires on ${new Date(userSubscription.expiresAt).toLocaleDateString()}`
+                    ? `Your subscription expires on ${new Date(
+                        userSubscription.expiresAt
+                      ).toLocaleDateString()}`
                     : "Active subscription"}
                 </p>
               </div>
@@ -324,9 +343,13 @@ function SubscriptionPage() {
               <div className={`p-6 ${plan.popular ? "pt-16" : ""}`}>
                 {/* Plan Header */}
                 <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                  <p className="text-gray-600 text-sm mb-4">{plan.description}</p>
-                  
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {plan.name}
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    {plan.description}
+                  </p>
+
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-center">
                       <span className="text-4xl font-bold text-gray-900">
@@ -336,11 +359,14 @@ function SubscriptionPage() {
                         /{plan.interval}
                       </span>
                     </div>
-                    
+
                     {plan.savings && (
                       <div className="space-y-1">
                         <div className="text-sm text-gray-500 line-through">
-                          {formatPrice(plan.monthlyEquivalentPrice! * (plan.interval === 'year' ? 12 : 1))}
+                          {formatPrice(
+                            plan.monthlyEquivalentPrice! *
+                              (plan.interval === "year" ? 12 : 1)
+                          )}
                         </div>
                         <div className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full inline-block">
                           Save {plan.savings.savingsPercentage}%
@@ -353,7 +379,10 @@ function SubscriptionPage() {
                 {/* Features */}
                 <div className="space-y-3 mb-8">
                   {plan.features.map((feature, featureIndex) => (
-                    <div key={featureIndex} className="flex items-center space-x-3">
+                    <div
+                      key={featureIndex}
+                      className="flex items-center space-x-3"
+                    >
                       <div className="flex-shrink-0 text-green-500">
                         {getFeatureIcon(feature)}
                       </div>
@@ -365,7 +394,11 @@ function SubscriptionPage() {
                 {/* Subscribe Button */}
                 <button
                   onClick={() => handleSubscribe(plan.id)}
-                  disabled={processingPlan !== null || (userSubscription?.type !== "free" && userSubscription?.type !== undefined)}
+                  disabled={
+                    processingPlan !== null ||
+                    (userSubscription?.type !== "free" &&
+                      userSubscription?.type !== undefined)
+                  }
                   className={`w-full py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-200 ${
                     plan.popular
                       ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600"
@@ -377,11 +410,14 @@ function SubscriptionPage() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span>Processing...</span>
                     </>
-                  ) : userSubscription?.type !== "free" && userSubscription?.type !== undefined ? (
+                  ) : userSubscription?.type !== "free" &&
+                    userSubscription?.type !== undefined ? (
                     <span>Current Plan</span>
                   ) : (
                     <>
-                      <span>{currentUser ? "Get Started" : "Sign Up & Subscribe"}</span>
+                      <span>
+                        {currentUser ? "Get Started" : "Sign Up & Subscribe"}
+                      </span>
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -413,9 +449,12 @@ function SubscriptionPage() {
               <div className="bg-pink-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Heart className="h-8 w-8 text-pink-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">3x More Matches</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                3x More Matches
+              </h3>
               <p className="text-gray-600">
-                Premium members get 3x more matches than free users with unlimited likes and boosts
+                Premium members get 3x more matches than free users with
+                unlimited likes and boosts
               </p>
             </motion.div>
 
@@ -428,9 +467,12 @@ function SubscriptionPage() {
               <div className="bg-blue-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Zap className="h-8 w-8 text-blue-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Skip the Queue</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Skip the Queue
+              </h3>
               <p className="text-gray-600">
-                Get priority in discovery and see who liked you first for faster connections
+                Get priority in discovery and see who liked you first for faster
+                connections
               </p>
             </motion.div>
 
@@ -443,9 +485,12 @@ function SubscriptionPage() {
               <div className="bg-green-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Shield className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">VIP Support</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                VIP Support
+              </h3>
               <p className="text-gray-600">
-                Get priority customer support and exclusive access to new features
+                Get priority customer support and exclusive access to new
+                features
               </p>
             </motion.div>
           </div>
@@ -459,7 +504,8 @@ function SubscriptionPage() {
             Ready to Find Your Perfect Match?
           </h2>
           <p className="text-lg text-gray-600 mb-8">
-            Join thousands of successful couples who found love with our premium features
+            Join thousands of successful couples who found love with our premium
+            features
           </p>
           <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
             <Shield className="h-4 w-4" />

@@ -32,7 +32,11 @@ export async function enable2FAForUser(userId: string) {
 
 // Disable 2FA for user
 export async function disable2FAForUser(userId: string) {
-  await updateUser2FA(userId, { enabled: false, secret: undefined, disabledAt: new Date() });
+  await updateUser2FA(userId, {
+    enabled: false,
+    secret: undefined,
+    disabledAt: new Date(),
+  });
 }
 
 // Is 2FA enabled for user

@@ -3,33 +3,39 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface ISubscription extends Document {
   userId: mongoose.Types.ObjectId;
   planId: string;
-  status: "active" | "cancelled" | "expired" | "on_trial" | "paused" | "past_due";
+  status:
+    | "active"
+    | "cancelled"
+    | "expired"
+    | "on_trial"
+    | "paused"
+    | "past_due";
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
-  
+
   // Lemon Squeezy specific fields
   lemonsqueezySubscriptionId: string;
   lemonsqueezyOrderId?: string;
   lemonsqueezyCustomerId?: string;
   lemonsqueezyVariantId: string;
-  
+
   // Payment details
   price: number;
   currency: string;
   interval: "month" | "year";
-  
+
   // Trial information
   trialStart?: Date;
   trialEnd?: Date;
-  
+
   // Cancellation details
   cancelledAt?: Date;
   cancellationReason?: string;
-  
+
   // Metadata
   metadata?: Record<string, any>;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,13 +51,25 @@ const SubscriptionSchema = new Schema<ISubscription>(
     planId: {
       type: String,
       required: true,
-      enum: ["premium", "premium_plus", "premium_annual", "premium_plus_annual"],
+      enum: [
+        "premium",
+        "premium_plus",
+        "premium_annual",
+        "premium_plus_annual",
+      ],
       index: true,
     },
     status: {
       type: String,
       required: true,
-      enum: ["active", "cancelled", "expired", "on_trial", "paused", "past_due"],
+      enum: [
+        "active",
+        "cancelled",
+        "expired",
+        "on_trial",
+        "paused",
+        "past_due",
+      ],
       default: "active",
       index: true,
     },
@@ -68,7 +86,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
       type: Boolean,
       default: false,
     },
-    
+
     // Lemon Squeezy fields
     lemonsqueezySubscriptionId: {
       type: String,
@@ -85,7 +103,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
       type: String,
       required: true,
     },
-    
+
     // Payment details
     price: {
       type: Number,
@@ -101,7 +119,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
       required: true,
       enum: ["month", "year"],
     },
-    
+
     // Trial information
     trialStart: {
       type: Date,
@@ -109,7 +127,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
     trialEnd: {
       type: Date,
     },
-    
+
     // Cancellation details
     cancelledAt: {
       type: Date,
@@ -117,7 +135,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
     cancellationReason: {
       type: String,
     },
-    
+
     // Metadata
     metadata: {
       type: Schema.Types.Mixed,
@@ -138,7 +156,12 @@ SubscriptionSchema.virtual("isActive").get(function () {
 // Virtual for checking if subscription is in trial
 SubscriptionSchema.virtual("isInTrial").get(function () {
   const now = new Date();
-  return this.trialStart && this.trialEnd && now >= this.trialStart && now <= this.trialEnd;
+  return (
+    this.trialStart &&
+    this.trialEnd &&
+    now >= this.trialStart &&
+    now <= this.trialEnd
+  );
 });
 
 // Virtual for days remaining
@@ -152,4 +175,5 @@ SubscriptionSchema.virtual("daysRemaining").get(function () {
 SubscriptionSchema.index({ userId: 1, status: 1 });
 SubscriptionSchema.index({ status: 1, currentPeriodEnd: 1 });
 
-export default mongoose.models.Subscription || mongoose.model<ISubscription>("Subscription", SubscriptionSchema);
+export default mongoose.models.Subscription ||
+  mongoose.model<ISubscription>("Subscription", SubscriptionSchema);

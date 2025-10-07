@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { z } from "zod";
+import logger from "@/lib/logger";
 
 // Use the same password validation as signup
 const passwordSchema = z
@@ -97,7 +98,13 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Password change error:", error);
+    logger.error("Password change error:", {
+      action: "change_password_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+
     return NextResponse.json(
       {
         error: "Internal server error",

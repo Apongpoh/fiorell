@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { apiRequest } from '@/lib/api';
+import { useState, useEffect, useCallback } from "react";
+import { apiRequest } from "@/lib/api";
 
 export interface SubscriptionInfo {
   hasPremium: boolean;
@@ -48,11 +48,13 @@ export function useSubscription() {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiRequest('/user/subscription');
+      const response = await apiRequest("/user/subscription");
       setData(response as SubscriptionData);
     } catch (err: unknown) {
-      console.error('Error fetching subscription:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch subscription data');
+      console.error("Error fetching subscription:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch subscription data"
+      );
     } finally {
       setLoading(false);
     }
@@ -62,44 +64,58 @@ export function useSubscription() {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  const checkFeatureAccess = useCallback((feature: keyof FeatureLimits): boolean => {
-    if (!data) return false;
-    return data.limits[feature] as boolean;
-  }, [data]);
+  const checkFeatureAccess = useCallback(
+    (feature: keyof FeatureLimits): boolean => {
+      if (!data) return false;
+      return data.limits[feature] as boolean;
+    },
+    [data]
+  );
 
-  const checkDailyLimit = useCallback((action: 'likes' | 'superLikes' | 'boosts'): {
-    canUse: boolean;
-    current: number;
-    limit: number;
-    remaining: number;
-  } => {
-    if (!data) {
-      return { canUse: false, current: 0, limit: 0, remaining: 0 };
-    }
+  const checkDailyLimit = useCallback(
+    (
+      action: "likes" | "superLikes" | "boosts"
+    ): {
+      canUse: boolean;
+      current: number;
+      limit: number;
+      remaining: number;
+    } => {
+      if (!data) {
+        return { canUse: false, current: 0, limit: 0, remaining: 0 };
+      }
 
-    const current = data.usage[action];
-    const limitKey = action === 'likes' ? 'dailyLikes' 
-                    : action === 'superLikes' ? 'dailySuperLikes' 
-                    : 'dailyBoosts';
-    const limit = data.limits[limitKey];
-    
-    // -1 means unlimited
-    if (limit === -1) {
-      return { canUse: true, current, limit, remaining: -1 };
-    }
+      const current = data.usage[action];
+      const limitKey =
+        action === "likes"
+          ? "dailyLikes"
+          : action === "superLikes"
+          ? "dailySuperLikes"
+          : "dailyBoosts";
+      const limit = data.limits[limitKey];
 
-    const remaining = Math.max(0, limit - current);
-    const canUse = current < limit;
+      // -1 means unlimited
+      if (limit === -1) {
+        return { canUse: true, current, limit, remaining: -1 };
+      }
 
-    return { canUse, current, limit, remaining };
-  }, [data]);
+      const remaining = Math.max(0, limit - current);
+      const canUse = current < limit;
 
-  const hasFeature = useCallback((feature: string): boolean => {
-    if (!data?.subscription.features) return false;
-    return data.subscription.features.some(f => 
-      f.toLowerCase().includes(feature.toLowerCase())
-    );
-  }, [data]);
+      return { canUse, current, limit, remaining };
+    },
+    [data]
+  );
+
+  const hasFeature = useCallback(
+    (feature: string): boolean => {
+      if (!data?.subscription.features) return false;
+      return data.subscription.features.some((f) =>
+        f.toLowerCase().includes(feature.toLowerCase())
+      );
+    },
+    [data]
+  );
 
   const isPremium = data?.subscription.hasPremium || false;
   const isPremiumPlus = data?.subscription.hasPremiumPlus || false;
@@ -110,20 +126,20 @@ export function useSubscription() {
     subscription: data?.subscription || null,
     limits: data?.limits || null,
     usage: data?.usage || null,
-    
+
     // Status
     loading,
     error,
     isPremium,
     isPremiumPlus,
     isActive,
-    
+
     // Methods
     refetch: fetchSubscription,
     checkFeatureAccess,
     checkDailyLimit,
     hasFeature,
-    
+
     // Convenience getters
     canSeeWhoLikedYou: data?.limits.canSeeWhoLikedYou || false,
     canUseAdvancedFilters: data?.limits.canUseAdvancedFilters || false,
@@ -137,31 +153,38 @@ export function useSubscription() {
 
 // Hook for checking specific feature restrictions
 export function useFeatureRestriction(feature: string) {
-  const { checkFeatureAccess, isPremium, isPremiumPlus, loading } = useSubscription();
-  
+  const { checkFeatureAccess, isPremium, isPremiumPlus, loading } =
+    useSubscription();
+
   const isRestricted = !checkFeatureAccess(feature as keyof FeatureLimits);
-  const requiresPremium = ['see_who_liked', 'advanced_filters'].includes(feature);
-  const requiresPremiumPlus = ['incognito', 'message_before_match', 'travel_mode'].includes(feature);
-  
+  const requiresPremium = ["see_who_liked", "advanced_filters"].includes(
+    feature
+  );
+  const requiresPremiumPlus = [
+    "incognito",
+    "message_before_match",
+    "travel_mode",
+  ].includes(feature);
+
   return {
     isRestricted,
     requiresPremium: requiresPremium && !isPremium,
     requiresPremiumPlus: requiresPremiumPlus && !isPremiumPlus,
     loading,
-    upgradeMessage: requiresPremiumPlus 
+    upgradeMessage: requiresPremiumPlus
       ? "This feature requires Premium Plus. Upgrade to unlock!"
-      : "This feature requires Premium. Upgrade to enhance your experience!"
+      : "This feature requires Premium. Upgrade to enhance your experience!",
   };
 }
 
 // Hook for daily usage limits
 export function useDailyLimits() {
   const { checkDailyLimit, refetch } = useSubscription();
-  
-  const likesLimit = checkDailyLimit('likes');
-  const superLikesLimit = checkDailyLimit('superLikes');
-  const boostsLimit = checkDailyLimit('boosts');
-  
+
+  const likesLimit = checkDailyLimit("likes");
+  const superLikesLimit = checkDailyLimit("superLikes");
+  const boostsLimit = checkDailyLimit("boosts");
+
   return {
     likes: likesLimit,
     superLikes: superLikesLimit,

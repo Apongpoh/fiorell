@@ -1,10 +1,10 @@
 "use client";
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Crown, Zap, Lock, X } from 'lucide-react';
-import Link from 'next/link';
-import { useSubscription } from '@/hooks/useSubscription';
+import React from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Crown, Zap, Lock, X } from "lucide-react";
+import Link from "next/link";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface PremiumPromptProps {
   isOpen: boolean;
@@ -15,12 +15,12 @@ interface PremiumPromptProps {
   requiresPremiumPlus?: boolean;
 }
 
-export function PremiumPrompt({ 
-  isOpen, 
-  onClose, 
-  title, 
-  description, 
-  requiresPremiumPlus = false 
+export function PremiumPrompt({
+  isOpen,
+  onClose,
+  title,
+  description,
+  requiresPremiumPlus = false,
 }: PremiumPromptProps) {
   const { isPremium, isPremiumPlus } = useSubscription();
 
@@ -40,7 +40,7 @@ export function PremiumPrompt({
             className="fixed inset-0 bg-black/50 z-50"
             onClick={onClose}
           />
-          
+
           {/* Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -59,25 +59,25 @@ export function PremiumPrompt({
 
               {/* Icon */}
               <div className="text-center mb-6">
-                <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-                  requiresPremiumPlus 
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500' 
-                    : 'bg-gradient-to-r from-blue-500 to-indigo-500'
-                }`}>
+                <div
+                  className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
+                    requiresPremiumPlus
+                      ? "bg-gradient-to-r from-purple-500 to-pink-500"
+                      : "bg-gradient-to-r from-blue-500 to-indigo-500"
+                  }`}
+                >
                   {requiresPremiumPlus ? (
                     <Crown className="h-8 w-8 text-white" />
                   ) : (
                     <Zap className="h-8 w-8 text-white" />
                   )}
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-gray-900 mb-2">
                   {title}
                 </h3>
-                
-                <p className="text-gray-600 text-sm">
-                  {description}
-                </p>
+
+                <p className="text-gray-600 text-sm">{description}</p>
               </div>
 
               {/* Premium Features */}
@@ -86,10 +86,10 @@ export function PremiumPrompt({
                   <div className="flex items-center gap-2 mb-3">
                     <Lock className="h-4 w-4 text-gray-400" />
                     <span className="text-sm font-medium text-gray-700">
-                      {requiresPremiumPlus ? 'Premium Plus' : 'Premium'} Feature
+                      {requiresPremiumPlus ? "Premium Plus" : "Premium"} Feature
                     </span>
                   </div>
-                  
+
                   <ul className="space-y-2 text-sm text-gray-600">
                     {requiresPremiumPlus ? (
                       <>
@@ -120,14 +120,15 @@ export function PremiumPrompt({
                     whileTap={{ scale: 0.98 }}
                     className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors ${
                       requiresPremiumPlus
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                        : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600'
+                        ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                        : "bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
                     }`}
                   >
-                    Upgrade to {requiresPremiumPlus ? 'Premium Plus' : 'Premium'}
+                    Upgrade to{" "}
+                    {requiresPremiumPlus ? "Premium Plus" : "Premium"}
                   </motion.button>
                 </Link>
-                
+
                 <button
                   onClick={onClose}
                   className="w-full py-3 px-4 rounded-lg font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-50 transition-colors"
@@ -153,36 +154,49 @@ export function usePremiumPrompt() {
     requiresPremiumPlus: boolean;
   }>({
     isOpen: false,
-    feature: '',
-    title: '',
-    description: '',
+    feature: "",
+    title: "",
+    description: "",
     requiresPremiumPlus: false,
   });
 
-  const showPrompt = React.useCallback((
-    feature: string,
-    title: string,
-    description: string,
-    requiresPremiumPlus = false
-  ) => {
-    setPrompt({
-      isOpen: true,
-      feature,
-      title,
-      description,
-      requiresPremiumPlus,
-    });
-  }, []);
+  const showPrompt = React.useCallback(
+    (
+      feature: string,
+      title: string,
+      description: string,
+      requiresPremiumPlus = false
+    ) => {
+      setPrompt({
+        isOpen: true,
+        feature,
+        title,
+        description,
+        requiresPremiumPlus,
+      });
+    },
+    []
+  );
 
   const hidePrompt = React.useCallback(() => {
-    setPrompt(prev => ({ ...prev, isOpen: false }));
+    setPrompt((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
   return {
     ...prompt,
     showPrompt,
     hidePrompt,
-    PremiumPrompt: (props: Omit<PremiumPromptProps, 'isOpen' | 'onClose' | 'feature' | 'title' | 'description' | 'requiresPremiumPlus'>) => (
+    PremiumPrompt: (
+      props: Omit<
+        PremiumPromptProps,
+        | "isOpen"
+        | "onClose"
+        | "feature"
+        | "title"
+        | "description"
+        | "requiresPremiumPlus"
+      >
+    ) => (
       <PremiumPrompt
         {...props}
         isOpen={prompt.isOpen}
@@ -199,29 +213,38 @@ export function usePremiumPrompt() {
 // Component for wrapping premium features
 interface PremiumFeatureWrapperProps {
   children: React.ReactNode;
-  feature: 'see_who_liked' | 'advanced_filters' | 'incognito' | 'message_before_match' | 'travel_mode';
+  feature:
+    | "see_who_liked"
+    | "advanced_filters"
+    | "incognito"
+    | "message_before_match"
+    | "travel_mode";
   title: string;
   description: string;
   fallback?: React.ReactNode;
   className?: string;
 }
 
-export function PremiumFeatureWrapper({ 
-  children, 
-  feature, 
-  title, 
-  description, 
+export function PremiumFeatureWrapper({
+  children,
+  feature,
+  title,
+  description,
   fallback,
-  className = '' 
+  className = "",
 }: PremiumFeatureWrapperProps) {
   const { isPremium, isPremiumPlus } = useSubscription();
   const { showPrompt, PremiumPrompt } = usePremiumPrompt();
-  
-  const premiumPlusFeatures = ['incognito', 'message_before_match', 'travel_mode'];
+
+  const premiumPlusFeatures = [
+    "incognito",
+    "message_before_match",
+    "travel_mode",
+  ];
   const requiresPremiumPlus = premiumPlusFeatures.includes(feature);
-  
+
   const hasAccess = requiresPremiumPlus ? isPremiumPlus : isPremium;
-  
+
   const handleClick = () => {
     if (!hasAccess) {
       showPrompt(feature, title, description, requiresPremiumPlus);
@@ -243,10 +266,8 @@ export function PremiumFeatureWrapper({
 
   return (
     <div className={`relative ${className}`}>
-      <div className="opacity-50 pointer-events-none">
-        {children}
-      </div>
-      <div 
+      <div className="opacity-50 pointer-events-none">{children}</div>
+      <div
         className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-lg cursor-pointer"
         onClick={handleClick}
       >

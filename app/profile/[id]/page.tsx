@@ -173,15 +173,15 @@ function ProfilePage() {
       setLikePending(true);
       // Toggle like status optimistically
       setIsLiked(!isLiked);
-      
+
       const response = await userAPI.likeProfile(id as string);
       console.log("Like response:", response);
-      
+
       showNotification("Profile liked successfully!", "success");
     } catch (error) {
       console.error("Error liking profile:", error);
       setIsLiked(!isLiked); // Revert on error
-      
+
       let errorMessage = "Failed to like profile";
       if (error && typeof error === "object" && "message" in error) {
         errorMessage = (error as { message: string }).message;

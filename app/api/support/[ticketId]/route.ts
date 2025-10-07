@@ -4,6 +4,7 @@ import SupportTicket from "@/models/SupportTicket";
 import SupportMessage from "@/models/SupportMessage";
 import { verifyAuth } from "@/lib/auth";
 import { isObjectId } from "@/lib/validators";
+import { logger } from "@/lib/logger";
 
 // Get support conversation
 export async function GET(
@@ -18,10 +19,7 @@ export async function GET(
     const { ticketId } = await params;
 
     if (!isObjectId(ticketId)) {
-      return NextResponse.json(
-        { error: "Invalid ticket ID" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid ticket ID" }, { status: 400 });
     }
 
     // Check if ticket belongs to user
@@ -62,7 +60,12 @@ export async function GET(
       })),
     });
   } catch (error: unknown) {
-    console.error("Get support conversation error:", error);
+    logger.error("Get support conversation error:", {
+      action: "get_support_conversation_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&
@@ -94,10 +97,7 @@ export async function POST(
     const { content } = body;
 
     if (!isObjectId(ticketId)) {
-      return NextResponse.json(
-        { error: "Invalid ticket ID" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid ticket ID" }, { status: 400 });
     }
 
     if (!content || content.trim().length === 0) {
@@ -156,38 +156,54 @@ export async function POST(
     // Trigger auto-response if enabled
     let autoResponse = null;
     try {
-      const autoResponseRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/support/auto-response`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: content,
-          ticketId: ticketId,
-        }),
-      });
+      const autoResponseRes = await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/support/auto-response`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: content,
+            ticketId: ticketId,
+          }),
+        }
+      );
 
       if (autoResponseRes.ok) {
         const autoData = await autoResponseRes.json();
         autoResponse = autoData.autoResponse;
       }
     } catch (error) {
-      console.log("Auto-response failed:", error);
+      logger.warn("Auto-response failed", {
+        action: "auto_response_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
 
     // Send notification to support team
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/support`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": request.headers.get("authorization") || "",
-        },
-        body: JSON.stringify({
-          message: message,
-          ticketId: ticketId,
-        }),
-      });
+      await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/support`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: request.headers.get("authorization") || "",
+          },
+          body: JSON.stringify({
+            message: message,
+            ticketId: ticketId,
+          }),
+        }
+      );
     } catch (error) {
-      console.log("Notification failed:", error);
+      logger.warn("Notification failed", {
+        action: "notification_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
 
     return NextResponse.json({
@@ -202,7 +218,12 @@ export async function POST(
       autoResponse,
     });
   } catch (error: unknown) {
-    console.error("Send support message error:", error);
+    logger.error("Send support message error:", {
+      action: "send_support_message_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       error instanceof Error &&

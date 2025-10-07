@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import User from "@/models/User";
 import connectToMongoDB from "@/lib/mongodb";
+import logger from "@/lib/logger";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -55,7 +56,12 @@ export async function POST(request: NextRequest) {
       message: "Push notification subscription added successfully",
     });
   } catch (error: unknown) {
-    console.error("Push subscription error:", error);
+    logger.error("Push subscription error:", {
+      action: "push_subscription_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     if (error instanceof jwt.JsonWebTokenError) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
@@ -111,7 +117,12 @@ export async function DELETE(request: NextRequest) {
       message: "Push notification subscription removed successfully",
     });
   } catch (error: unknown) {
-    console.error("Push unsubscribe error:", error);
+    logger.error("Push unsubscribe error:", {
+      action: "push_unsubscribe_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     if (error instanceof jwt.JsonWebTokenError) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }

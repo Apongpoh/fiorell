@@ -1,9 +1,11 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const MONGODB_URI = process.env.DATABASE_URL!;
 
 if (!MONGODB_URI) {
-  throw new Error('Please define the DATABASE_URL environment variable inside .env');
+  throw new Error(
+    "Please define the DATABASE_URL environment variable inside .env"
+  );
 }
 
 /**

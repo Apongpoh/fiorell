@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 // CORS preflight handler (no request body needed)
 export async function OPTIONS() {
@@ -72,7 +73,10 @@ export async function POST(request: NextRequest) {
       "+password"
     );
     if (!user) {
-      console.error("Login error: User not found for email", email);
+      logger.security("Login attempt - user not found", {
+        action: "login_user_not_found",
+        metadata: { email },
+      });
       return NextResponse.json(
         { error: "User not found" },
         {
@@ -196,7 +200,12 @@ export async function POST(request: NextRequest) {
     });
     return response;
   } catch (error) {
-    console.error("Login error:", error);
+    logger.error("Login error", {
+      action: "login_error",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       {
         error: "Internal server error",

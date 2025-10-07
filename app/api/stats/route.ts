@@ -5,6 +5,7 @@ import Interaction from "@/models/Interaction";
 import Message from "@/models/Message";
 import User from "@/models/User";
 import ProfileView from "@/models/ProfileView";
+import logger from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,7 +79,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(stats);
   } catch (error) {
-    console.error("Stats error:", error);
+    logger.error("Stats error:", {
+      action: "get_user_stats_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

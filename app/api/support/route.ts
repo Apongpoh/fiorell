@@ -13,7 +13,12 @@ export async function POST(req: NextRequest) {
     await connectToDatabase();
     const { userId } = verifyAuth(req);
     const body = await req.json();
-    const { subject, message, type = "email", priority = "medium" } = body || {};
+    const {
+      subject,
+      message,
+      type = "email",
+      priority = "medium",
+    } = body || {};
 
     if (!subject || !message) {
       return NextResponse.json(
@@ -100,17 +105,20 @@ export async function GET(req: NextRequest) {
     const tickets = await SupportTicket.find({ userId })
       .sort({ createdAt: -1 })
       .lean();
-    return NextResponse.json({ 
-      tickets: tickets.map(ticket => ({
-        id: ticket._id,
-        subject: ticket.subject,
-        status: ticket.status,
-        priority: ticket.priority || "medium",
-        type: ticket.type || "email",
-        createdAt: ticket.createdAt,
-        updatedAt: ticket.updatedAt,
-      }))
-    }, { status: 200 });
+    return NextResponse.json(
+      {
+        tickets: tickets.map((ticket) => ({
+          id: ticket._id,
+          subject: ticket.subject,
+          status: ticket.status,
+          priority: ticket.priority || "medium",
+          type: ticket.type || "email",
+          createdAt: ticket.createdAt,
+          updatedAt: ticket.updatedAt,
+        })),
+      },
+      { status: 200 }
+    );
   } catch (error: unknown) {
     if (
       typeof error === "object" &&

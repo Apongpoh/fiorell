@@ -73,25 +73,25 @@ RateLimitSchema.index({ resourceType: 1, expiresAt: 1 });
 RateLimitSchema.index({ identifier: 1, expiresAt: 1 });
 
 // Pre-save middleware to set expiration time
-RateLimitSchema.pre('save', function (next) {
+RateLimitSchema.pre("save", function (next) {
   if (this.isNew) {
     // Set expiration time based on resource type
     const now = new Date();
     switch (this.resourceType) {
-      case 'message':
+      case "message":
         // Messages rate limits expire after 1 hour
         this.expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
         break;
-      case 'like':
-      case 'superlike':
+      case "like":
+      case "superlike":
         // Like rate limits reset daily
         this.expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
         break;
-      case 'boost':
+      case "boost":
         // Boost rate limits reset daily
         this.expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
         break;
-      case 'media_upload':
+      case "media_upload":
         // Media upload limits reset hourly
         this.expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
         break;
@@ -103,6 +103,8 @@ RateLimitSchema.pre('save', function (next) {
   next();
 });
 
-const RateLimit = mongoose.models.RateLimit || mongoose.model<IRateLimit>("RateLimit", RateLimitSchema);
+const RateLimit =
+  mongoose.models.RateLimit ||
+  mongoose.model<IRateLimit>("RateLimit", RateLimitSchema);
 
 export default RateLimit;

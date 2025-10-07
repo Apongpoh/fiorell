@@ -161,7 +161,9 @@ export default function HelpPage() {
     } catch (error) {
       console.error("Support submission error:", error);
       showNotification(
-        error instanceof Error ? error.message : "Failed to submit support request",
+        error instanceof Error
+          ? error.message
+          : "Failed to submit support request",
         "error"
       );
     } finally {
@@ -315,7 +317,7 @@ export default function HelpPage() {
             </div>
 
             <div className="divide-y divide-gray-100">
-              <button 
+              <button
                 onClick={() => openSupportModal("chat")}
                 className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left"
               >
@@ -330,7 +332,7 @@ export default function HelpPage() {
                 </div>
               </button>
 
-              <button 
+              <button
                 onClick={() => openSupportModal("email")}
                 className="flex items-center space-x-4 w-full p-6 hover:bg-gray-50 transition-colors text-left"
               >
@@ -423,7 +425,10 @@ export default function HelpPage() {
                     type="text"
                     value={supportForm.subject}
                     onChange={(e) =>
-                      setSupportForm({ ...supportForm, subject: e.target.value })
+                      setSupportForm({
+                        ...supportForm,
+                        subject: e.target.value,
+                      })
                     }
                     placeholder="Brief description of your issue"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
@@ -457,7 +462,10 @@ export default function HelpPage() {
                   <textarea
                     value={supportForm.message}
                     onChange={(e) =>
-                      setSupportForm({ ...supportForm, message: e.target.value })
+                      setSupportForm({
+                        ...supportForm,
+                        message: e.target.value,
+                      })
                     }
                     placeholder="Please describe your issue in detail..."
                     rows={4}

@@ -4,6 +4,7 @@ import User from "@/models/User";
 import Match from "@/models/Match";
 import Message from "@/models/Message";
 import jwt from "jsonwebtoken";
+import logger from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,14 +19,13 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId: string;
+    };
+
     const user = await User.findById(decoded.userId);
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { matchId } = await request.json();
@@ -40,13 +40,13 @@ export async function POST(request: NextRequest) {
     // Verify the match exists and user is part of it
     const match = await Match.findById(matchId);
     if (!match) {
-      return NextResponse.json(
-        { error: "Match not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
-    if (match.user1.toString() !== user._id.toString() && match.user2.toString() !== user._id.toString()) {
+    if (
+      match.user1.toString() !== user._id.toString() &&
+      match.user2.toString() !== user._id.toString()
+    ) {
       return NextResponse.json(
         { error: "Unauthorized to clear this chat" },
         { status: 403 }
@@ -56,17 +56,21 @@ export async function POST(request: NextRequest) {
     // Clear messages for this user only (soft delete by adding user to hiddenFrom array)
     await Message.updateMany(
       { match: matchId },
-      { 
-        $addToSet: { 
-          hiddenFrom: user._id 
-        }
+      {
+        $addToSet: {
+          hiddenFrom: user._id,
+        },
       }
     );
 
     return NextResponse.json({ success: true });
-
   } catch (error) {
-    console.error("Clear chat error:", error);
+    logger.error("Clear chat error:", {
+      action: "clear_chat_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

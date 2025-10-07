@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 // Cleanup expired disappearing messages
 export async function POST(request: NextRequest) {
@@ -27,7 +28,12 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Cleanup expired messages error:", error);
+    logger.error("Cleanup expired messages error:", {
+      action: "cleanup_expired_messages_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     if (
       typeof error === "object" &&

@@ -42,11 +42,12 @@ export async function POST(request: NextRequest) {
     const subscription = await getUserSubscription(userId);
     if (!subscription.hasPremium) {
       return NextResponse.json(
-        { 
-          error: "Read receipts are a Premium feature. Upgrade to see when your messages are read!",
+        {
+          error:
+            "Read receipts are a Premium feature. Upgrade to see when your messages are read!",
           code: "PREMIUM_FEATURE_REQUIRED",
           upgradeRequired: true,
-          feature: "read_receipts"
+          feature: "read_receipts",
         },
         { status: 403 }
       );

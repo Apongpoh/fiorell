@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { logger } from "@/lib/logger";
 
 // Check if email credentials are configured
 const isEmailConfigured = () => {
@@ -30,11 +31,15 @@ export async function sendVerificationEmail(
 
   // If email is not configured, log the verification info for development
   if (!isEmailConfigured() || !transporter) {
-    console.log("\n=== EMAIL VERIFICATION (Development Mode) ===");
-    console.log(`To: ${email}`);
-    console.log(`Verification URL: ${verificationUrl}`);
-    console.log(`Verification Code: ${verificationCode}`);
-    console.log("=== Copy the verification URL above to verify email ===\n");
+    logger.info("EMAIL VERIFICATION (Development Mode)", {
+      userId: email,
+      action: "email_dev_mode",
+      metadata: {
+        verificationCode,
+        verificationUrl,
+        note: "Copy the verification URL above to verify email",
+      },
+    });
     return; // Don't throw error in development
   }
 
@@ -113,19 +118,25 @@ export async function sendVerificationEmail(
   try {
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Failed to send verification email:", error);
+    logger.error("Failed to send verification email", {
+      action: "email_send_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
 
-    // In development, log the verification URL as fallback
-    if (process.env.NODE_ENV !== "production") {
-      console.log("\n=== EMAIL SEND FAILED - VERIFICATION INFO ===");
-      console.log(`Verification URL: ${verificationUrl}`);
-      console.log(`Verification Code: ${verificationCode}`);
-      console.log("=== Use the URL above to verify email ===\n");
+    // In development, still provide verification info if email fails
+    if (process.env.NODE_ENV === "development") {
+      logger.info("EMAIL SEND FAILED - VERIFICATION INFO", {
+        action: "email_fallback",
+        metadata: {
+          verificationUrl,
+          verificationCode,
+          note: "Use the URL above to verify email",
+        },
+      });
     }
 
-    // Only throw in production if you want strict email requirements
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Failed to send verification email");
-    }
+    throw error;
   }
 }
