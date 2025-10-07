@@ -6,6 +6,7 @@ import Interaction from "@/models/Interaction";
 import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 import { canUserPerformAction } from "@/lib/subscription";
+import { Types } from "mongoose";
 
 // Get potential matches for discovery
 export async function GET(request: NextRequest) {
@@ -39,23 +40,20 @@ export async function GET(request: NextRequest) {
     const maxDistance = searchParams.get("maxDistance");
     const diagnostics = searchParams.get("diag") === "1";
 
-    // Check if advanced filters are being used and require premium
+    // Check if advanced filters are being used
     const usingAdvancedFilters = Boolean(
-      minAge || maxAge || verifiedOnly || interestsParam || (maxDistance && parseInt(maxDistance) < 50)
+      gender && gender !== 'all' || verifiedOnly || interestsParam
     );
+
+    let advancedFiltersAvailable = true;
+    let gracePeriodMessage = null;
 
     if (usingAdvancedFilters) {
       const canUseAdvancedFilters = await canUserPerformAction(userId, 'advanced_filters');
       if (!canUseAdvancedFilters.allowed) {
-        return NextResponse.json(
-          {
-            error: canUseAdvancedFilters.reason,
-            code: "PREMIUM_FEATURE_REQUIRED",
-            upgradeRequired: true,
-            feature: "advanced_filters"
-          },
-          { status: 403 }
-        );
+        advancedFiltersAvailable = false;
+        gracePeriodMessage = canUseAdvancedFilters.reason;
+        // Don't block the request, just ignore advanced filters and continue with basic discovery
       }
     }
 
@@ -64,22 +62,11 @@ export async function GET(request: NextRequest) {
       [key: string]: unknown;
       $or?: Array<Record<string, unknown>>;
     } = {
-      _id: { $ne: userId }, // Exclude current user
+      _id: { $ne: new Types.ObjectId(userId) },
       isActive: true,
     };
 
-    // Gender priority: explicit query overrides stored preference
-    const effectiveGender =
-      gender && gender !== "all"
-        ? gender
-        : currentUser.preferences?.genderPreference &&
-          currentUser.preferences.genderPreference !== "all"
-        ? currentUser.preferences.genderPreference
-        : null;
-    if (effectiveGender) {
-      filter.gender = effectiveGender;
-    }
-
+    // Always allow basic filters (age and distance)
     // Filter by age range
     const ageRange = {
       min: minAge ? parseInt(minAge) : currentUser.preferences?.ageRange?.min,
@@ -95,23 +82,44 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Verified only
-    if (verifiedOnly) {
-      filter["verification.isVerified"] = true;
-    }
+    // Only apply advanced filters if user has access
+    if (advancedFiltersAvailable) {
+      // Filter by gender (advanced)
+      const effectiveGender = gender && gender !== "all"
+          ? gender
+          : currentUser.preferences?.genderPreference &&
+            currentUser.preferences.genderPreference !== "all"
+          ? currentUser.preferences.genderPreference
+          : null;
+      if (effectiveGender) {
+        filter.gender = effectiveGender;
+      }
 
-    // Build interest filter object separately so we can merge $in/$all/$nin safely
-    const interestFilter: Record<
-      string,
-      string[] | string | number | boolean | undefined
-    > = {};
-    if (interestsParam) {
-      const interests = interestsParam
-        .split(",")
-        .map((i) => i.trim())
-        .filter(Boolean);
-      if (interests.length) {
-        interestFilter.$in = interests;
+      // Verified only (advanced)
+      if (verifiedOnly) {
+        filter["verification.isVerified"] = true;
+      }
+
+      // Interest-based filtering (advanced)
+      if (interestsParam) {
+        const searchInterests = interestsParam
+          .split(",")
+          .map((i) => i.trim().toLowerCase())
+          .filter(Boolean);
+        if (searchInterests.length > 0) {
+          filter.interests = {
+            $in: searchInterests.map((interest) => new RegExp(interest, "i")),
+          };
+        }
+      }
+    } else {
+      // Use basic gender preference from user profile for free users
+      const basicGender = currentUser.preferences?.genderPreference &&
+        currentUser.preferences.genderPreference !== "all"
+        ? currentUser.preferences.genderPreference
+        : null;
+      if (basicGender) {
+        filter.gender = basicGender;
       }
     }
 
@@ -127,14 +135,28 @@ export async function GET(request: NextRequest) {
         Array.isArray(dealBreakers.mustHaveInterests) &&
         dealBreakers.mustHaveInterests.length
       ) {
-        interestFilter.$all = dealBreakers.mustHaveInterests;
+        if (filter.interests && typeof filter.interests === 'object') {
+          filter.interests = {
+            ...filter.interests,
+            $all: dealBreakers.mustHaveInterests
+          };
+        } else {
+          filter.interests = { $all: dealBreakers.mustHaveInterests };
+        }
       }
       // Candidate must include NONE of excludeInterests
       if (
         Array.isArray(dealBreakers.excludeInterests) &&
         dealBreakers.excludeInterests.length
       ) {
-        interestFilter.$nin = dealBreakers.excludeInterests;
+        if (filter.interests && typeof filter.interests === 'object') {
+          filter.interests = {
+            ...filter.interests,
+            $nin: dealBreakers.excludeInterests
+          };
+        } else {
+          filter.interests = { $nin: dealBreakers.excludeInterests };
+        }
       }
       // Lifestyle exclusions
       if (
@@ -240,33 +262,6 @@ export async function GET(request: NextRequest) {
     if (visibilityOrClauses.length > 1) {
       // Combine with $or only when mutual clause exists
       filter.$or = visibilityOrClauses;
-    }
-
-    // Resolve interest filter conflicts (intersection between $all and $nin makes query unsatisfiable)
-    if (
-      Array.isArray(interestFilter.$all) &&
-      Array.isArray(interestFilter.$nin)
-    ) {
-      const allArr = interestFilter.$all;
-      const ninArr = interestFilter.$nin;
-      const conflicts = allArr.filter((x: string) => ninArr.includes(x));
-      if (conflicts.length) {
-        interestFilter.$nin = ninArr.filter(
-          (x: string) => !conflicts.includes(x)
-        );
-        if (interestFilter.$nin.length === 0) delete interestFilter.$nin;
-      }
-    }
-
-    if (Object.keys(interestFilter).length) {
-      if (typeof filter.interests === "object" && filter.interests !== null) {
-        filter.interests = {
-          ...(filter.interests as object),
-          ...interestFilter,
-        };
-      } else {
-        filter.interests = { ...interestFilter };
-      }
     }
 
     // Optionally gather baseline (for diagnostics or zero-result fallback)
@@ -434,6 +429,8 @@ export async function GET(request: NextRequest) {
         matches: formattedUsers,
         hasMore: users.length === limit,
         totalShown: offset + users.length,
+        advancedFiltersAvailable,
+        gracePeriodMessage: gracePeriodMessage || null,
         diagnostics: diagnostics
           ? {
               appliedFilter: filter,

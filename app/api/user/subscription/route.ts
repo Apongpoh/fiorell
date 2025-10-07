@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
-import { getUserSubscription, getUserFeatureLimits, getUserDailyUsage } from "@/lib/subscription";
+import { getUserSubscription, getUserFeatureLimits, getUserDailyUsage, isUserInGracePeriod } from "@/lib/subscription";
 
 // Get user's subscription status and limits
 export async function GET(request: NextRequest) {
@@ -12,10 +12,11 @@ export async function GET(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     // Get subscription info, limits, and current usage
-    const [subscriptionInfo, limits, usage] = await Promise.all([
+    const [subscriptionInfo, limits, usage, isInGracePeriod] = await Promise.all([
       getUserSubscription(userId),
       getUserFeatureLimits(userId),
       getUserDailyUsage(userId),
+      isUserInGracePeriod(userId),
     ]);
 
     return NextResponse.json(
@@ -24,6 +25,10 @@ export async function GET(request: NextRequest) {
         limits,
         usage,
         status: subscriptionInfo.isActive ? "active" : "inactive",
+        hasPremium: subscriptionInfo.hasPremium,
+        hasPremiumPlus: subscriptionInfo.hasPremiumPlus,
+        isInGracePeriod,
+        canUseAdvancedFilters: subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus || isInGracePeriod,
       },
       { status: 200 }
     );

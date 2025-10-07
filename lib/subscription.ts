@@ -27,20 +27,26 @@ export interface FeatureLimits {
   profileBoostsPerWeek: number;
 }
 
-// Default limits for free users
+export interface DailyUsage {
+  likes: number;
+  superLikes: number;
+  boosts: number;
+}
+
+// Default limits for free users - generous to allow exploration
 export const FREE_USER_LIMITS: FeatureLimits = {
-  dailyLikes: 50,
+  dailyLikes: 25, // Reduced but still enough to explore
   dailySuperLikes: 1,
-  dailyBoosts: 0,
+  dailyBoosts: 1, // Allow one boost per day for free users
   canSeeWhoLikedYou: false,
-  canUseAdvancedFilters: false,
+  canUseAdvancedFilters: false, // Advanced filters require premium
   canUseIncognitoMode: false,
   canMessageBeforeMatching: false,
   canUseTravelMode: false,
   hasReadReceipts: false,
   hasPrioritySupport: false,
   hasAdFreeExperience: false,
-  profileBoostsPerWeek: 0,
+  profileBoostsPerWeek: 3, // 3 boosts per week for free users
 };
 
 // Premium user limits
@@ -146,115 +152,175 @@ export async function getUserFeatureLimits(userId: string | Types.ObjectId): Pro
   return FREE_USER_LIMITS;
 }
 
+// Check if user is in grace period (first 7 days)
+export async function isUserInGracePeriod(userId: string): Promise<boolean> {
+  try {
+    const User = (await import('@/models/User')).default;
+    const user = await User.findById(userId);
+    if (!user) return false;
+    
+    const accountAge = Date.now() - user.createdAt.getTime();
+    const gracePeriodDays = 7; // 7 days grace period
+    const gracePeriodMs = gracePeriodDays * 24 * 60 * 60 * 1000;
+    
+    return accountAge < gracePeriodMs;
+  } catch (error) {
+    console.error('Error checking grace period:', error);
+    return false;
+  }
+}
+
+// Get enhanced limits for new users in grace period
+export function getGracePeriodLimits(): FeatureLimits {
+  return {
+    ...FREE_USER_LIMITS,
+    dailyLikes: 50, // Extra likes during grace period
+    dailySuperLikes: 3, // Extra super likes
+    dailyBoosts: 2, // Extra boosts
+    canUseAdvancedFilters: true, // Allow advanced filters during grace period
+    profileBoostsPerWeek: 7, // Extra boosts per week
+  };
+}
+
 /**
  * Check if user can perform a specific action
  */
 export async function canUserPerformAction(
-  userId: string | Types.ObjectId,
-  action: 'like' | 'super_like' | 'boost' | 'see_who_liked' | 'advanced_filters' | 'incognito' | 'message_before_match' | 'travel_mode',
-  currentUsage?: { likes?: number; superLikes?: number; boosts?: number }
-): Promise<{ allowed: boolean; reason?: string; upgradeRequired?: boolean }> {
-  const limits = await getUserFeatureLimits(userId);
+  userId: string,
+  action: string,
+  skipUsageCheck: boolean = false
+): Promise<{ allowed: boolean; reason?: string; usage?: DailyUsage }> {
+  try {
+    const subscriptionInfo = await getUserSubscription(userId);
+    const isInGracePeriod = await isUserInGracePeriod(userId);
+    
+    // Determine user limits based on subscription and grace period
+    let userLimits: FeatureLimits;
+    if (subscriptionInfo.hasPremiumPlus) {
+      userLimits = PREMIUM_PLUS_USER_LIMITS;
+    } else if (subscriptionInfo.hasPremium) {
+      userLimits = PREMIUM_USER_LIMITS;
+    } else if (isInGracePeriod) {
+      userLimits = getGracePeriodLimits();
+    } else {
+      userLimits = FREE_USER_LIMITS;
+    }
 
-  switch (action) {
-    case 'like':
-      if (limits.dailyLikes === -1) {
+    // Check feature-specific permissions
+    switch (action) {
+      case 'like':
+        if (!skipUsageCheck) {
+          const usage = await getUserDailyUsage(userId);
+          if (userLimits.dailyLikes !== -1 && usage.likes >= userLimits.dailyLikes) {
+            return {
+              allowed: false,
+              reason: isInGracePeriod 
+                ? 'You\'ve reached your daily like limit. Upgrade to Premium for unlimited likes!'
+                : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
+                ? 'Daily limit reached'
+                : 'Daily limit reached. Upgrade to Premium for unlimited likes!',
+              usage
+            };
+          }
+          return { allowed: true, usage };
+        }
         return { allowed: true };
-      }
-      if (currentUsage?.likes && currentUsage.likes >= limits.dailyLikes) {
-        return {
-          allowed: false,
-          reason: `Daily like limit reached (${limits.dailyLikes}). Upgrade to Premium for unlimited likes!`,
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
 
-    case 'super_like':
-      if (limits.dailySuperLikes === -1) {
+      case 'super_like':
+        if (!skipUsageCheck) {
+          const usage = await getUserDailyUsage(userId);
+          if (userLimits.dailySuperLikes !== -1 && usage.superLikes >= userLimits.dailySuperLikes) {
+            return {
+              allowed: false,
+              reason: isInGracePeriod
+                ? 'You\'ve used all your super likes today. Upgrade for more!'
+                : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
+                ? 'Daily super like limit reached'
+                : 'Daily super like limit reached. Upgrade to Premium for more!',
+              usage
+            };
+          }
+          return { allowed: true, usage };
+        }
         return { allowed: true };
-      }
-      if (currentUsage?.superLikes && currentUsage.superLikes >= limits.dailySuperLikes) {
-        return {
-          allowed: false,
-          reason: `Daily super like limit reached (${limits.dailySuperLikes}). Upgrade to Premium for more super likes!`,
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
 
-    case 'boost':
-      if (limits.dailyBoosts === -1) {
+      case 'advanced_filters':
+        if (!userLimits.canUseAdvancedFilters) {
+          return {
+            allowed: false,
+            reason: isInGracePeriod
+              ? 'Grace period expired. Upgrade to Premium to continue using advanced filters!'
+              : 'Advanced filters are a Premium feature. Upgrade to find your perfect match!'
+          };
+        }
         return { allowed: true };
-      }
-      if (limits.dailyBoosts === 0) {
-        return {
-          allowed: false,
-          reason: 'Profile boosts are a Premium feature. Upgrade to get daily boosts!',
-          upgradeRequired: true,
-        };
-      }
-      if (currentUsage?.boosts && currentUsage.boosts >= limits.dailyBoosts) {
-        return {
-          allowed: false,
-          reason: `Daily boost limit reached (${limits.dailyBoosts}). Upgrade to Premium Plus for unlimited boosts!`,
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
 
-    case 'see_who_liked':
-      if (!limits.canSeeWhoLikedYou) {
-        return {
-          allowed: false,
-          reason: 'See who liked you is a Premium feature. Upgrade to see your admirers!',
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
+      case 'incognito_mode':
+        if (!userLimits.canUseIncognitoMode) {
+          return {
+            allowed: false,
+            reason: 'Incognito mode is a Premium Plus feature. Upgrade to browse anonymously!'
+          };
+        }
+        return { allowed: true };
 
-    case 'advanced_filters':
-      if (!limits.canUseAdvancedFilters) {
-        return {
-          allowed: false,
-          reason: 'Advanced filters are a Premium feature. Upgrade to find your perfect match!',
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
+      case 'message_before_matching':
+        if (!userLimits.canMessageBeforeMatching) {
+          return {
+            allowed: false,
+            reason: 'Message before matching is a Premium Plus feature. Upgrade to break the ice!'
+          };
+        }
+        return { allowed: true };
 
-    case 'incognito':
-      if (!limits.canUseIncognitoMode) {
-        return {
-          allowed: false,
-          reason: 'Incognito mode is a Premium Plus feature. Upgrade to browse privately!',
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
+      case 'travel_mode':
+        if (!userLimits.canUseTravelMode) {
+          return {
+            allowed: false,
+            reason: 'Travel mode is a Premium Plus feature. Upgrade to explore the world!'
+          };
+        }
+        return { allowed: true };
 
-    case 'message_before_match':
-      if (!limits.canMessageBeforeMatching) {
-        return {
-          allowed: false,
-          reason: 'Message before matching is a Premium Plus feature. Upgrade to break the ice first!',
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
+      case 'read_receipts':
+        if (!userLimits.hasReadReceipts) {
+          return {
+            allowed: false,
+            reason: 'Read receipts are a Premium Plus feature. Upgrade to see when messages are read!'
+          };
+        }
+        return { allowed: true };
 
-    case 'travel_mode':
-      if (!limits.canUseTravelMode) {
-        return {
-          allowed: false,
-          reason: 'Travel mode is a Premium Plus feature. Upgrade to meet people anywhere!',
-          upgradeRequired: true,
-        };
-      }
-      return { allowed: true };
+      case 'see_who_liked_you':
+        if (!userLimits.canSeeWhoLikedYou) {
+          return {
+            allowed: false,
+            reason: 'See who liked you is a Premium feature. Upgrade to discover your admirers!'
+          };
+        }
+        return { allowed: true };
 
-    default:
-      return { allowed: false, reason: 'Unknown action' };
+      case 'profile_boost':
+        const usage = await getUserDailyUsage(userId);
+        if (userLimits.dailyBoosts !== -1 && usage.boosts >= userLimits.dailyBoosts) {
+          return {
+            allowed: false,
+            reason: isInGracePeriod
+              ? 'You\'ve used all your daily boosts. Upgrade for unlimited boosts!'
+              : subscriptionInfo.hasPremium || subscriptionInfo.hasPremiumPlus
+              ? 'Daily boost limit reached'
+              : 'Daily boost limit reached. Upgrade to Premium for more boosts!',
+            usage
+          };
+        }
+        return { allowed: true, usage };
+
+      default:
+        return { allowed: true };
+    }
+  } catch (error) {
+    console.error('Error checking user permissions:', error);
+    return { allowed: false, reason: 'Unable to verify permissions' };
   }
 }
 
