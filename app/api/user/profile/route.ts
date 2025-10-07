@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
       isActive: user.isActive,
       lastSeen: user.lastSeen,
       createdAt: user.createdAt,
+      isAdmin: user.isAdmin,
     };
 
     return NextResponse.json({ user: userResponse }, { status: 200 });
@@ -230,6 +231,7 @@ export async function PUT(request: NextRequest) {
       isActive: user.isActive,
       lastSeen: user.lastSeen,
       createdAt: user.createdAt,
+      isAdmin: user.isAdmin,
     };
 
     return NextResponse.json(
