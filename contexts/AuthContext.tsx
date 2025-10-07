@@ -50,6 +50,7 @@ interface User {
     matches: number;
     profileViews: number;
   };
+  isAdmin?: boolean;
 }
 
 interface AuthContextType {

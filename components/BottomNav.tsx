@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Users, Heart, MessageCircle, User, Crown } from "lucide-react";
+import { Users, Heart, MessageCircle, User, Crown, Shield } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BottomNavProps {
   unreadMessages?: number;
@@ -16,6 +17,7 @@ export function getNavSpacerClass() {
 export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user } = useAuth();
   const hide = /^\/chat\/[A-Za-z0-9]/.test(pathname || "");
   const isActive = (base: string) => pathname === base;
 
@@ -23,11 +25,57 @@ export default function BottomNav({ unreadMessages = 0 }: BottomNavProps) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 z-40">
-      <div className="flex items-center justify-around max-w-md mx-auto">
+      <div className={`flex items-center justify-around max-w-md mx-auto ${user?.isAdmin ? 'justify-between' : ''}`}>
         <button
           onClick={() => router.push("/dashboard")}
           className={`flex flex-col items-center space-y-1 transition-all duration-200 transform active:scale-90 hover:scale-105 ${
             isActive("/dashboard")
+              ? "text-pink-500 animate-pulse"
+              : "text-gray-400 hover:text-pink-500"
+          }`}
+        >
+          <Users
+            className={`h-6 w-6 transition-transform duration-300 ${
+              isActive("/dashboard") ? "scale-110" : ""
+            }`}
+          />
+          <span
+            className={`text-xs transition-all duration-200 ${
+              isActive("/dashboard") ? "font-semibold" : ""
+            }`}
+          >
+            Discover
+          </span>
+        </button>
+        
+        {user?.isAdmin && (
+          <button
+            onClick={() => router.push("/admin")}
+            className={`flex flex-col items-center space-y-1 transition-all duration-200 transform active:scale-90 hover:scale-105 ${
+              isActive("/admin") || pathname?.startsWith("/admin")
+                ? "text-purple-500 animate-pulse"
+                : "text-gray-400 hover:text-purple-500"
+            }`}
+          >
+            <Shield
+              className={`h-6 w-6 transition-transform duration-300 ${
+                isActive("/admin") || pathname?.startsWith("/admin") ? "scale-110" : ""
+              }`}
+            />
+            <span
+              className={`text-xs transition-all duration-200 ${
+                isActive("/admin") || pathname?.startsWith("/admin") ? "font-semibold" : ""
+              }`}
+            >
+              Admin
+            </span>
+          </button>
+        )}
+        
+        <button
+          onClick={() => router.push("/matches")}
+          className={`flex flex-col items-center space-y-1 transition-all duration-200 transform active:scale-90 hover:scale-105 ${
+            isActive("/matches")
               ? "text-pink-500 animate-pulse"
               : "text-gray-400 hover:text-pink-500"
           }`}

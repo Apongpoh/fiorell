@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
           photos: user.photos,
           isActive: user.isActive,
           lastSeen: user.lastSeen,
+          isAdmin: user.isAdmin,
         },
         token,
       },
