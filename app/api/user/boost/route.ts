@@ -173,6 +173,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return info about active boosts
+    const primaryBoost = activeBoosts[0]; // Get the first active boost for compatibility
     const boostInfo = activeBoosts.map(boost => ({
       id: boost._id,
       type: boost.type,
@@ -184,7 +185,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         hasActiveBoost: true,
-        boosts: boostInfo,
+        boostType: primaryBoost.type, // For frontend compatibility
+        expiresAt: primaryBoost.expiresAt, // For frontend compatibility
+        boosts: boostInfo, // Full boost details
         dailyBoostsUsed,
         dailyBoostsLimit: subscription.hasPremiumPlus ? -1 : 
                          subscription.hasPremium ? 5 : 1
