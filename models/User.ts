@@ -74,9 +74,11 @@ export interface IUser extends Document {
     features: string[];
   };
   stats: {
-    likes: number;
-    matches: number;
-    views: number;
+    totalLikesReceived: number;
+    totalSuperLikesReceived: number;
+    totalMatches: number;
+    profileViews: number;
+    lastStatsUpdate: Date;
   };
   isActive: boolean;
   lastSeen: Date;

@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import Subscription from '@/models/Subscription';
+import User from '@/models/User';
 
 export interface UserSubscriptionInfo {
   hasPremium: boolean;
@@ -8,8 +9,8 @@ export interface UserSubscriptionInfo {
   planId?: string;
   planName?: string;
   features: string[];
+  expiresAt?: Date;
   daysRemaining?: number;
-  subscription?: unknown;
 }
 
 export interface FeatureLimits {
@@ -86,8 +87,8 @@ export const PREMIUM_PLUS_USER_LIMITS: FeatureLimits = {
  */
 export async function getUserSubscription(userId: string | Types.ObjectId): Promise<UserSubscriptionInfo> {
   try {
-    // Get user's current subscription
-    const subscription = await Subscription.findOne({
+    // Check for external subscription first (Lemon Squeezy)
+    const externalSubscription = await Subscription.findOne({
       userId: userId,
       status: { $in: ['active', 'on_trial'] },
       currentPeriodEnd: { $gt: new Date() }
@@ -97,7 +98,35 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
       [key: string]: unknown;
     } | null;
 
-    if (!subscription) {
+    if (externalSubscription) {
+      const isPremium = ['premium', 'premium_annual'].includes(externalSubscription.planId);
+      const isPremiumPlus = ['premium_plus', 'premium_plus_annual'].includes(externalSubscription.planId);
+
+      const features = getSubscriptionFeatures(externalSubscription.planId);
+      const daysRemaining = Math.ceil(
+        (externalSubscription.currentPeriodEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      return {
+        hasPremium: isPremium || isPremiumPlus,
+        hasPremiumPlus: isPremiumPlus,
+        isActive: true,
+        features,
+        expiresAt: externalSubscription.currentPeriodEnd,
+        daysRemaining,
+        planId: externalSubscription.planId,
+      };
+    }
+
+    // Fallback to user's embedded subscription field
+    const user = await User.findById(userId).select('subscription').lean() as {
+      subscription?: {
+        type: 'free' | 'premium' | 'premium_plus';
+        expiresAt?: Date;
+        features?: string[];
+      };
+    } | null;
+    if (!user?.subscription) {
       return {
         hasPremium: false,
         hasPremiumPlus: false,
@@ -106,23 +135,36 @@ export async function getUserSubscription(userId: string | Types.ObjectId): Prom
       };
     }
 
-    const isPremium = ['premium', 'premium_annual'].includes(subscription.planId);
-    const isPremiumPlus = ['premium_plus', 'premium_plus_annual'].includes(subscription.planId);
+    const userSubscription = user.subscription;
+    
+    // Check if embedded subscription is active
+    const isActive = !userSubscription.expiresAt || userSubscription.expiresAt > new Date();
+    
+    if (!isActive) {
+      return {
+        hasPremium: false,
+        hasPremiumPlus: false,
+        isActive: false,
+        features: [],
+      };
+    }
 
-    const features = getSubscriptionFeatures(subscription.planId);
-    const daysRemaining = Math.ceil(
-      (subscription.currentPeriodEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const isPremium = userSubscription.type === 'premium' || userSubscription.type === 'premium_plus';
+    const isPremiumPlus = userSubscription.type === 'premium_plus';
+
+    const features = userSubscription.features || getSubscriptionFeatures(userSubscription.type);
+    const daysRemaining = userSubscription.expiresAt ? Math.ceil(
+      (userSubscription.expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    ) : -1;
 
     return {
-      hasPremium: isPremium || isPremiumPlus,
+      hasPremium: isPremium,
       hasPremiumPlus: isPremiumPlus,
       isActive: true,
-      planId: subscription.planId,
-      planName: getPlanDisplayName(subscription.planId),
       features,
+      expiresAt: userSubscription.expiresAt,
       daysRemaining,
-      subscription,
+      planId: userSubscription.type,
     };
   } catch (error) {
     console.error('Error getting user subscription:', error);
@@ -341,8 +383,9 @@ export async function getUserDailyUsage(userId: string | Types.ObjectId): Promis
 
     // Import here to avoid circular dependencies
     const Interaction = (await import('@/models/Interaction')).default;
+    const Boost = (await import('@/models/Boost')).default;
     
-    const [likes, superLikes] = await Promise.all([
+    const [likes, superLikes, boosts] = await Promise.all([
       Interaction.countDocuments({
         userId: userId,
         action: 'like',
@@ -353,10 +396,12 @@ export async function getUserDailyUsage(userId: string | Types.ObjectId): Promis
         action: 'super_like',
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       }),
+      Boost.countDocuments({
+        userId: userId,
+        type: 'daily',
+        createdAt: { $gte: startOfDay, $lte: endOfDay },
+      }),
     ]);
-
-    // TODO: Add boost tracking model and count
-    const boosts = 0;
 
     return {
       likes,

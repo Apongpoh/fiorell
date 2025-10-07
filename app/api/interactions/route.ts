@@ -7,11 +7,9 @@ import { verifyAuth } from "@/lib/auth";
 // Block model (ensure path alias resolves)
 import Block from "../../../models/Block";
 import { isObjectId } from "@/lib/validators";
+import { checkRateLimit } from "@/lib/rateLimit";
 
-// Simple in-memory like/super_like rate limiter (per user)
-const recentActions: Map<string, number[]> = new Map();
-const ACTION_WINDOW_MS = 60_000; // 1 minute
-const ACTION_LIMIT = 30; // max 30 interactions per minute
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,19 +49,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Connect to database and start a MongoDB session for transaction
-    // Rate limiting
-    const now = Date.now();
-    const arr = recentActions.get(body.userId) || [];
-    const filtered = arr.filter((ts) => now - ts < ACTION_WINDOW_MS);
-    if (filtered.length >= ACTION_LIMIT) {
+    // Database-backed rate limiting
+    const rateLimitResult = await checkRateLimit({
+      resourceType: body.action === "super_like" ? "superlike" : "like",
+      userId: body.userId,
+      windowMs: 60_000, // 1 minute window
+      maxAttempts: 30, // max 30 interactions per minute
+    });
+
+    if (!rateLimitResult.allowed) {
       return NextResponse.json(
-        { error: "Too many actions, slow down" },
+        { 
+          error: "Too many actions, slow down",
+          remainingAttempts: rateLimitResult.remainingAttempts,
+          resetTime: rateLimitResult.resetTime,
+        },
         { status: 429 }
       );
     }
-    filtered.push(now);
-    recentActions.set(body.userId, filtered);
 
     // Block checks
     const block = await Block.findOne({

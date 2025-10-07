@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
-import ProfileBoost from "@/models/ProfileBoost";
+import Boost from "@/models/Boost";
 import { checkDailyLimits, getUserSubscription } from "@/lib/subscription";
 
 export async function POST(request: NextRequest) {
@@ -12,35 +12,71 @@ export async function POST(request: NextRequest) {
     const { userId } = verifyAuth(request);
 
     const body = await request.json();
-    const { duration = 60 } = body; // default 1 hour
+    const { boostType = "daily" } = body; // daily, weekly, or premium
 
-    // Check if user can use boosts
-    const boostCheck = await checkDailyLimits(userId, 'boost');
-    if (!boostCheck.allowed) {
+    // Validate boost type
+    if (!["daily", "weekly", "premium"].includes(boostType)) {
+      return NextResponse.json(
+        { error: "Invalid boost type. Must be daily, weekly, or premium." },
+        { status: 400 }
+      );
+    }
+
+    // Check subscription permissions
+    const subscription = await getUserSubscription(userId);
+    
+    if (boostType === "weekly" && !subscription.hasPremium) {
       return NextResponse.json(
         {
-          error: boostCheck.reason,
-          code: "DAILY_LIMIT_EXCEEDED",
-          upgradeRequired: boostCheck.upgradeRequired,
-          currentUsage: boostCheck.currentUsage,
-          limit: boostCheck.limit
+          error: "Weekly boosts require Premium subscription",
+          code: "UPGRADE_REQUIRED",
+          upgradeRequired: true
         },
         { status: 403 }
       );
     }
 
-    // Check for existing active boost
-    const existingBoost = await ProfileBoost.findOne({
+    if (boostType === "premium" && !subscription.hasPremiumPlus) {
+      return NextResponse.json(
+        {
+          error: "Premium boosts require Premium Plus subscription",
+          code: "UPGRADE_REQUIRED",
+          upgradeRequired: true
+        },
+        { status: 403 }
+      );
+    }
+
+    // Check daily limits for daily boosts only
+    if (boostType === "daily") {
+      const boostCheck = await checkDailyLimits(userId, 'boost');
+      if (!boostCheck.allowed) {
+        return NextResponse.json(
+          {
+            error: boostCheck.reason,
+            code: "DAILY_LIMIT_EXCEEDED",
+            upgradeRequired: boostCheck.upgradeRequired,
+            currentUsage: boostCheck.currentUsage,
+            limit: boostCheck.limit
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Check for existing active boost of the same type
+    const existingBoost = await Boost.findOne({
       userId: userId,
-      isActive: true,
-      endTime: { $gt: new Date() }
+      type: boostType,
+      status: "active",
+      expiresAt: { $gt: new Date() }
     });
 
     if (existingBoost) {
-      const remainingTime = Math.ceil((existingBoost.endTime.getTime() - new Date().getTime()) / (1000 * 60));
+      const remainingTime = Math.ceil((existingBoost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60));
       return NextResponse.json(
         {
-          error: `You already have an active boost for ${remainingTime} more minutes. Wait for it to expire before starting a new one.`,
+          error: `You already have an active ${boostType} boost for ${remainingTime} more minutes.`,
           code: "BOOST_ALREADY_ACTIVE",
           remainingTime
         },
@@ -48,37 +84,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get subscription info to determine boost type
-    const subscription = await getUserSubscription(userId);
-    const boostType = subscription.hasPremiumPlus ? "premium" : 
-                     subscription.hasPremium ? "weekly" : "daily";
-
     // Create new boost
-    const startTime = new Date();
-    const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
-
-    const boost = new ProfileBoost({
+    const boost = new Boost({
       userId,
       type: boostType,
-      duration,
-      startTime,
-      endTime,
-      isActive: true,
-      cost: 0 // Free for premium users
+      status: "active",
+      activatedAt: new Date(),
     });
 
     await boost.save();
 
+    const remainingTime = Math.ceil((boost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60));
+
     return NextResponse.json(
       {
-        message: "Profile boost activated successfully!",
+        message: `${boostType.charAt(0).toUpperCase() + boostType.slice(1)} boost activated successfully!`,
         boost: {
           id: boost._id,
           type: boostType,
-          duration,
-          startTime,
-          endTime,
-          remainingTime: duration
+          status: boost.status,
+          activatedAt: boost.activatedAt,
+          expiresAt: boost.expiresAt,
+          remainingTime
         }
       },
       { status: 201 }
@@ -110,33 +137,57 @@ export async function GET(request: NextRequest) {
     // Verify authentication
     const { userId } = verifyAuth(request);
 
-    // Get active boost
-    const activeBoost = await ProfileBoost.findOne({
+    // Get active boosts
+    const activeBoosts = await Boost.find({
       userId: userId,
-      isActive: true,
-      endTime: { $gt: new Date() }
+      status: "active",
+      expiresAt: { $gt: new Date() }
     });
 
-    if (!activeBoost) {
+    // Get today's boost usage for daily limits
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const dailyBoostsUsed = await Boost.countDocuments({
+      userId: userId,
+      type: "daily",
+      createdAt: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    const subscription = await getUserSubscription(userId);
+    const hasActiveBoost = activeBoosts.length > 0;
+
+    if (!hasActiveBoost) {
       return NextResponse.json(
-        { hasActiveBoost: false },
+        { 
+          hasActiveBoost: false,
+          dailyBoostsUsed,
+          dailyBoostsLimit: subscription.hasPremiumPlus ? -1 : 
+                           subscription.hasPremium ? 5 : 1
+        },
         { status: 200 }
       );
     }
 
-    const remainingTime = Math.ceil((activeBoost.endTime.getTime() - new Date().getTime()) / (1000 * 60));
+    // Return info about active boosts
+    const boostInfo = activeBoosts.map(boost => ({
+      id: boost._id,
+      type: boost.type,
+      activatedAt: boost.activatedAt,
+      expiresAt: boost.expiresAt,
+      remainingTime: Math.ceil((boost.expiresAt.getTime() - new Date().getTime()) / (1000 * 60))
+    }));
 
     return NextResponse.json(
       {
         hasActiveBoost: true,
-        boost: {
-          id: activeBoost._id,
-          type: activeBoost.type,
-          duration: activeBoost.duration,
-          startTime: activeBoost.startTime,
-          endTime: activeBoost.endTime,
-          remainingTime
-        }
+        boosts: boostInfo,
+        dailyBoostsUsed,
+        dailyBoostsLimit: subscription.hasPremiumPlus ? -1 : 
+                         subscription.hasPremium ? 5 : 1
       },
       { status: 200 }
     );

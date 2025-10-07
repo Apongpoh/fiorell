@@ -4,11 +4,7 @@ import Match from "@/models/Match";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
 import Block from "@/models/Block";
-
-// Simple in-memory throttle & duplicate cache (best-effort, per process)
-const recentMessageHashes: Map<string, { contentHash: string; ts: number }> =
-  new Map();
-const RATE_WINDOW_MS = 3500; // minimum gap between messages from same user in same match (soft throttle)
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // Very small profanity placeholder list (extend or replace with dedicated service)
 const BANNED_WORDS = [
@@ -365,32 +361,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Rate limiting / duplicate suppression
-    const key = `${userId}:${matchId}`;
-    const now = Date.now();
-    const last = recentMessageHashes.get(key);
-    const contentHash =
-      type === "text" && content
-        ? `${content.length}:${content.slice(0, 32)}`
-        : `${type}:${now}`;
-    if (last) {
-      if (now - last.ts < RATE_WINDOW_MS) {
-        return NextResponse.json(
-          {
-            error:
-              "You are sending messages too quickly. Please wait a moment.",
-          },
-          { status: 429 }
-        );
-      }
-      if (last.contentHash === contentHash) {
+    // Database-backed rate limiting with duplicate detection
+    const contentHash = type === "text" && content
+      ? `${content.length}:${content.slice(0, 32)}`
+      : `${type}:${Date.now()}`;
+    
+    const rateLimitResult = await checkRateLimit({
+      resourceType: "message",
+      userId: userId,
+      resourceId: matchId,
+      windowMs: 3500, // 3.5 seconds between messages in same match
+      maxAttempts: 1, // Only one message per window
+      contentHash,
+    });
+
+    if (!rateLimitResult.allowed) {
+      if (rateLimitResult.isDuplicate) {
         return NextResponse.json(
           { error: "Duplicate message detected" },
           { status: 409 }
         );
       }
+      
+      return NextResponse.json(
+        {
+          error: "You are sending messages too quickly. Please wait a moment.",
+          remainingAttempts: rateLimitResult.remainingAttempts,
+          resetTime: rateLimitResult.resetTime,
+        },
+        { status: 429 }
+      );
     }
-    recentMessageHashes.set(key, { contentHash, ts: now });
 
     // Determine recipient
     const recipientId =
