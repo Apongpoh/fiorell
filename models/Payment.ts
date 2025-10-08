@@ -46,7 +46,7 @@ export interface IPayment extends Document {
   invoiceUrl?: string;
 
   // Metadata
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   createdAt: Date;
   updatedAt: Date;

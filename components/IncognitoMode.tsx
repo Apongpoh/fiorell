@@ -6,18 +6,21 @@ import Button from "./ui/Button";
 import { Card } from "./ui/Card";
 import { useSubscription } from "../hooks/useSubscription";
 import { apiRequest } from "../lib/api";
+import { useToast } from "./ui/Toast";
 
 interface IncognitoModeProps {
   className?: string;
 }
 
 const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = "" }) => {
-  const { subscription } = useSubscription();
+  const { canUseIncognitoMode } = useSubscription();
   const [isIncognito, setIsIncognito] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const { showToast } = useToast();
 
-  const canUseIncognito = subscription?.hasPremiumPlus;
+  // Use the proper feature flag instead of subscription property
+  const canUseIncognito = canUseIncognitoMode;
 
   useEffect(() => {
     fetchIncognitoStatus();
@@ -25,13 +28,10 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = "" }) => {
 
   const fetchIncognitoStatus = async () => {
     try {
-      const response = (await apiRequest("/user/incognito", {
+      const data = await apiRequest("/user/incognito", {
         method: "GET",
-      })) as Response;
-      if (response.ok) {
-        const data = await response.json();
-        setIsIncognito(data.isIncognito);
-      }
+      }) as { incognitoMode: boolean };
+      setIsIncognito(data.incognitoMode);
     } catch (error) {
       console.error("Failed to fetch incognito status:", error);
     }
@@ -45,24 +45,30 @@ const IncognitoMode: React.FC<IncognitoModeProps> = ({ className = "" }) => {
 
     setLoading(true);
     try {
-      const response = (await apiRequest("/user/incognito", {
+      const data = await apiRequest("/user/incognito", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ enabled: !isIncognito }),
-      })) as Response;
+      }) as { incognitoMode: boolean };
 
-      if (response.ok) {
-        const data = await response.json();
-        setIsIncognito(data.isIncognito);
-      } else {
-        const error = await response.json();
-        alert(error.message || "Failed to toggle incognito mode");
-      }
-    } catch (error) {
+      setIsIncognito(data.incognitoMode);
+      showToast({
+        type: "success", 
+        title: data.incognitoMode ? "Incognito Mode On" : "Incognito Mode Off",
+        message: data.incognitoMode 
+          ? "You're now browsing privately" 
+          : "You're now visible to others"
+      });
+    } catch (error: unknown) {
       console.error("Failed to toggle incognito mode:", error);
-      alert("Failed to toggle incognito mode");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      showToast({
+        type: "error",
+        title: "Failed to Toggle Incognito",
+        message: errorMessage || "Unable to change incognito mode. Please try again."
+      });
     } finally {
       setLoading(false);
     }

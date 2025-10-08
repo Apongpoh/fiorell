@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { ToastProvider } from "@/components/ui/Toast";
 import BottomNav from "@/components/BottomNav";
 
 const geistSans = Geist({
@@ -36,9 +37,11 @@ export default function RootLayout({
       >
         <AuthProvider>
           <NotificationProvider>
-            <div className="min-h-screen pb-20">{children}</div>
-            {/* Bottom navigation rendered on all pages; component hides itself on chat detail */}
-            <BottomNav />
+            <ToastProvider>
+              <div className="min-h-screen pb-20">{children}</div>
+              {/* Bottom navigation rendered on all pages; component hides itself on chat detail */}
+              <BottomNav />
+            </ToastProvider>
           </NotificationProvider>
         </AuthProvider>
       </body>

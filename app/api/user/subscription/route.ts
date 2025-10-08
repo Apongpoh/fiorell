@@ -28,12 +28,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        subscription: subscriptionInfo,
+        subscription: {
+          ...subscriptionInfo,
+          hasPremium: subscriptionInfo.hasPremium,
+          hasPremiumPlus: subscriptionInfo.hasPremiumPlus,
+        },
         limits,
         usage,
         status: subscriptionInfo.isActive ? "active" : "inactive",
-        hasPremium: subscriptionInfo.hasPremium,
-        hasPremiumPlus: subscriptionInfo.hasPremiumPlus,
         isInGracePeriod,
         canUseAdvancedFilters:
           subscriptionInfo.hasPremium ||

@@ -12,17 +12,26 @@ import {
   Filter,
   Camera,
   Info,
+  MoreHorizontal,
+  Zap,
+  Eye,
+  Plane,
+  Settings,
+  HelpCircle,
 } from "lucide-react";
 import { useAuth, withAuth } from "@/contexts/AuthContext";
 import { discoveryAPI, interactionsAPI, userAPI, statsAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { useDailyLimits } from "@/hooks/useSubscription";
+import { useDailyLimits, useSubscription } from "@/hooks/useSubscription";
 import { usePremiumPrompt } from "@/components/PremiumPrompt";
 import { MiniUsageIndicator } from "@/components/UsageLimits";
 import { ProfileBoost } from "@/components/ProfileBoost";
 import { IncognitoMode } from "@/components/IncognitoMode";
 import { TravelMode } from "@/components/TravelMode";
 import { PreMatchMessage } from "@/components/PreMatchMessage";
+import AdvancedFilters, { FilterOptions } from "@/components/AdvancedFilters";
+import MessageBeforeMatch from "@/components/MessageBeforeMatch";
+import SeeWhoLikedYou from "@/components/SeeWhoLikedYou";
 
 interface Profile {
   id: string;
@@ -81,6 +90,7 @@ function DashboardPage() {
     verifiedOnly: false,
     interests: "" as string,
     maxDistance: 50,
+    showPassedAgain: false, // New premium feature
   });
   const [isFiltering, setIsFiltering] = useState(false);
   const filterDebounceRef = useRef<number | null>(null);
@@ -91,6 +101,11 @@ function DashboardPage() {
   // Premium features state
   const [showProfileBoost, setShowProfileBoost] = useState(false);
   const [showTravelMode, setShowTravelMode] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showMessageBeforeMatch, setShowMessageBeforeMatch] = useState(false);
+  const [showSeeWhoLikedYou, setShowSeeWhoLikedYou] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [preMatchMessage, setPreMatchMessage] = useState<{
     recipientId: string;
     recipientName: string;
@@ -98,6 +113,7 @@ function DashboardPage() {
 
   // Premium subscription hooks
   const { likes, superLikes, refetch: refetchUsage } = useDailyLimits();
+  const { canMessageBeforeMatching, canUseTravelMode } = useSubscription();
   const { showPrompt, PremiumPrompt } = usePremiumPrompt();
 
   // (Deal breakers removed from inline filters; managed in Profile page)
@@ -135,6 +151,21 @@ function DashboardPage() {
   const [pulseDirection, setPulseDirection] = useState<
     "left" | "right" | "up" | null
   >(null); // transient pulse when threshold crossed
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showMoreMenu) {
+        const target = event.target as Element;
+        if (!target.closest('.dropdown-container')) {
+          setShowMoreMenu(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMoreMenu]);
   const lastDragFeedbackTsRef = useRef(0);
   const lastDragFeedbackRef = useRef<{
     direction: "left" | "right" | "up" | null;
@@ -238,6 +269,7 @@ function DashboardPage() {
           .map((i) => i.trim())
           .filter(Boolean),
         maxDistance: filters.maxDistance,
+        showPassedAgain: filters.showPassedAgain,
       });
       if (response && typeof response === "object" && "matches" in response) {
         const matchesVal = (response as { matches?: unknown }).matches;
@@ -377,6 +409,7 @@ function DashboardPage() {
     filters.verifiedOnly,
     filters.interests,
     filters.maxDistance,
+    filters.showPassedAgain,
     autoApply,
   ]);
   // Static curated interests handling
@@ -760,6 +793,50 @@ function DashboardPage() {
   const handleSuperLike = () => handleSwipe("up");
   const handlePass = () => handleSwipe("left");
 
+  // Premium feature handlers
+  const handleMessageBeforeMatch = (profile: Profile) => {
+    if (!canMessageBeforeMatching) {
+      showPrompt(
+        "messageBeforeMatch",
+        "Premium Feature Required",
+        "Message before matching is a Premium feature. Upgrade to connect with meaningful conversations!",
+        false
+      );
+      return;
+    }
+    setSelectedProfile(profile);
+    setShowMessageBeforeMatch(true);
+  };
+
+  const handleSendMessage = async (message: string) => {
+    if (!selectedProfile) return;
+    
+    try {
+      await interactionsAPI.sendPreMatchMessage(selectedProfile.id, message);
+      // Move to next profile after sending message
+      setCurrentProfileIndex(prev => prev + 1);
+    } catch (error) {
+      console.error("Failed to send pre-match message:", error);
+      throw error;
+    }
+  };
+
+  const handleAdvancedFiltersApply = (newFilters: FilterOptions) => {
+    // Convert advanced filters to current filter format
+    setFilters({
+      minAge: newFilters.ageRange.min,
+      maxAge: newFilters.ageRange.max,
+      gender: "all", // Keep existing gender filter
+      verifiedOnly: newFilters.dealBreakers.verifiedOnly,
+      interests: newFilters.interests.join(","),
+      maxDistance: newFilters.distance,
+      showPassedAgain: false, // Reset to default when applying advanced filters
+    });
+    
+    // Trigger filter application
+    setAppliedFiltersSignature(JSON.stringify(newFilters));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -817,46 +894,153 @@ function DashboardPage() {
         </div>
       )}
       {/* Header */}
-      <header className="bg-white shadow-sm px-6 py-4">
+      <header className="bg-white shadow-sm px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center space-x-2">
-            <Heart className="h-8 w-8 text-pink-500" />
-            <span className="text-2xl font-bold text-gray-900">Fiorell</span>
+            <Heart className="h-7 w-7 text-pink-500" />
+            <span className="text-xl font-bold text-gray-900">Fiorell</span>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <button
-              type="button"
-              onClick={() => setShowProfileBoost(true)}
-              className="p-2 text-gray-600 hover:text-purple-600 transition-colors relative"
-              title="Profile Boost"
-            >
-              <Star className="h-6 w-6" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowTravelMode(true)}
-              className="p-2 text-gray-600 hover:text-blue-600 transition-colors relative"
-              title="Travel Mode"
-            >
-              <MapPin className="h-6 w-6" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFilters((v) => !v)}
-              className="p-2 text-gray-600 hover:text-pink-600 transition-colors relative"
-            >
-              <Filter className="h-6 w-6" />
-              {(filters.gender !== "all" || filters.verifiedOnly) && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse" />
-              )}
-            </button>
+          <div className="flex items-center space-x-2">
+            {/* Messages - Always visible */}
             <button
               onClick={() => router.push("/matches")}
-              className="p-2 text-gray-600 hover:text-pink-600 transition-colors"
+              className="p-2 text-gray-600 hover:text-pink-600 transition-colors relative"
+              title="Messages"
             >
               <MessageCircle className="h-6 w-6" />
+              {/* You can add notification badge here if needed */}
             </button>
+
+            {/* More Menu - Secondary actions */}
+            <div className="relative dropdown-container">
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
+                title="More options"
+              >
+                <MoreHorizontal className="h-6 w-6" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                  {/* Profile Boost */}
+                  <button
+                    onClick={() => {
+                      setShowProfileBoost(true);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                      <Zap className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Profile Boost</p>
+                      <p className="text-sm text-gray-500">Get more visibility</p>
+                    </div>
+                  </button>
+
+                  {/* Travel Mode */}
+                  <button
+                    onClick={() => {
+                      setShowTravelMode(true);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
+                      <Plane className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Travel Mode</p>
+                      <p className="text-sm text-gray-500">Explore new cities</p>
+                    </div>
+                    <div className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                      Premium+
+                    </div>
+                  </button>
+
+                  {/* Advanced Filters */}
+                  <button
+                    onClick={() => {
+                      setShowAdvancedFilters(true);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
+                      <Filter className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Advanced Filters</p>
+                      <p className="text-sm text-gray-500">Find your perfect match</p>
+                    </div>
+                    <div className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                      Premium
+                    </div>
+                  </button>
+
+                  {/* See Who Liked You */}
+                  <button
+                    onClick={() => {
+                      setShowSeeWhoLikedYou(true);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-r from-pink-400 to-rose-500 rounded-full flex items-center justify-center">
+                      <Eye className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">See Who Liked You</p>
+                      <p className="text-sm text-gray-500">View your admirers</p>
+                    </div>
+                    <div className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                      Premium
+                    </div>
+                  </button>
+
+                  <div className="border-t border-gray-100 my-2"></div>
+
+                  {/* Settings */}
+                  <button
+                    onClick={() => {
+                      router.push("/settings/privacy");
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Settings className="h-4 w-4 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Settings</p>
+                      <p className="text-sm text-gray-500">Preferences & privacy</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      router.push("/help");
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                      <HelpCircle className="h-4 w-4 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Help</p>
+                      <p className="text-sm text-gray-500">Get assistance</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Profile Avatar - Always visible */}
             <button
               onClick={() => router.push("/profile")}
               className="w-8 h-8 bg-pink-500 cursor-pointer rounded-full flex items-center justify-center hover:bg-pink-600 transition-colors"
@@ -877,6 +1061,22 @@ function DashboardPage() {
         {/* Incognito Mode Toggle */}
         <div className="mb-4">
           <IncognitoMode />
+        </div>
+
+        {/* Filter Toggle Button */}
+        <div className="mb-4 flex justify-center">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center space-x-2 px-4 py-2 bg-white rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <Filter className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">
+              {showFilters ? "Hide" : "Show"} Filters
+            </span>
+            {filtersChanged && (
+              <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+            )}
+          </button>
         </div>
 
         {showFilters && (
@@ -1007,6 +1207,38 @@ function DashboardPage() {
                 />
                 <span className="text-xs">Verified only</span>
               </label>
+              {/* Premium Feature: Show passed profiles again */}
+              <label className={`flex items-center gap-2 col-span-2 ${
+                canUseTravelMode ? "text-gray-600" : "text-gray-400"
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={filters.showPassedAgain && canUseTravelMode}
+                  onChange={(e) => {
+                    if (!canUseTravelMode) {
+                      showPrompt(
+                        "showPassedAgain",
+                        "Premium Plus Feature",
+                        "Show passed profiles again is a Premium Plus feature. Upgrade to see profiles you passed on earlier!",
+                        false
+                      );
+                      return;
+                    }
+                    setFilters((f) => ({
+                      ...f,
+                      showPassedAgain: e.target.checked,
+                    }));
+                  }}
+                  disabled={!canUseTravelMode}
+                  className="text-pink-500 rounded border-gray-300 focus:ring-pink-500 disabled:opacity-50"
+                />
+                <span className="text-xs flex items-center gap-1">
+                  Show passed profiles again
+                  {!canUseTravelMode && (
+                    <span className="text-pink-500 font-semibold">✨</span>
+                  )}
+                </span>
+              </label>
               <label className="space-y-1 col-span-2">
                 <span className="font-medium text-gray-600">
                   Interests (comma separated)
@@ -1074,6 +1306,7 @@ function DashboardPage() {
                     verifiedOnly: false,
                     interests: "",
                     maxDistance: 50,
+                    showPassedAgain: false,
                   });
                   if (!autoApply) {
                     setIsFiltering(true);
@@ -1126,6 +1359,7 @@ function DashboardPage() {
                   verifiedOnly: false,
                   interests: "",
                   maxDistance: 50,
+                  showPassedAgain: false,
                 })
               }
               className="px-3 py-1.5 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600"
@@ -1484,16 +1718,18 @@ function DashboardPage() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() =>
-              setPreMatchMessage({
-                recipientId: currentProfile.id,
-                recipientName: currentProfile.firstName,
-              })
-            }
-            className="px-6 py-2 bg-purple-500 text-white rounded-full shadow-lg hover:bg-purple-600 transition-colors flex items-center gap-2"
+            onClick={() => handleMessageBeforeMatch(currentProfile)}
+            className={`px-6 py-2 text-white rounded-full shadow-lg transition-all flex items-center gap-2 ${
+              canMessageBeforeMatching
+                ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                : "bg-gray-400 hover:bg-gray-500"
+            }`}
           >
             <MessageCircle className="h-4 w-4" />
             <span className="text-sm font-medium">Message First</span>
+            <div className="w-3 h-3 bg-white/30 rounded-full flex items-center justify-center">
+              <span className="text-white text-xs font-bold">+</span>
+            </div>
           </motion.button>
         </div>
 
@@ -1664,6 +1900,61 @@ function DashboardPage() {
       <TravelMode
         isOpen={showTravelMode}
         onClose={() => setShowTravelMode(false)}
+      />
+
+      <AdvancedFilters
+        isOpen={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        onApply={handleAdvancedFiltersApply}
+        initialFilters={{
+          ageRange: { min: filters.minAge, max: filters.maxAge },
+          distance: filters.maxDistance,
+          height: { min: 150, max: 220 },
+          education: [],
+          lifestyle: {
+            smoking: [],
+            drinking: [],
+            exercise: [],
+            diet: []
+          },
+          interests: filters.interests ? filters.interests.split(",") : [],
+          dealBreakers: {
+            mustHavePhotos: false,
+            verifiedOnly: filters.verifiedOnly,
+            noSmoking: false,
+            similarAge: false
+          }
+        }}
+      />
+
+      {showMessageBeforeMatch && selectedProfile && (
+        <MessageBeforeMatch
+          profile={{
+            id: selectedProfile.id,
+            name: selectedProfile.firstName,
+            photo: selectedProfile.photos.find(p => p.isMain)?.url || 
+                   selectedProfile.photos[0]?.url || 
+                   selectedProfile.defaultPhoto || 
+                   "/api/placeholder/profile",
+            age: selectedProfile.age,
+            bio: selectedProfile.bio
+          }}
+          onSend={handleSendMessage}
+          onSkip={() => {
+            setShowMessageBeforeMatch(false);
+            setSelectedProfile(null);
+            handleLike(); // Regular like
+          }}
+          onClose={() => {
+            setShowMessageBeforeMatch(false);
+            setSelectedProfile(null);
+          }}
+        />
+      )}
+
+      <SeeWhoLikedYou
+        isOpen={showSeeWhoLikedYou}
+        onClose={() => setShowSeeWhoLikedYou(false)}
       />
 
       {preMatchMessage && (

@@ -32,6 +32,21 @@ interface User {
     maxDistance: number;
     genderPreference?: string;
   };
+  lifestyle?: {
+    hasKids?: boolean;
+    smoking?: "no" | "occasionally" | "yes";
+    drinking?: "never" | "socially" | "regularly";
+    exercise?: "never" | "sometimes" | "regularly" | "daily";
+    diet?: "omnivore" | "vegetarian" | "vegan" | "pescatarian" | "other";
+    maritalStatus?: "single" | "divorced" | "widowed" | "separated";
+  };
+  education?: {
+    level?: "high_school" | "bachelor" | "master" | "phd" | "other";
+    field?: string;
+  };
+  physicalAttributes?: {
+    height?: number;
+  };
   privacy: {
     showAge: boolean;
     showDistance: boolean;
@@ -53,14 +68,74 @@ interface User {
   isAdmin?: boolean;
 }
 
+interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+interface SignupData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  dateOfBirth: string;
+  gender: string;
+  location: string;
+}
+
+interface LoginResponse {
+  token?: string;
+  requiresTwoFA?: boolean;
+  tempUserId?: string;
+  expiresAt?: Date | string;
+}
+
+interface UpdateUserData {
+  bio?: string;
+  interests?: string[];
+  preferences?: {
+    ageRange: { min: number; max: number };
+    maxDistance: number;
+    genderPreference?: string;
+    dealBreakers?: {
+      requireVerified?: boolean;
+      mustHaveInterests?: string[];
+      excludeInterests?: string[];
+      excludeSmoking?: string[];
+      excludeMaritalStatuses?: string[];
+      requireHasKids?: boolean | null;
+    };
+  };
+  location?: {
+    city: string;
+    coordinates?: [number, number];
+  };
+  lifestyle?: {
+    hasKids?: boolean | null;
+    smoking?: "no" | "occasionally" | "yes" | null;
+    drinking?: "never" | "socially" | "regularly" | null;
+    exercise?: "never" | "sometimes" | "regularly" | "daily" | null;
+    diet?: "omnivore" | "vegetarian" | "vegan" | "pescatarian" | "other" | null;
+    maritalStatus?: "single" | "divorced" | "widowed" | "separated" | null;
+  };
+  education?: {
+    level?: "high_school" | "bachelor" | "master" | "phd" | "other" | null;
+    field?: string | null;
+  };
+  physicalAttributes?: {
+    height?: number | null;
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<any>;
-  signup: (userData: any) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<LoginResponse>;
+  signup: (userData: SignupData) => Promise<void>;
   logout: () => void;
-  updateUser: (userData: Partial<User>) => Promise<void>;
+  updateUser: (userData: UpdateUserData) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -110,10 +185,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loadUser();
   }, []);
 
-  const login = async (credentials: { email: string; password: string }) => {
+  const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
     setIsLoading(true);
     try {
-      const response = await authAPI.login(credentials as any);
+      const response = await authAPI.login(credentials);
 
       // Check if 2FA is required
       if (
@@ -123,7 +198,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         (response as { requiresTwoFA?: boolean }).requiresTwoFA
       ) {
         setIsLoading(false);
-        return response; // Return 2FA response
+        const twoFAResponse: LoginResponse = { requiresTwoFA: true };
+        
+        // Include tempUserId and expiresAt if present
+        if ("tempUserId" in response && (response as { tempUserId?: unknown }).tempUserId) {
+          twoFAResponse.tempUserId = (response as { tempUserId: string }).tempUserId;
+        }
+        if ("expiresAt" in response && (response as { expiresAt?: unknown }).expiresAt) {
+          twoFAResponse.expiresAt = (response as { expiresAt: Date | string }).expiresAt;
+        }
+        
+        return twoFAResponse;
       }
 
       // Normal login - set user
@@ -137,17 +222,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser((response as { user: User }).user);
       }
       setIsLoading(false);
-      return response;
+      
+      // Return token if present
+      if (
+        response &&
+        typeof response === "object" &&
+        "token" in response &&
+        typeof (response as { token?: unknown }).token === "string"
+      ) {
+        return { token: (response as { token: string }).token };
+      }
+      
+      return {};
     } catch (error) {
       setIsLoading(false);
       throw error;
     }
   };
 
-  const signup = async (userData: any) => {
+  const signup = async (userData: SignupData): Promise<void> => {
     setIsLoading(true);
     try {
-      await authAPI.signup(userData as any);
+      await authAPI.signup(userData);
     } catch (error) {
       setIsLoading(false);
       throw error;
@@ -160,9 +256,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     authAPI.logout();
   };
 
-  const updateUser = async (userData: Partial<User>) => {
+  const updateUser = async (userData: UpdateUserData): Promise<void> => {
     try {
-      const response = await userAPI.updateProfile(userData as any);
+      const response = await userAPI.updateProfile(userData);
       if (
         response &&
         typeof response === "object" &&

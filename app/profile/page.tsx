@@ -210,10 +210,26 @@ function ProfilePage() {
   const [lifestyle, setLifestyle] = useState<{
     hasKids?: boolean;
     smoking?: "no" | "occasionally" | "yes" | undefined;
+    drinking?: "never" | "socially" | "regularly" | undefined;
+    exercise?: "never" | "sometimes" | "regularly" | "daily" | undefined;
+    diet?: "omnivore" | "vegetarian" | "vegan" | "pescatarian" | "other" | undefined;
     maritalStatus?: "single" | "divorced" | "widowed" | "separated" | undefined;
   }>({});
   const [savingDealBreakers, setSavingDealBreakers] = useState(false);
   const [savingLifestyle, setSavingLifestyle] = useState(false);
+
+  // Education state
+  const [education, setEducation] = useState<{
+    level?: "high_school" | "bachelor" | "master" | "phd" | "other" | undefined;
+    field?: string;
+  }>({});
+  const [savingEducation, setSavingEducation] = useState(false);
+
+  // Physical attributes state
+  const [physicalAttributes, setPhysicalAttributes] = useState<{
+    height?: number;
+  }>({});
+  const [savingPhysicalAttributes, setSavingPhysicalAttributes] = useState(false);
 
   // Load current user profile
   useEffect(() => {
@@ -299,7 +315,25 @@ function ProfilePage() {
         setLifestyle({
           hasKids: currentUser.lifestyle.hasKids,
           smoking: currentUser.lifestyle.smoking,
+          drinking: currentUser.lifestyle.drinking,
+          exercise: currentUser.lifestyle.exercise,
+          diet: currentUser.lifestyle.diet,
           maritalStatus: currentUser.lifestyle.maritalStatus,
+        });
+      }
+
+      // Hydrate education
+      if (currentUser.education) {
+        setEducation({
+          level: currentUser.education.level,
+          field: currentUser.education.field,
+        });
+      }
+
+      // Hydrate physical attributes
+      if (currentUser.physicalAttributes) {
+        setPhysicalAttributes({
+          height: currentUser.physicalAttributes.height,
         });
       }
       // Hydrate deal breakers
@@ -354,6 +388,12 @@ function ProfilePage() {
             typeof lifestyle.maritalStatus === "undefined"
               ? null
               : lifestyle.maritalStatus,
+          drinking:
+            typeof lifestyle.drinking === "undefined" ? null : lifestyle.drinking,
+          exercise:
+            typeof lifestyle.exercise === "undefined" ? null : lifestyle.exercise,
+          diet:
+            typeof lifestyle.diet === "undefined" ? null : lifestyle.diet,
         },
       };
 
@@ -421,6 +461,12 @@ function ProfilePage() {
             typeof lifestyle.hasKids === "undefined" ? null : lifestyle.hasKids,
           smoking:
             typeof lifestyle.smoking === "undefined" ? null : lifestyle.smoking,
+          drinking:
+            typeof lifestyle.drinking === "undefined" ? null : lifestyle.drinking,
+          exercise:
+            typeof lifestyle.exercise === "undefined" ? null : lifestyle.exercise,
+          diet:
+            typeof lifestyle.diet === "undefined" ? null : lifestyle.diet,
           maritalStatus:
             typeof lifestyle.maritalStatus === "undefined"
               ? null
@@ -440,6 +486,9 @@ function ProfilePage() {
           setLifestyle({
             hasKids: u.lifestyle.hasKids,
             smoking: u.lifestyle.smoking as typeof lifestyle.smoking,
+            drinking: u.lifestyle.drinking as typeof lifestyle.drinking,
+            exercise: u.lifestyle.exercise as typeof lifestyle.exercise,
+            diet: u.lifestyle.diet as typeof lifestyle.diet,
             maritalStatus: u.lifestyle
               .maritalStatus as typeof lifestyle.maritalStatus,
           });
@@ -466,6 +515,60 @@ function ProfilePage() {
       showNotification("Failed to save lifestyle", "error");
     } finally {
       setSavingLifestyle(false);
+    }
+  };
+
+  const saveEducation = async () => {
+    try {
+      setSavingEducation(true);
+      const updateResp = (await userAPI.updateProfile({
+        education: {
+          level: typeof education.level === "undefined" ? null : education.level,
+          field: typeof education.field === "undefined" ? null : education.field,
+        },
+      })) as unknown;
+      
+      if (updateResp && typeof updateResp === "object" && "user" in updateResp) {
+        const u = (updateResp as { user: typeof currentUser }).user as typeof currentUser;
+        setCurrentUser(u);
+        if (u && u.education) {
+          setEducation({
+            level: u.education.level as typeof education.level,
+            field: u.education.field,
+          });
+        }
+      }
+      showNotification("Education saved", "success");
+    } catch {
+      showNotification("Failed to save education", "error");
+    } finally {
+      setSavingEducation(false);
+    }
+  };
+
+  const savePhysicalAttributes = async () => {
+    try {
+      setSavingPhysicalAttributes(true);
+      const updateResp = (await userAPI.updateProfile({
+        physicalAttributes: {
+          height: typeof physicalAttributes.height === "undefined" ? null : physicalAttributes.height,
+        },
+      })) as unknown;
+      
+      if (updateResp && typeof updateResp === "object" && "user" in updateResp) {
+        const u = (updateResp as { user: typeof currentUser }).user as typeof currentUser;
+        setCurrentUser(u);
+        if (u && u.physicalAttributes) {
+          setPhysicalAttributes({
+            height: u.physicalAttributes.height,
+          });
+        }
+      }
+      showNotification("Physical attributes saved", "success");
+    } catch {
+      showNotification("Failed to save physical attributes", "error");
+    } finally {
+      setSavingPhysicalAttributes(false);
     }
   };
 
@@ -970,7 +1073,12 @@ function ProfilePage() {
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                   Enter coordinates to find people near you. Order is Longitude,
-                  Latitude. Example (New York): -74.0060, 40.7128
+                  Latitude. Example (New York): -74.0060, 40.7128.
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Significant location changes require Travel Mode. Upgrade to
+                  Premium Plus to change your location or use the Travel Mode
+                  feature to explore other cities.
                 </p>
               </div>
             </div>
@@ -1095,6 +1203,9 @@ function ProfilePage() {
                     setLifestyle({
                       hasKids: undefined,
                       smoking: undefined,
+                      drinking: undefined,
+                      exercise: undefined,
+                      diet: undefined,
                       maritalStatus: undefined,
                     })
                   }
@@ -1237,6 +1348,300 @@ function ProfilePage() {
                     );
                   })}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Extended Lifestyle Fields */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Additional Lifestyle</h2>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6 text-sm">
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Drinking
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    ["never", "socially", "regularly"] as (
+                      | "never"
+                      | "socially"
+                      | "regularly"
+                    )[]
+                  ).map((d) => {
+                    const active = lifestyle.drinking === d;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() =>
+                          setLifestyle((ls) => ({ ...ls, drinking: d }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-blue-500 border-blue-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {d === "never" ? "Never" : d === "socially" ? "Socially" : "Regularly"}
+                      </button>
+                    );
+                  })}
+                  {lifestyle.drinking && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLifestyle((ls) => ({ ...ls, drinking: undefined }))
+                      }
+                      className="px-2 py-1.5 rounded-full text-xs border border-gray-300 text-gray-500 hover:bg-gray-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Exercise
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    ["never", "sometimes", "regularly", "daily"] as (
+                      | "never"
+                      | "sometimes"
+                      | "regularly"
+                      | "daily"
+                    )[]
+                  ).map((e) => {
+                    const active = lifestyle.exercise === e;
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() =>
+                          setLifestyle((ls) => ({ ...ls, exercise: e }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-green-500 border-green-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {e.charAt(0).toUpperCase() + e.slice(1)}
+                      </button>
+                    );
+                  })}
+                  {lifestyle.exercise && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLifestyle((ls) => ({ ...ls, exercise: undefined }))
+                      }
+                      className="px-2 py-1.5 rounded-full text-xs border border-gray-300 text-gray-500 hover:bg-gray-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Diet
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    ["omnivore", "vegetarian", "vegan", "pescatarian", "other"] as (
+                      | "omnivore"
+                      | "vegetarian"
+                      | "vegan"
+                      | "pescatarian"
+                      | "other"
+                    )[]
+                  ).map((d) => {
+                    const active = lifestyle.diet === d;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() =>
+                          setLifestyle((ls) => ({ ...ls, diet: d }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-orange-500 border-orange-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {d.charAt(0).toUpperCase() + d.slice(1)}
+                      </button>
+                    );
+                  })}
+                  {lifestyle.diet && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLifestyle((ls) => ({ ...ls, diet: undefined }))
+                      }
+                      className="px-2 py-1.5 rounded-full text-xs border border-gray-300 text-gray-500 hover:bg-gray-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Education */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Education</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEducation({
+                      level: undefined,
+                      field: undefined,
+                    })
+                  }
+                  disabled={savingEducation}
+                  className="px-3 py-1.5 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEducation}
+                  disabled={savingEducation}
+                  className="px-3 py-1.5 text-xs rounded-md bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-40"
+                >
+                  {savingEducation ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Education Level
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    ["high_school", "bachelor", "master", "phd", "other"] as (
+                      | "high_school"
+                      | "bachelor"
+                      | "master"
+                      | "phd"
+                      | "other"
+                    )[]
+                  ).map((level) => {
+                    const active = education.level === level;
+                    const labels = {
+                      high_school: "High School",
+                      bachelor: "Bachelor's",
+                      master: "Master's",
+                      phd: "PhD",
+                      other: "Other",
+                    };
+                    return (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() =>
+                          setEducation((ed) => ({ ...ed, level }))
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                          active
+                            ? "bg-purple-500 border-purple-500 text-white"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {labels[level]}
+                      </button>
+                    );
+                  })}
+                  {education.level && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEducation((ed) => ({ ...ed, level: undefined }))
+                      }
+                      className="px-2 py-1.5 rounded-full text-xs border border-gray-300 text-gray-500 hover:bg-gray-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Field of Study
+                </label>
+                <input
+                  type="text"
+                  value={education.field || ""}
+                  onChange={(e) =>
+                    setEducation((ed) => ({ ...ed, field: e.target.value }))
+                  }
+                  placeholder="e.g., Computer Science, Medicine, Art..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Physical Attributes */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Physical Attributes</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPhysicalAttributes({
+                      height: undefined,
+                    })
+                  }
+                  disabled={savingPhysicalAttributes}
+                  className="px-3 py-1.5 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={savePhysicalAttributes}
+                  disabled={savingPhysicalAttributes}
+                  className="px-3 py-1.5 text-xs rounded-md bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-40"
+                >
+                  {savingPhysicalAttributes ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-1 gap-4 text-sm">
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Height (cm)
+                </label>
+                <input
+                  type="number"
+                  min="100"
+                  max="250"
+                  value={physicalAttributes.height || ""}
+                  onChange={(e) =>
+                    setPhysicalAttributes((pa) => ({ 
+                      ...pa, 
+                      height: e.target.value ? parseInt(e.target.value) : undefined 
+                    }))
+                  }
+                  placeholder="e.g., 175"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                />
+                {physicalAttributes.height && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    That&apos;s {Math.round(physicalAttributes.height / 30.48 * 10) / 10} feet tall
+                  </p>
+                )}
               </div>
             </div>
           </div>

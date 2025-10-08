@@ -5,6 +5,7 @@ import { verifyAuth } from "@/lib/auth";
 import { computeProfileCompletion } from "@/lib/profileCompletion";
 import ProfileView from "@/models/ProfileView";
 import { sanitizeBio, sanitizeCity, validateInterests } from "@/lib/validators";
+import { canUserPerformAction } from "@/lib/subscription";
 
 // Get user profile
 export async function GET(request: NextRequest) {
@@ -159,6 +160,49 @@ export async function PUT(request: NextRequest) {
         // Clamp to valid ranges
         lng = Math.max(-180, Math.min(180, lng));
         lat = Math.max(-90, Math.min(90, lat));
+        
+        // Check if user has significant location change and should use Travel Mode instead
+        const currentCoords = user.location?.coordinates;
+        if (currentCoords && Array.isArray(currentCoords) && currentCoords.length === 2) {
+          // Calculate distance between old and new coordinates (rough calculation)
+          const oldLng = currentCoords[0];
+          const oldLat = currentCoords[1];
+          const deltaLng = Math.abs(lng - oldLng);
+          const deltaLat = Math.abs(lat - oldLat);
+          
+          // If coordinates change significantly (roughly 50+ km threshold)
+          // Using 0.5 degrees as rough approximation (1 degree ≈ 111km at equator)
+          const significantChange = deltaLng > 0.5 || deltaLat > 0.5;
+          
+          if (significantChange) {
+            // Check if user can use Travel Mode
+            const travelCheck = await canUserPerformAction(userId, 'travel_mode');
+            if (!travelCheck.allowed) {
+              // User cannot use Travel Mode, reject significant location changes
+              return NextResponse.json(
+                {
+                  error: "Significant location changes require Travel Mode. Upgrade to Premium Plus to change your location or use the Travel Mode feature to explore other cities.",
+                  code: "TRAVEL_MODE_REQUIRED",
+                  upgradeRequired: true,
+                  feature: "travel_mode"
+                },
+                { status: 403 }
+              );
+            } else {
+              // User can use Travel Mode but should be using it instead of direct profile updates
+              return NextResponse.json(
+                {
+                  error: "For location changes, please use Travel Mode instead of updating your profile directly. This ensures proper tracking and the best matching experience.",
+                  code: "USE_TRAVEL_MODE",
+                  suggestion: "Use the Travel Mode feature from your dashboard to change locations."
+                },
+                { status: 400 }
+              );
+            }
+          }
+        }
+        
+        // Allow minor location updates (fine-tuning current location)
         user.location.type = "Point";
         user.location.coordinates = [lng, lat];
       }

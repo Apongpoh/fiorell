@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Button from "./ui/Button";
 import { Card } from "./ui/Card";
 import { useSubscription } from "../hooks/useSubscription";
-import { apiRequest } from "../lib/api";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "./ui/Toast";
 
 interface ProfileBoostProps {
   isOpen: boolean;
@@ -21,9 +22,10 @@ interface BoostStatus {
 }
 
 const ProfileBoost: React.FC<ProfileBoostProps> = ({ isOpen, onClose }) => {
-  const { subscription } = useSubscription();
+  const { isPremium, isPremiumPlus } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [boostStatus, setBoostStatus] = useState<BoostStatus | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
@@ -33,13 +35,10 @@ const ProfileBoost: React.FC<ProfileBoostProps> = ({ isOpen, onClose }) => {
 
   const fetchBoostStatus = async () => {
     try {
-      const response = (await apiRequest("/user/boost", {
+      const data = await apiRequest("/user/boost", {
         method: "GET",
-      })) as Response;
-      if (response.ok) {
-        const data = await response.json();
-        setBoostStatus(data);
-      }
+      });
+      setBoostStatus(data as BoostStatus);
     } catch (error) {
       console.error("Failed to fetch boost status:", error);
     }
@@ -48,24 +47,30 @@ const ProfileBoost: React.FC<ProfileBoostProps> = ({ isOpen, onClose }) => {
   const activateBoost = async (boostType: "daily" | "weekly" | "premium") => {
     setLoading(true);
     try {
-      const response = (await apiRequest("/user/boost", {
+      await apiRequest("/user/boost", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ boostType }),
-      })) as Response;
+      });
 
-      if (response.ok) {
-        await fetchBoostStatus();
-        // Show success message
-      } else {
-        const error = await response.json();
-        alert(error.message || "Failed to activate boost");
-      }
-    } catch (error) {
+      // Success - apiRequest only returns data on success, throws on error
+      await fetchBoostStatus();
+      const boostName = getBoostDescription(boostType).title;
+      showToast({
+        type: "success",
+        title: `${boostName} Activated!`,
+        message: "Your profile is now boosted and getting more visibility!"
+      });
+    } catch (error: unknown) {
       console.error("Failed to activate boost:", error);
-      alert("Failed to activate boost");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      showToast({
+        type: "error",
+        title: "Boost Failed",
+        message: errorMessage || "Unable to activate boost. Please try again."
+      });
     } finally {
       setLoading(false);
     }
@@ -100,9 +105,8 @@ const ProfileBoost: React.FC<ProfileBoostProps> = ({ isOpen, onClose }) => {
 
   const canUseBoost = (type: "daily" | "weekly" | "premium") => {
     if (type === "daily") return true;
-    if (type === "weekly")
-      return subscription?.hasPremium || subscription?.hasPremiumPlus;
-    if (type === "premium") return subscription?.hasPremiumPlus;
+    if (type === "weekly") return isPremium || isPremiumPlus;
+    if (type === "premium") return isPremiumPlus;
     return false;
   };
 

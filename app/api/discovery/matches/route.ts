@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "10")));
+    const offset = Math.max(0, parseInt(searchParams.get("offset") || "0"));
     const minAge = searchParams.get("minAge");
     const maxAge = searchParams.get("maxAge");
     const gender = searchParams.get("gender");
@@ -49,14 +49,19 @@ export async function GET(request: NextRequest) {
     let gracePeriodMessage = null;
 
     if (usingAdvancedFilters) {
-      const canUseAdvancedFilters = await canUserPerformAction(
-        userId,
-        "advanced_filters"
-      );
-      if (!canUseAdvancedFilters.allowed) {
+      try {
+        const canUseAdvancedFilters = await canUserPerformAction(
+          userId,
+          "advanced_filters"
+        );
+        if (!canUseAdvancedFilters.allowed) {
+          advancedFiltersAvailable = false;
+          gracePeriodMessage = canUseAdvancedFilters.reason;
+          // Don't block the request, just ignore advanced filters and continue with basic discovery
+        }
+      } catch {
+        // Fall back to no advanced filters on subscription check error
         advancedFiltersAvailable = false;
-        gracePeriodMessage = canUseAdvancedFilters.reason;
-        // Don't block the request, just ignore advanced filters and continue with basic discovery
       }
     }
 
@@ -75,7 +80,9 @@ export async function GET(request: NextRequest) {
       min: minAge ? parseInt(minAge) : currentUser.preferences?.ageRange?.min,
       max: maxAge ? parseInt(maxAge) : currentUser.preferences?.ageRange?.max,
     };
-    if (ageRange.min && ageRange.max) {
+    
+    // Validate age range values
+    if (ageRange.min && ageRange.max && !isNaN(ageRange.min) && !isNaN(ageRange.max)) {
       const currentYear = new Date().getFullYear();
       const minBirthYear = currentYear - ageRange.max; // older
       const maxBirthYear = currentYear - ageRange.min; // younger
@@ -209,28 +216,106 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get users who haven't been liked/passed by current user TODAY
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    // Get users who haven't been liked/passed by current user recently
+    // Dynamic time windows based on multiple factors:
+    // 1. Geographic location (city size)
+    // 2. Premium status
+    // 3. Available pool size
+    // 4. User preferences
+    const now = new Date();
 
-    const todayInteractions = await Interaction.find({
+    // Calculate dynamic pass window
+    const calculatePassWindow = async () => {
+      // Base window: 4 hours for free users, 1-2 hours for premium
+      const userSubscription = await canUserPerformAction(
+        userId,
+        "travel_mode"
+      );
+      const isPremium = userSubscription.allowed; // Premium Plus users can use travel mode
+      const baseHours = isPremium ? 1.5 : 4;
+
+      // Geographic adjustment - estimate city size from user count in area
+      let geoMultiplier = 1;
+      if (currentUser.location?.coordinates?.length === 2) {
+        const [lng, lat] = currentUser.location.coordinates;
+        const hasValidCoords = !(lng === 0 && lat === 0);
+
+        if (hasValidCoords) {
+          // Count nearby users within 50km to estimate city size using $geoWithin
+          let nearbyCount = 0;
+          try {
+            nearbyCount = await User.countDocuments({
+              _id: { $ne: userId },
+              isActive: true,
+              location: {
+                $geoWithin: {
+                  $centerSphere: [[lng, lat], 50000 / 6378100] // 50km radius in radians
+                }
+              },
+            });
+          } catch {
+            // Fall back to default multiplier if geo query fails
+            nearbyCount = 500; // Default to medium city size
+          }
+
+          // Adjust based on local population density
+          if (nearbyCount < 100) {
+            geoMultiplier = 0.5; // Small city: shorter window (30 min - 2 hours)
+          } else if (nearbyCount < 500) {
+            geoMultiplier = 0.75; // Medium city: slightly shorter (45 min - 3 hours)
+          } else if (nearbyCount > 2000) {
+            geoMultiplier = 1.5; // Large city: longer window (1.5 - 6 hours)
+          }
+          // Default (100-2000 users): multiplier = 1
+        }
+      }
+
+      // Calculate final window with minimum bounds
+      const finalHours = Math.max(0.5, Math.min(8, baseHours * geoMultiplier));
+      return finalHours;
+    };
+
+    const passWindowHours = await calculatePassWindow();
+    const passWindow = new Date(
+      now.getTime() - passWindowHours * 60 * 60 * 1000
+    );
+    const likeWindow = new Date(now);
+    likeWindow.setUTCHours(0, 0, 0, 0); // Start of today
+
+    // Premium feature: "Show passed profiles again"
+    // Check if user wants to see passed profiles (premium feature)
+    const showPassedAgain = searchParams.get("showPassedAgain") === "true";
+    const canShowPassedAgain = await canUserPerformAction(
+      userId,
+      "travel_mode"
+    ); // Using travel_mode as proxy for Premium Plus
+
+    // Get recent interactions with different time windows
+    const recentLikes = await Interaction.find({
       userId: userId,
-      createdAt: {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
+      action: { $in: ["like", "super_like"] },
+      createdAt: { $gte: likeWindow },
     }).select("targetUserId");
 
-    const todayInteractedUserIds = todayInteractions.map(
-      (interaction) => interaction.targetUserId
-    );
-    if (todayInteractedUserIds.length > 0) {
+    // For passes: apply window unless premium user specifically requested to see passed profiles
+    let recentPasses = [];
+    if (!showPassedAgain || !canShowPassedAgain.allowed) {
+      recentPasses = await Interaction.find({
+        userId: userId,
+        action: "pass",
+        createdAt: { $gte: passWindow },
+      }).select("targetUserId");
+    }
+
+    const excludedUserIds = [
+      ...recentLikes.map((i) => i.targetUserId),
+      ...recentPasses.map((i) => i.targetUserId),
+    ];
+
+    if (excludedUserIds.length > 0) {
       const origId =
         typeof filter._id === "object" && filter._id !== null ? filter._id : {};
-      filter._id = { ...origId, $nin: todayInteractedUserIds };
+      filter._id = { ...origId, $nin: excludedUserIds };
     }
 
     // Enforce privacy visibility: exclude hidden, restrict mutual-only to matched connections
@@ -305,13 +390,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute main query
-    let users = await User.find(filter)
-      .select(
-        "firstName dateOfBirth location bio interests photos verification lifestyle"
-      )
-      .skip(offset)
-      .limit(limit)
-      .lean();
+    let users;
+    try {
+      users = await User.find(filter)
+        .select(
+          "firstName dateOfBirth location bio interests photos verification lifestyle"
+        )
+        .skip(offset)
+        .limit(limit)
+        .lean();
+    } catch (queryError) {
+      throw queryError;
+    }
 
     // If distance filtering was applied and no results, relax by removing geospatial constraint
     const appliedDistance =
@@ -336,14 +426,68 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If still no results and user has many today interactions, show some profiles they interacted with before
-    // (but not today) to give them something to see - this helps new users who exhaust profiles quickly
+    // Pool-size aware timing: If initial pool is small, progressively relax pass window
+    let adjustedUsers = users;
+    let passWindowAdjusted = false;
+
+    // Only apply pool-size adjustment if we actually excluded passed profiles
+    const passesExcluded = recentPasses.length;
+    if (users.length < 5 && passesExcluded > 0) {
+      // Small pool detected - try progressively shorter pass windows
+      const reducedPassHours = Math.max(0.25, passWindowHours * 0.5); // Cut window in half, minimum 15 minutes
+      const reducedPassWindow = new Date(
+        now.getTime() - reducedPassHours * 60 * 60 * 1000
+      );
+
+      const reducedPasses = await Interaction.find({
+        userId: userId,
+        action: "pass",
+        createdAt: { $gte: reducedPassWindow },
+      }).select("targetUserId");
+
+      const reducedExcludedIds = [
+        ...recentLikes.map((i) => i.targetUserId),
+        ...reducedPasses.map((i) => i.targetUserId),
+      ];
+
+      // Try with reduced exclusions
+      const poolSizeFilter = { ...filter };
+      if (reducedExcludedIds.length > 0) {
+        const origId =
+          typeof poolSizeFilter._id === "object" && poolSizeFilter._id !== null
+            ? poolSizeFilter._id
+            : {};
+        poolSizeFilter._id = { ...origId, $nin: reducedExcludedIds };
+      }
+
+      try {
+        const poolSizeUsers = await User.find(poolSizeFilter)
+          .select(
+            "firstName dateOfBirth location bio interests photos verification lifestyle"
+          )
+          .skip(offset)
+          .limit(limit)
+          .lean();
+
+        if (poolSizeUsers.length > users.length) {
+          adjustedUsers = poolSizeUsers;
+          passWindowAdjusted = true;
+        }
+      } catch {
+        // ignore errors, keep original results
+      }
+    }
+
+    users = adjustedUsers;
+
+    // If still no results and user has many recent interactions, show some profiles they interacted with before
+    // (but not recently) to give them something to see - this helps new users who exhaust profiles quickly
     let showPreviouslyInteracted = false;
-    if (users.length === 0 && todayInteractedUserIds.length >= 5) {
-      // Remove the today interaction filter and try again
+    if (users.length === 0 && excludedUserIds.length >= 5) {
+      // Remove the recent interaction filter and try again
       const relaxedFilter: typeof filter = { ...filter };
 
-      // Reset the _id filter to exclude only blocked users (not today's interactions)
+      // Reset the _id filter to exclude only blocked users (not recent interactions)
       if (excludeIds.size > 0) {
         (relaxedFilter as { _id?: { $nin: string[] } })._id = {
           $nin: Array.from(excludeIds),
@@ -448,8 +592,16 @@ export async function GET(request: NextRequest) {
               dealBreakersApplied: !!dealBreakers,
               distanceRelaxed: distanceRelaxed ?? false,
               showPreviouslyInteracted,
-              todayInteractionsCount: todayInteractedUserIds.length,
-              todayInteractedUsers: todayInteractedUserIds,
+              recentInteractionsCount: excludedUserIds.length,
+              recentInteractedUsers: excludedUserIds,
+              // New dynamic timing diagnostics
+              dynamicPassWindow: {
+                calculatedHours: passWindowHours,
+                isPremium: canShowPassedAgain.allowed,
+                showPassedAgainRequested: showPassedAgain,
+                passWindowAdjusted,
+                passesExcludedCount: passesExcluded,
+              },
             }
           : undefined,
       },

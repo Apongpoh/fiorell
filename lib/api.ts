@@ -216,7 +216,17 @@ export const userAPI = {
     lifestyle?: {
       hasKids?: boolean | null;
       smoking?: "no" | "occasionally" | "yes" | null;
+      drinking?: "never" | "socially" | "regularly" | null;
+      exercise?: "never" | "sometimes" | "regularly" | "daily" | null;
+      diet?: "omnivore" | "vegetarian" | "vegan" | "pescatarian" | "other" | null;
       maritalStatus?: "single" | "divorced" | "widowed" | "separated" | null;
+    };
+    education?: {
+      level?: "high_school" | "bachelor" | "master" | "phd" | "other" | null;
+      field?: string | null;
+    };
+    physicalAttributes?: {
+      height?: number | null;
     };
     privacy?: {
       showAge: boolean;
@@ -279,6 +289,7 @@ export const discoveryAPI = {
       verifiedOnly?: boolean;
       interests?: string[];
       maxDistance?: number; // km
+      showPassedAgain?: boolean; // Premium Plus feature
     } = {}
   ) => {
     const {
@@ -290,6 +301,7 @@ export const discoveryAPI = {
       verifiedOnly,
       interests,
       maxDistance,
+      showPassedAgain,
     } = params;
     const search = new URLSearchParams();
     search.set("limit", String(limit));
@@ -302,6 +314,7 @@ export const discoveryAPI = {
       search.set("maxDistance", String(maxDistance));
     if (interests && interests.length)
       search.set("interests", interests.join(","));
+    if (showPassedAgain) search.set("showPassedAgain", "true");
     return await apiRequest(`/discovery/matches?${search.toString()}`);
   },
 };
@@ -343,6 +356,14 @@ export const interactionsAPI = {
     return await apiRequest(
       `/interactions/likes?type=sent&limit=${limit}&offset=${offset}`
     );
+  },
+
+  // Send pre-match message (Premium feature)
+  sendPreMatchMessage: async (targetUserId: string, message: string) => {
+    return await apiRequest("/interactions/pre-match-message", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId, message }),
+    });
   },
 };
 

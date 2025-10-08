@@ -20,11 +20,12 @@ const PreMatchMessage: React.FC<PreMatchMessageProps> = ({
   onClose,
   onMessageSent,
 }) => {
-  const { subscription } = useSubscription();
+  const { canMessageBeforeMatching } = useSubscription();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canSendPreMatchMessage = subscription?.hasPremiumPlus;
+  // Use the proper feature flag instead of subscription property
+  const canSendPreMatchMessage = canMessageBeforeMatching;
   const maxLength = 500;
 
   const sendMessage = async () => {

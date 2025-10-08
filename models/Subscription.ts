@@ -34,7 +34,7 @@ export interface ISubscription extends Document {
   cancellationReason?: string;
 
   // Metadata
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   createdAt: Date;
   updatedAt: Date;

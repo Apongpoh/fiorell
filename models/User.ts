@@ -41,7 +41,17 @@ export interface IUser extends Document {
   lifestyle?: {
     hasKids?: boolean;
     smoking?: "no" | "occasionally" | "yes";
+    drinking?: "never" | "socially" | "regularly";
+    exercise?: "never" | "sometimes" | "regularly" | "daily";
+    diet?: "omnivore" | "vegetarian" | "vegan" | "pescatarian" | "other";
     maritalStatus?: "single" | "divorced" | "widowed" | "separated";
+  };
+  education?: {
+    level?: "high_school" | "bachelor" | "master" | "phd" | "other";
+    field?: string;
+  };
+  physicalAttributes?: {
+    height?: number; // in cm
   };
   verification: {
     isVerified: boolean;
@@ -209,9 +219,45 @@ const UserSchema = new Schema<IUser>(
         enum: ["no", "occasionally", "yes"],
         required: false,
       },
+      drinking: {
+        type: String,
+        enum: ["never", "socially", "regularly"],
+        required: false,
+      },
+      exercise: {
+        type: String,
+        enum: ["never", "sometimes", "regularly", "daily"],
+        required: false,
+      },
+      diet: {
+        type: String,
+        enum: ["omnivore", "vegetarian", "vegan", "pescatarian", "other"],
+        required: false,
+      },
       maritalStatus: {
         type: String,
         enum: ["single", "divorced", "widowed", "separated"],
+        required: false,
+      },
+    },
+    education: {
+      level: {
+        type: String,
+        enum: ["high_school", "bachelor", "master", "phd", "other"],
+        required: false,
+      },
+      field: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Education field cannot exceed 100 characters"],
+        required: false,
+      },
+    },
+    physicalAttributes: {
+      height: {
+        type: Number,
+        min: [100, "Height must be at least 100cm"],
+        max: [250, "Height cannot exceed 250cm"],
         required: false,
       },
     },
@@ -340,8 +386,8 @@ UserSchema.pre("save", async function (next) {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
-  } catch (error: any) {
-    next(error);
+  } catch (error: unknown) {
+    next(error instanceof Error ? error : new Error('Hashing failed'));
   }
 });
 

@@ -9,6 +9,8 @@ export interface SubscriptionInfo {
   planName?: string;
   features: string[];
   daysRemaining?: number;
+  type: "free" | "premium" | "premium_plus";
+  expiresAt?: string;
 }
 
 export interface FeatureLimits {
@@ -191,4 +193,35 @@ export function useDailyLimits() {
     boosts: boostsLimit,
     refetch, // Call this after performing actions to update counts
   };
+}
+
+// Helper function to check if user can access premium features
+export function canAccessPremiumFeature(subscription: SubscriptionInfo | null, feature: string): boolean {
+  if (!subscription) return false;
+  
+  const premiumFeatures = [
+    "seeWhoLikedYou",
+    "unlimitedLikes", 
+    "superLikes",
+    "boosts",
+    "readReceipts",
+    "advancedFilters"
+  ];
+  
+  const premiumPlusFeatures = [
+    "travelMode",
+    "incognitoMode", 
+    "messageBeforeMatch",
+    "prioritySupport"
+  ];
+  
+  if (premiumPlusFeatures.includes(feature)) {
+    return subscription.hasPremiumPlus;
+  }
+  
+  if (premiumFeatures.includes(feature)) {
+    return subscription.hasPremium || subscription.hasPremiumPlus;
+  }
+  
+  return subscription.features.includes(feature);
 }
