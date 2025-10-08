@@ -67,8 +67,17 @@ export default function CryptoPaymentSelector({
   };
   
   const handleSubscribe = () => {
+    console.log("handleSubscribe called");
+    console.log("selectedCrypto:", selectedCrypto);
+    console.log("selectedPlan:", selectedPlan);
+    console.log("selectedBilling:", selectedBilling);
+    console.log("cryptoPrices:", cryptoPrices);
+    
     const usdAmount = planPricing[selectedPlan][selectedBilling];
     const cryptoAmount = calculateCryptoAmount();
+    
+    console.log("usdAmount:", usdAmount);
+    console.log("cryptoAmount:", cryptoAmount);
     
     onPlanSelect({
       cryptocurrency: selectedCrypto,

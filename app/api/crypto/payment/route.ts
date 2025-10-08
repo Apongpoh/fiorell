@@ -5,6 +5,7 @@ import CryptoPayment from "@/models/CryptoPayment";
 import CryptoWallet from "@/models/CryptoWallet";
 import { getCryptoService } from "@/lib/cryptoService";
 import { v4 as uuidv4 } from "uuid";
+import QRCode from "qrcode";
 
 // Create a new crypto payment
 export async function POST(request: NextRequest) {
@@ -91,6 +92,16 @@ export async function POST(request: NextRequest) {
       cryptocurrency
     );
     
+    // Generate QR code
+    const qrCodeData = await QRCode.toDataURL(paymentUrl, {
+      width: 256,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    });
+    
     payment.paymentUrl = paymentUrl;
     await payment.save();
     
@@ -118,8 +129,9 @@ export async function POST(request: NextRequest) {
         cryptocurrency,
         amount: amountCrypto,
         amountUSD,
-        address: paymentAddress,
+        paymentAddress: paymentAddress,
         paymentUrl,
+        qrCode: qrCodeData,
         status: payment.status,
         expiresAt: payment.expiresAt,
         requiredConfirmations: payment.requiredConfirmations,

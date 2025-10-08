@@ -134,8 +134,13 @@ export default function CryptoPaymentCheckout({
   };
   
   const generatePaymentURI = () => {
-    const symbol = paymentData.cryptocurrency === "bitcoin" ? "bitcoin" : "monero";
-    return `${symbol}:${paymentData.paymentAddress}?amount=${paymentData.amount}`;
+    if (paymentData.cryptocurrency === "bitcoin") {
+      // Bitcoin URI format: bitcoin:address?amount=btc_amount&label=description
+      return `bitcoin:${paymentData.paymentAddress}?amount=${paymentData.amount}&label=Fiorell%20Premium%20Subscription`;
+    } else {
+      // Monero URI format: monero:address?tx_amount=xmr_amount&tx_description=description
+      return `monero:${paymentData.paymentAddress}?tx_amount=${paymentData.amount}&tx_description=Fiorell%20Premium%20Subscription`;
+    }
   };
   
   return (
@@ -263,7 +268,20 @@ export default function CryptoPaymentCheckout({
         {/* Action Buttons */}
         <div className="flex space-x-4">
           <Button
-            onClick={() => window.open(generatePaymentURI(), "_blank")}
+            onClick={() => {
+              const uri = generatePaymentURI();
+              console.log('Opening payment URI:', uri);
+              
+              // Try to open wallet app
+              const opened = window.open(uri, "_blank");
+              
+              // If the window didn't open or closed immediately, show instructions
+              setTimeout(() => {
+                if (!opened || opened.closed) {
+                  alert(`If your ${paymentData.cryptocurrency} wallet didn't open automatically:\n\n1. Copy the address and amount shown above\n2. Open your wallet app manually\n3. Create a new transaction with the copied details\n\nPayment URI: ${uri}`);
+                }
+              }, 500);
+            }}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg"
             disabled={paymentStatus === "expired"}
           >

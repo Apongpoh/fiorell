@@ -79,7 +79,6 @@ export default function SubscriptionPage() {
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("crypto");
   const [currentStep, setCurrentStep] = useState<PaymentStep>("method_selection");
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [cryptoPaymentData, setCryptoPaymentData] = useState<CryptoPaymentData | null>(null);
   const [showTraditionalOptions, setShowTraditionalOptions] = useState(false);
   
@@ -131,10 +130,11 @@ export default function SubscriptionPage() {
     amountCrypto: number;
     amountUSD: number;
   }) => {
-    if (!selectedPlan) return;
+    console.log("handleCryptoPaymentSelect called with:", paymentData);
 
     try {
-      setProcessingPlan(selectedPlan.id);
+      setProcessingPlan("crypto_" + paymentData.planType);
+      console.log("Making API call to /api/crypto/payment");
 
       const response = await fetch("/api/crypto/payment", {
         method: "POST",
@@ -150,12 +150,16 @@ export default function SubscriptionPage() {
         }),
       });
 
+      console.log("API response status:", response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log("Payment data received:", data);
         setCryptoPaymentData(data.payment);
         setCurrentStep("crypto_checkout");
       } else {
         const error = await response.json();
+        console.log("API error:", error);
         throw new Error(error.error || "Failed to create crypto payment");
       }
     } catch (error) {
@@ -220,7 +224,6 @@ export default function SubscriptionPage() {
 
   const resetFlow = () => {
     setCurrentStep("method_selection");
-    setSelectedPlan(null);
     setCryptoPaymentData(null);
   };
 
