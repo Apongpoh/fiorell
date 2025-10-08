@@ -36,7 +36,6 @@ const BoostSchema = new Schema<IBoost>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     activatedAt: {
       type: Date,

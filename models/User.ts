@@ -82,6 +82,8 @@ export interface IUser extends Document {
     type: "free" | "premium" | "premium_plus";
     expiresAt?: Date;
     features: string[];
+    paymentMethod?: "crypto" | "traditional";
+    preferredPaymentMethod?: "crypto" | "traditional";
   };
   stats: {
     totalLikesReceived: number;
@@ -289,6 +291,16 @@ const UserSchema = new Schema<IUser>(
       },
       expiresAt: { type: Date },
       features: [{ type: String }],
+      paymentMethod: {
+        type: String,
+        enum: ["crypto", "traditional"],
+        required: false,
+      },
+      preferredPaymentMethod: {
+        type: String,
+        enum: ["crypto", "traditional"],
+        default: "crypto",
+      },
     },
     stats: {
       totalLikesReceived: { type: Number, default: 0 },

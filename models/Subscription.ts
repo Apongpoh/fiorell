@@ -80,7 +80,6 @@ const SubscriptionSchema = new Schema<ISubscription>(
     currentPeriodEnd: {
       type: Date,
       required: true,
-      index: true,
     },
     cancelAtPeriodEnd: {
       type: Boolean,

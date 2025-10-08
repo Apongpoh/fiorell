@@ -69,8 +69,6 @@ const RateLimitSchema = new Schema<IRateLimit>(
 
 // Compound indexes for efficient querying
 RateLimitSchema.index({ userId: 1, resourceType: 1 });
-RateLimitSchema.index({ resourceType: 1, expiresAt: 1 });
-RateLimitSchema.index({ identifier: 1, expiresAt: 1 });
 
 // Pre-save middleware to set expiration time
 RateLimitSchema.pre("save", function (next) {

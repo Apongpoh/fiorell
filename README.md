@@ -1,9 +1,10 @@
-# Fiorell - Dating App
+# Fiorell - Private Dating App with Crypto Payments
 
-A modern dating application built with Next.js, MongoDB, and AWS S3.
+A modern dating application built with Next.js, MongoDB, and enhanced with cryptocurrency payment capabilities for maximum privacy.
 
-## Features
+## 🌟 Features
 
+### Core Features
 - 🔐 User Authentication (Signup/Login)
 - 👤 User Profiles with Photo Management
 - 🔍 Smart Discovery Algorithm
@@ -13,7 +14,23 @@ A modern dating application built with Next.js, MongoDB, and AWS S3.
 - ⚙️ Privacy & Notification Settings
 - 📱 Responsive Mobile-first Design
 
-## Tech Stack
+### 💳 Payment System
+- 🪙 **Cryptocurrency Payments (Default)** - Bitcoin & Monero support
+- 💳 Traditional Payment Methods - Credit cards, PayPal via Lemon Squeezy
+- 🔒 Enhanced Privacy - Crypto payments for anonymous transactions
+- ⚡ Instant Confirmation - Real-time blockchain monitoring
+- 🔄 Automated Subscriptions - Recurring crypto payments
+- 🛡️ Security - Multi-layer payment verification
+
+### 🎯 Premium Features
+- ✨ Unlimited likes and super boosts
+- 👁️ See who liked you
+- 🔍 Advanced filters and preferences
+- 🎭 Incognito mode and enhanced privacy
+- 🌍 Travel mode and global matching
+- 🎟️ Exclusive events and early access
+
+## 🛠️ Tech Stack
 
 ### Frontend
 - **Next.js 15** - React framework with App Router
@@ -24,20 +41,27 @@ A modern dating application built with Next.js, MongoDB, and AWS S3.
 - **Zod** - Form validation
 
 ### Backend
-- **MongoDB** - Database
-- **Mongoose** - ODM
+- **MongoDB** - Database with geospatial indexing
+- **Mongoose** - ODM with subscription models
 - **AWS S3** - File storage
 - **JWT** - Authentication
 - **bcryptjs** - Password hashing
-- **Multer** - File uploads
 
-## Getting Started
+### Payment Infrastructure
+- **Bitcoin/Monero Integration** - Blockchain payment processing
+- **Lemon Squeezy** - Traditional payment processor
+- **Webhook System** - Real-time payment confirmations
+- **QR Code Generation** - Mobile wallet integration
+- **Price API Integration** - Live cryptocurrency pricing
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
 - Node.js 18+ 
 - MongoDB (local or MongoDB Atlas)
 - AWS Account (for S3 storage)
+- Bitcoin/Monero Node Access (optional - testnet supported)
 
 ### Installation
 
@@ -70,8 +94,28 @@ A modern dating application built with Next.js, MongoDB, and AWS S3.
    AWS_REGION=us-east-1
    AWS_S3_BUCKET_NAME=your-bucket-name
 
-   # Optional: For development
+   # Cryptocurrency Payment System (Default)
+   CRYPTO_NETWORK=testnet  # or mainnet for production
+   CRYPTO_WEBHOOK_SECRET=your_webhook_secret_here
+   CRON_SECRET=your_cron_secret_here
+   
+   # Optional: Bitcoin Node (for advanced features)
+   BITCOIN_RPC_URL=http://localhost:8332
+   BITCOIN_RPC_USER=your_rpc_user
+   BITCOIN_RPC_PASSWORD=your_rpc_password
+   
+   # Optional: Monero Node (for advanced features)
+   MONERO_RPC_URL=http://localhost:18081
+   MONERO_WALLET_RPC_URL=http://localhost:18083
+
+   # Traditional Payment System (Backup)
+   LEMONSQUEEZY_API_KEY=your_lemonsqueezy_api_key
+   LEMONSQUEEZY_STORE_ID=your_store_id
+   LEMONSQUEEZY_WEBHOOK_SECRET=your_lemonsqueezy_webhook_secret
+
+   # Application Settings
    NODE_ENV=development
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
    ```
 
 4. **Start MongoDB** (if running locally)
