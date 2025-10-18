@@ -35,15 +35,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <NotificationProvider>
+        <NotificationProvider>
+          <AuthProvider>
             <ToastProvider>
               <div className="min-h-screen pb-20">{children}</div>
               {/* Bottom navigation rendered on all pages; component hides itself on chat detail */}
               <BottomNav />
             </ToastProvider>
-          </NotificationProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </NotificationProvider>
       </body>
     </html>
   );

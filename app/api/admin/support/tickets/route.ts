@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       },
       {
         $addFields: {
+          id: { $toString: "$_id" },
           userName: { $arrayElemAt: ["$userInfo.name", 0] },
           unreadMessages: {
             $size: {

@@ -126,6 +126,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if user account is suspended/banned
+    if (user.isActive === false) {
+      logger.security("Login attempt - suspended user", {
+        action: "login_suspended_user",
+        metadata: { 
+          email,
+          userId: user._id.toString() 
+        },
+      });
+      return NextResponse.json(
+        {
+          error: "Your account has been suspended. Please contact support for assistance.",
+          accountSuspended: true,
+        },
+        {
+          status: 403,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    }
+
     // Check if user has 2FA enabled
     if (user.twoFA?.enabled) {
       // If 2FA is enabled, don't generate full token yet

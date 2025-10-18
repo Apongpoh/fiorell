@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -23,22 +23,38 @@ interface AdminStats {
     total: number;
     activeToday: number;
     newThisWeek: number;
+    growthRate: number;
   };
   engagement: {
     totalMatches: number;
+    newMatchesThisWeek: number;
     messagesLastWeek: number;
     averageSessionTime: string;
+    matchRate: number;
   };
   revenue: {
     totalRevenue: number;
     subscriptionsActive: number;
     conversionRate: number;
+    monthlyRecurringRevenue: number;
   };
   support: {
     openTickets: number;
     avgResponseTime: string;
     satisfactionScore: number;
+    ticketsResolvedThisWeek: number;
   };
+  moderation: {
+    openReports: number;
+    reportsThisWeek: number;
+    autoModeratedContent: number;
+  };
+  recentActivity: Array<{
+    type: string;
+    message: string;
+    timestamp: string;
+    icon: string;
+  }>;
 }
 
 function AdminDashboard() {
@@ -46,6 +62,79 @@ function AdminDashboard() {
   const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadStats = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+      
+      const token = localStorage.getItem("fiorell_auth_token");
+      
+      const response = await fetch('/api/admin/dashboard', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch admin stats");
+      }
+
+      const data = await response.json();
+      setStats(data.stats);
+    } catch (error: unknown) {
+      console.error("Error loading admin stats:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to load dashboard data";
+      setError(errorMessage);
+      
+      // Fallback to empty state in case of error
+      if (!stats) {
+        setStats({
+          users: {
+            total: 0,
+            activeToday: 0,
+            newThisWeek: 0,
+            growthRate: 0,
+          },
+          engagement: {
+            totalMatches: 0,
+            newMatchesThisWeek: 0,
+            messagesLastWeek: 0,
+            averageSessionTime: "N/A",
+            matchRate: 0,
+          },
+          revenue: {
+            totalRevenue: 0,
+            subscriptionsActive: 0,
+            conversionRate: 0,
+            monthlyRecurringRevenue: 0,
+          },
+          support: {
+            openTickets: 0,
+            avgResponseTime: "N/A",
+            satisfactionScore: 0,
+            ticketsResolvedThisWeek: 0,
+          },
+          moderation: {
+            openReports: 0,
+            reportsThisWeek: 0,
+            autoModeratedContent: 0,
+          },
+          recentActivity: [],
+        });
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [stats]);
 
   useEffect(() => {
     // Redirect if not admin
@@ -56,39 +145,7 @@ function AdminDashboard() {
 
     // Load admin stats
     loadStats();
-  }, [user, router]);
-
-  const loadStats = async () => {
-    try {
-      // This would be actual API calls in production
-      setStats({
-        users: {
-          total: 1250,
-          activeToday: 89,
-          newThisWeek: 47,
-        },
-        engagement: {
-          totalMatches: 3420,
-          messagesLastWeek: 12800,
-          averageSessionTime: "14m 32s",
-        },
-        revenue: {
-          totalRevenue: 24750,
-          subscriptionsActive: 156,
-          conversionRate: 12.4,
-        },
-        support: {
-          openTickets: 8,
-          avgResponseTime: "2h 15m",
-          satisfactionScore: 4.6,
-        },
-      });
-    } catch (error) {
-      console.error("Error loading admin stats:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user, router, loadStats]);
 
   if (!user || !user.isAdmin) {
     return (
@@ -132,6 +189,14 @@ function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => loadStats(true)}
+                disabled={refreshing}
+                className="p-2 text-gray-600 hover:text-pink-600 transition-colors disabled:opacity-50"
+                title="Refresh Dashboard"
+              >
+                <TrendingUp className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
               <Link
                 href="/dashboard"
                 className="px-4 py-2 text-gray-600 hover:text-pink-600 transition-colors"
@@ -144,6 +209,24 @@ function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center space-x-3">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <div>
+                <h3 className="text-sm font-medium text-red-800">Error loading dashboard data</h3>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+              </div>
+              <button
+                onClick={() => loadStats()}
+                className="ml-auto px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -250,99 +333,109 @@ function AdminDashboard() {
               </motion.div>
             </Link>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Users className="h-6 w-6 text-blue-500" />
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      User Management
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      View and manage user accounts
-                    </p>
+            <Link href="/admin/users">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Users className="h-6 w-6 text-blue-500" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        User Management
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        View and manage user accounts
+                      </p>
+                    </div>
                   </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
                 </div>
-                <ArrowRight className="h-5 w-5 text-gray-400" />
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <BarChart3 className="h-6 w-6 text-purple-500" />
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Analytics</h3>
-                    <p className="text-sm text-gray-600">
-                      View detailed platform analytics
-                    </p>
+            <Link href="/admin/analytics">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <BarChart3 className="h-6 w-6 text-purple-500" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Analytics</h3>
+                      <p className="text-sm text-gray-600">
+                        View detailed platform analytics
+                      </p>
+                    </div>
                   </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
                 </div>
-                <ArrowRight className="h-5 w-5 text-gray-400" />
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <UserCheck className="h-6 w-6 text-emerald-500" />
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Moderation</h3>
-                    <p className="text-sm text-gray-600">
-                      Review flagged content and reports
-                    </p>
+            <Link href="/admin/moderation">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <UserCheck className="h-6 w-6 text-emerald-500" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Moderation</h3>
+                      <p className="text-sm text-gray-600">
+                        Review flagged content and reports
+                      </p>
+                    </div>
                   </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
                 </div>
-                <ArrowRight className="h-5 w-5 text-gray-400" />
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <DollarSign className="h-6 w-6 text-yellow-500" />
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      Revenue & Billing
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      Manage subscriptions and payments
-                    </p>
+            <Link href="/admin/revenue">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <DollarSign className="h-6 w-6 text-yellow-500" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        Revenue & Billing
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Manage subscriptions and payments
+                      </p>
+                    </div>
                   </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
                 </div>
-                <ArrowRight className="h-5 w-5 text-gray-400" />
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Settings className="h-6 w-6 text-gray-500" />
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Settings</h3>
-                    <p className="text-sm text-gray-600">
-                      Platform configuration and settings
-                    </p>
+            <Link href="/admin/settings">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Settings className="h-6 w-6 text-gray-500" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Settings</h3>
+                      <p className="text-sm text-gray-600">
+                        Platform configuration and settings
+                      </p>
+                    </div>
                   </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
                 </div>
-                <ArrowRight className="h-5 w-5 text-gray-400" />
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
           </div>
 
           {/* Recent Activity */}
@@ -351,31 +444,121 @@ function AdminDashboard() {
               Recent Activity
             </h3>
             <div className="space-y-3">
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <UserCheck className="h-5 w-5 text-green-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    New user verification completed
-                  </p>
-                  <p className="text-xs text-gray-600">2 minutes ago</p>
+              {stats?.recentActivity && stats.recentActivity.length > 0 ? (
+                stats.recentActivity.map((activity, index) => {
+                  const getIcon = (iconName: string) => {
+                    switch (iconName) {
+                      case 'user-plus':
+                        return <Users className="h-5 w-5 text-blue-500" />;
+                      case 'heart':
+                        return <MessageCircle className="h-5 w-5 text-pink-500" />;
+                      case 'check-circle':
+                        return <UserCheck className="h-5 w-5 text-green-500" />;
+                      default:
+                        return <AlertTriangle className="h-5 w-5 text-gray-500" />;
+                    }
+                  };
+
+                  const timeAgo = (timestamp: string) => {
+                    const now = new Date();
+                    const time = new Date(timestamp);
+                    const diffMs = now.getTime() - time.getTime();
+                    const diffMins = Math.floor(diffMs / (1000 * 60));
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    
+                    if (diffMins < 60) {
+                      return `${diffMins} minutes ago`;
+                    } else if (diffHours < 24) {
+                      return `${diffHours} hours ago`;
+                    } else {
+                      return time.toLocaleDateString();
+                    }
+                  };
+
+                  return (
+                    <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                      {getIcon(activity.icon)}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {activity.message}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {timeAgo(activity.timestamp)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <AlertTriangle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500">No recent activity</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Additional Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Engagement</h3>
+                <BarChart3 className="h-6 w-6 text-purple-500" />
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Match Rate</span>
+                  <span className="text-sm font-medium">{stats?.engagement.matchRate.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">New Matches (Week)</span>
+                  <span className="text-sm font-medium">{stats?.engagement.newMatchesThisWeek}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Avg Session</span>
+                  <span className="text-sm font-medium">{stats?.engagement.averageSessionTime}</span>
                 </div>
               </div>
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <MessageCircle className="h-5 w-5 text-blue-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Support ticket resolved
-                  </p>
-                  <p className="text-xs text-gray-600">15 minutes ago</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Growth</h3>
+                <TrendingUp className="h-6 w-6 text-green-500" />
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Growth Rate</span>
+                  <span className="text-sm font-medium text-green-600">+{stats?.users.growthRate.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Conversion Rate</span>
+                  <span className="text-sm font-medium">{stats?.revenue.conversionRate}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">MRR</span>
+                  <span className="text-sm font-medium">${stats?.revenue.monthlyRecurringRevenue}</span>
                 </div>
               </div>
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <DollarSign className="h-5 w-5 text-purple-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Premium subscription purchased
-                  </p>
-                  <p className="text-xs text-gray-600">1 hour ago</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Moderation</h3>
+                <Shield className="h-6 w-6 text-orange-500" />
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Open Reports</span>
+                  <span className="text-sm font-medium text-orange-600">{stats?.moderation.openReports}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Reports (Week)</span>
+                  <span className="text-sm font-medium">{stats?.moderation.reportsThisWeek}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Support Rating</span>
+                  <span className="text-sm font-medium">{stats?.support.satisfactionScore}/5</span>
                 </div>
               </div>
             </div>

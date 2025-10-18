@@ -5,14 +5,37 @@ import SupportMessage from "@/models/SupportMessage";
 import User from "@/models/User";
 import jwt from "jsonwebtoken";
 import logger from "@/lib/logger";
+import { Types } from "mongoose";
+
+interface SupportMessageData {
+  _id: Types.ObjectId;
+  content: string;
+  isFromSupport: boolean;
+  supportAgentName?: string;
+  createdAt: Date;
+  readByUser?: boolean;
+  readBySupport?: boolean;
+  __v?: number;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticketId: string }> }
 ) {
+  let ticketId = "";
+  
   try {
     await connectDB();
-    const { ticketId } = await params;
+    const resolvedParams = await params;
+    ticketId = resolvedParams.ticketId;
+
+    // Validate ObjectId
+    if (!Types.ObjectId.isValid(ticketId)) {
+      return NextResponse.json(
+        { error: "Invalid ticket ID" },
+        { status: 400 }
+      );
+    }
 
     // Get auth token
     const token = request.headers.get("authorization")?.split(" ")[1];
@@ -38,7 +61,7 @@ export async function GET(
 
     // Get ticket with user info
     const ticketWithUser = await SupportTicket.aggregate([
-      { $match: { _id: ticketId } },
+      { $match: { _id: new Types.ObjectId(ticketId) } },
       {
         $lookup: {
           from: "users",
@@ -65,25 +88,32 @@ export async function GET(
     }
 
     // Get messages
-    const messages = await SupportMessage.find({ ticketId })
+    const messages = await SupportMessage.find({ ticketId: new Types.ObjectId(ticketId) })
       .sort({ createdAt: 1 })
       .lean();
 
     // Mark all user messages as read by support
     await SupportMessage.updateMany(
-      { ticketId, isFromSupport: false, readBySupport: false },
+      { ticketId: new Types.ObjectId(ticketId), isFromSupport: false, readBySupport: false },
       { readBySupport: true }
     );
 
     return NextResponse.json({
-      ticket,
-      messages: messages.map((msg) => ({
-        id: msg._id,
+      ticket: {
+        ...ticket,
+        id: ticket._id.toString(),
+        createdAt: ticket.createdAt,
+        updatedAt: ticket.updatedAt,
+      },
+      messages: (messages as SupportMessageData[]).map((msg) => ({
+        id: msg._id.toString(),
         content: msg.content,
         sender: msg.isFromSupport ? "support" : "user",
         senderName: msg.isFromSupport ? msg.supportAgentName : ticket.userName,
         agentName: msg.supportAgentName,
         timestamp: msg.createdAt,
+        readByUser: msg.readByUser,
+        readBySupport: msg.readBySupport,
       })),
     });
   } catch (error) {
@@ -91,6 +121,7 @@ export async function GET(
       action: "admin_support_ticket_fetch_failed",
       metadata: {
         error: error instanceof Error ? error.message : String(error),
+        ticketId: ticketId || "unknown",
       },
     });
     return NextResponse.json(

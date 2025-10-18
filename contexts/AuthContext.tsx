@@ -8,6 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { authAPI, userAPI } from "@/lib/api";
+import { useNotification } from "./NotificationContext";
 
 interface User {
   id: string;
@@ -156,6 +157,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { showNotification } = useNotification();
 
   const isAuthenticated = !!user && authAPI.isAuthenticated();
 
@@ -174,8 +176,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ) {
             setUser((userData as { user: User }).user);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Failed to load user:", error);
+          
+          // Check if it's a suspension error
+          if (error?.accountSuspended || error?.message?.includes("suspended")) {
+            showNotification("Your account has been suspended. Please contact support for assistance.", "error");
+          }
+          
           authAPI.logout();
         }
       }

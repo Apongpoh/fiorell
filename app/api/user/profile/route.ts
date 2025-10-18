@@ -21,6 +21,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Check if user account is suspended/banned
+    if (user.isActive === false) {
+      return NextResponse.json(
+        { 
+          error: "Account suspended", 
+          accountSuspended: true,
+          message: "Your account has been suspended. Please contact support for assistance."
+        }, 
+        { status: 403 }
+      );
+    }
+
     const completion = computeProfileCompletion(user as Partial<IUser>);
 
     // Calculate real-time views
