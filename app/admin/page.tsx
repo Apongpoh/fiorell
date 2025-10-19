@@ -95,46 +95,44 @@ function AdminDashboard() {
       setError(errorMessage);
       
       // Fallback to empty state in case of error
-      if (!stats) {
-        setStats({
-          users: {
-            total: 0,
-            activeToday: 0,
-            newThisWeek: 0,
-            growthRate: 0,
-          },
-          engagement: {
-            totalMatches: 0,
-            newMatchesThisWeek: 0,
-            messagesLastWeek: 0,
-            averageSessionTime: "N/A",
-            matchRate: 0,
-          },
-          revenue: {
-            totalRevenue: 0,
-            subscriptionsActive: 0,
-            conversionRate: 0,
-            monthlyRecurringRevenue: 0,
-          },
-          support: {
-            openTickets: 0,
-            avgResponseTime: "N/A",
-            satisfactionScore: 0,
-            ticketsResolvedThisWeek: 0,
-          },
-          moderation: {
-            openReports: 0,
-            reportsThisWeek: 0,
-            autoModeratedContent: 0,
-          },
-          recentActivity: [],
-        });
-      }
+      setStats({
+        users: {
+          total: 0,
+          activeToday: 0,
+          newThisWeek: 0,
+          growthRate: 0,
+        },
+        engagement: {
+          totalMatches: 0,
+          newMatchesThisWeek: 0,
+          messagesLastWeek: 0,
+          averageSessionTime: "N/A",
+          matchRate: 0,
+        },
+        revenue: {
+          totalRevenue: 0,
+          subscriptionsActive: 0,
+          conversionRate: 0,
+          monthlyRecurringRevenue: 0,
+        },
+        support: {
+          openTickets: 0,
+          avgResponseTime: "N/A",
+          satisfactionScore: 0,
+          ticketsResolvedThisWeek: 0,
+        },
+        moderation: {
+          openReports: 0,
+          reportsThisWeek: 0,
+          autoModeratedContent: 0,
+        },
+        recentActivity: [],
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [stats]);
+  }, []);
 
   useEffect(() => {
     // Redirect if not admin
