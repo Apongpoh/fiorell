@@ -4,6 +4,7 @@ import connectToDatabase from "@/lib/mongodb";
 import Interaction from "@/models/Interaction";
 import Message from "@/models/Message";
 import User from "@/models/User";
+import Match from "@/models/Match";
 import ProfileView from "@/models/ProfileView";
 import logger from "@/lib/logger";
 
@@ -31,14 +32,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get active matches (has messages in last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const activeMatches = await Interaction.countDocuments({
-      userId,
-      isMatch: true,
-      updatedAt: { $gte: thirtyDaysAgo },
+    // Get active matches from Match model
+    const activeMatches = await Match.countDocuments({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: "matched",
+      isActive: true,
     });
 
     // Get unread messages (match Message schema: recipient + readStatus.isRead)

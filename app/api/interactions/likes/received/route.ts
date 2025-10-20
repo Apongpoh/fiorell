@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
+import { canUserPerformAction } from "@/lib/subscription";
 import Interaction from "@/models/Interaction";
-import User from "@/models/User";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,13 +12,11 @@ export async function GET(request: NextRequest) {
     // Verify authentication
     const { userId } = verifyAuth(request);
 
-    // Check if user has premium access
-    const user = await User.findById(userId).select("subscription");
-    if (!user?.subscription || 
-        (user.subscription.plan !== "premium" && user.subscription.plan !== "premium_plus") ||
-        new Date() > new Date(user.subscription.expiresAt)) {
+    // Check if user can see who liked them (Premium feature)
+    const canSeeLikes = await canUserPerformAction(userId, "see_who_liked_you");
+    if (!canSeeLikes.allowed) {
       return NextResponse.json(
-        { error: "Premium subscription required to see who liked you" },
+        { error: canSeeLikes.reason || "Premium subscription required to see who liked you" },
         { status: 403 }
       );
     }

@@ -3,10 +3,12 @@ import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import Interaction from "@/models/Interaction";
 import User from "@/models/User";
+import Match from "@/models/Match";
 import { verifyAuth } from "@/lib/auth";
 import Block from "../../../models/Block";
 import { isObjectId } from "@/lib/validators";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { ObjectId } from "mongodb";
 
 export async function POST(request: NextRequest) {
   try {
@@ -157,6 +159,30 @@ export async function POST(request: NextRequest) {
             { isMatch: true },
             { session }
           );
+
+          // Check if Match record already exists
+          const existingMatch = await Match.findOne({
+            $or: [
+              { user1: body.userId, user2: body.targetUserId },
+              { user1: body.targetUserId, user2: body.userId },
+            ],
+            status: "matched",
+            isActive: true,
+          }).session(session);
+
+          if (!existingMatch) {
+            // Create a new Match record
+            const newMatch = new Match({
+              user1: new ObjectId(body.userId),
+              user2: new ObjectId(body.targetUserId),
+              status: "matched",
+              initiatedBy: new ObjectId(body.userId),
+              matchedAt: new Date(),
+              isActive: true,
+            });
+
+            await newMatch.save({ session });
+          }
 
           // Increment match count for both users
           await User.updateMany(

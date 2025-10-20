@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { verifyAuth } from "@/lib/auth";
+import { canUserPerformAction } from "@/lib/subscription";
 import User from "@/models/User";
 import Interaction from "@/models/Interaction";
 
@@ -34,13 +35,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has premium access to this feature
-    const user = await User.findById(userId).select("subscription");
-    if (!user?.subscription || 
-        (user.subscription.plan !== "premium" && user.subscription.plan !== "premium_plus") ||
-        new Date() > new Date(user.subscription.expiresAt)) {
+    // Check if user can message before match (Premium Plus feature)
+    const canMessage = await canUserPerformAction(userId, "message_before_matching");
+    if (!canMessage.allowed) {
       return NextResponse.json(
-        { error: "Premium subscription required for message before match" },
+        { error: canMessage.reason || "Premium subscription required for message before match" },
         { status: 403 }
       );
     }

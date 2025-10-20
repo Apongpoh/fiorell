@@ -1,0 +1,10 @@
+<svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="48" height="32" rx="4" fill="white"/>
+  <rect x="0.5" y="0.5" width="47" height="31" rx="3.5" stroke="#D1D5DB"/>
+  
+  <!-- Simplified Visa Logo -->
+  <rect x="4" y="10" width="40" height="12" rx="2" fill="#1A1F71"/>
+  
+  <!-- VISA text in white -->
+  <text x="24" y="19" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="10" font-weight="bold" letter-spacing="1px">VISA</text>
+</svg>

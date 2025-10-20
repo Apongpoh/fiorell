@@ -1,9 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import lemonSqueezyService from "@/lib/lemonSqueezy";
 import { verifyAuth } from "@/lib/auth";
 import User from "@/models/User";
 import { logger } from "@/lib/logger";
+
+// Static plans data (same as in /api/subscription/plans)
+const SUBSCRIPTION_PLANS = [
+  {
+    id: "premium_monthly",
+    name: "Premium",
+    description: "Unlock premium features and find more meaningful connections",
+    price: 9.99,
+    currency: "USD",
+    interval: "month" as const,
+    popular: false,
+  },
+  {
+    id: "premium_annual",
+    name: "Premium",
+    description: "Best value - Premium features with annual savings",
+    price: 99.99,
+    currency: "USD",
+    interval: "year" as const,
+    popular: true,
+  },
+  {
+    id: "premium_plus_monthly",
+    name: "Premium Plus",
+    description: "Ultimate dating experience with exclusive features",
+    price: 19.99,
+    currency: "USD",
+    interval: "month" as const,
+    popular: false,
+  },
+  {
+    id: "premium_plus_annual",
+    name: "Premium Plus",
+    description: "Ultimate experience with maximum savings",
+    price: 199.99,
+    currency: "USD",
+    interval: "year" as const,
+    popular: false,
+  }
+];
 
 // Get available plans and user's current subscription
 
@@ -31,26 +70,27 @@ export async function GET(request: NextRequest) {
       console.log("User not authenticated, showing public plans");
     }
 
-    // Get available plans (public data)
-    const plans = lemonSqueezyService.getPlans();
-
-    // Add savings calculations for annual plans
-    const plansWithSavings = plans.map((plan) => {
+    // Calculate savings for annual plans
+    const plansWithSavings = SUBSCRIPTION_PLANS.map((plan) => {
       if (plan.interval === "year") {
-        const monthlyEquivalent = plans.find(
+        const monthlyEquivalent = SUBSCRIPTION_PLANS.find(
           (p) =>
             p.id.replace("_annual", "") === plan.id.replace("_annual", "") &&
             p.interval === "month"
         );
 
         if (monthlyEquivalent) {
-          const savings = lemonSqueezyService.calculateAnnualSavings(
-            monthlyEquivalent.price,
-            plan.price
-          );
+          const annualCost = plan.price;
+          const monthlyCost = monthlyEquivalent.price * 12;
+          const savingsAmount = monthlyCost - annualCost;
+          const savingsPercentage = Math.round((savingsAmount / monthlyCost) * 100);
+          
           return {
             ...plan,
-            savings,
+            savings: {
+              savingsAmount,
+              savingsPercentage
+            },
             monthlyEquivalentPrice: monthlyEquivalent.price,
           };
         }
@@ -91,9 +131,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get plan details
-    const plan = lemonSqueezyService.getPlan(planId);
-    if (!plan) {
+    // Validate plan ID (check against our static plans)
+    const validPlanIds = [
+      "premium_monthly",
+      "premium_annual", 
+      "premium_plus_monthly",
+      "premium_plus_annual"
+    ];
+    
+    if (!validPlanIds.includes(planId)) {
       return NextResponse.json({ error: "Invalid plan ID" }, { status: 400 });
     }
 
@@ -109,26 +155,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create checkout session
-    const checkout = await lemonSqueezyService.createCheckout({
-      variantId: plan.lemonsqueezyVariantId,
-      customEmail: user.email,
-      customName: `${user.firstName} ${user.lastName}`,
-      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/success?session_id={checkout_id}`,
-      customData: {
-        userId: userId,
-        planId: planId,
+    // Generate a placeholder checkout session
+    // This simulates what LemonSqueezy would return
+    const checkoutId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Return placeholder checkout URL that goes to our demo checkout page
+    const checkoutUrl = `${process.env.NEXT_PUBLIC_APP_URL}/subscription/checkout?session=${checkoutId}&plan=${planId}&user=${userId}`;
+
+    logger.info("Created placeholder checkout session:", {
+      action: "create_placeholder_checkout",
+      metadata: {
+        userId,
+        planId,
+        checkoutId,
         userEmail: user.email,
       },
     });
 
-    if (!checkout.success) {
-      return NextResponse.json({ error: checkout.error }, { status: 500 });
-    }
-
     return NextResponse.json({
-      checkoutUrl: checkout.checkoutUrl,
-      checkoutId: checkout.checkoutId,
+      checkoutUrl,
+      checkoutId,
+      isPlaceholder: true, // Flag to indicate this is a demo checkout
     });
   } catch (error) {
     logger.error("Error creating subscription checkout:", {

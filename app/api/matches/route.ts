@@ -49,11 +49,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ matches: [] });
     }
 
+    // Get all blocked user relationships
+    const blocks = await Block.find({
+      $or: [
+        { blocker: userId, active: true },
+        { blocked: userId, active: true },
+      ],
+    });
+
+    const blockedUserIds = new Set();
+    blocks.forEach(block => {
+      if (block.blocker.toString() === userId) {
+        blockedUserIds.add(block.blocked.toString());
+      } else {
+        blockedUserIds.add(block.blocker.toString());
+      }
+    });
+
     // Format matches for response
     const formattedMatches = await Promise.all(
       matches.map(async (match) => {
         const otherUser =
           match.user1._id.toString() === userId ? match.user2 : match.user1;
+        
+        // Check if this user is blocked
+        const otherUserId = otherUser._id.toString();
+        const isBlocked = blockedUserIds.has(otherUserId);
 
         // Get the last message for this match
         const lastMessage = await Message.findOne({
@@ -97,6 +118,8 @@ export async function GET(request: NextRequest) {
             lastSeen: otherUser.lastSeen,
             verification: otherUser.verification || { isVerified: false },
             isOnline,
+            blockedByYou: isBlocked && blocks.some(b => b.blocker.toString() === userId && b.blocked.toString() === otherUserId),
+            blockedYou: isBlocked && blocks.some(b => b.blocked.toString() === userId && b.blocker.toString() === otherUserId),
           },
           lastMessage: lastMessage
             ? {

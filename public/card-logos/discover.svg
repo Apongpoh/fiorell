@@ -1,0 +1,7 @@
+<svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="48" height="32" rx="4" fill="white"/>
+  <rect x="0.5" y="0.5" width="47" height="31" rx="3.5" stroke="#D1D5DB"/>
+  <rect x="6" y="8" width="36" height="16" rx="2" fill="#FF6000"/>
+  <text x="24" y="18" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="8" font-weight="bold">DISCOVER</text>
+  <circle cx="38" cy="12" r="3" fill="white" opacity="0.3"/>
+</svg>

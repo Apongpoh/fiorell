@@ -1,0 +1,7 @@
+<svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="48" height="32" rx="4" fill="white"/>
+  <rect x="0.5" y="0.5" width="47" height="31" rx="3.5" stroke="#D1D5DB"/>
+  <rect x="8" y="12" width="32" height="8" rx="1" fill="#006FCF"/>
+  <path d="M12 16L16 12V14H20L16 20V18H12V16Z" fill="white"/>
+  <text x="24" y="19" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="6" font-weight="bold">AMERICAN EXPRESS</text>
+</svg>
