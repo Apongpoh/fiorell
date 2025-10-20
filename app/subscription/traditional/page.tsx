@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   Crown,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useNotification } from "@/contexts/NotificationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 interface Plan {
   id: string;
@@ -35,6 +36,25 @@ interface UserSubscription {
 }
 
 export default function TraditionalSubscriptionPage() {
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 flex items-center justify-center">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-pink-600 mx-auto mb-4" />
+              <p className="text-gray-600">Loading subscription plans...</p>
+            </div>
+          </div>
+        }
+      >
+        <TraditionalSubscriptionContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+function TraditionalSubscriptionContent() {
   const { showNotification } = useNotification();
   const { user: currentUser } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);

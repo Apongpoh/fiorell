@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useAuth, withAdminAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 interface AdminStats {
   users: {
@@ -58,6 +59,22 @@ interface AdminStats {
 }
 
 function AdminDashboard() {
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+          </div>
+        }
+      >
+        <AdminDashboardContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+function AdminDashboardContent() {
   const { user } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -76,6 +93,12 @@ function AdminDashboard() {
       return;
     }
 
+    // Additional safety check for deployment environments
+    if (!user || !user.isAdmin) {
+      console.warn("Attempted to load admin stats without proper admin privileges");
+      return;
+    }
+
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -86,6 +109,10 @@ function AdminDashboard() {
       
       const token = localStorage.getItem("fiorell_auth_token");
       
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
+      
       const response = await fetch('/api/admin/dashboard', {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -93,8 +120,8 @@ function AdminDashboard() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch admin stats");
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(errorData.error || `Failed to fetch admin stats (${response.status})`);
       }
 
       const data = await response.json();
@@ -142,7 +169,7 @@ function AdminDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [mounted]);
+  }, [mounted, user]);
 
   useEffect(() => {
     // Load admin stats only after component is mounted and user is verified

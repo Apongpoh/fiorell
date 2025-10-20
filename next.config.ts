@@ -15,6 +15,21 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Ensure proper SSR handling for admin and subscription pages
+  experimental: {
+    esmExternals: false,
+  },
+  // Improve build stability
+  typescript: {
+    // Don't fail build on TypeScript errors during deployment
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    // Don't fail build on ESLint errors during deployment
+    ignoreDuringBuilds: false,
+  },
+  // Optimize for Vercel deployment
+  swcMinify: true,
 };
 
 export default nextConfig;
