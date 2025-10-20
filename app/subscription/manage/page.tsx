@@ -38,16 +38,34 @@ function SubscriptionManagePage() {
   const [hasSubscription, setHasSubscription] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Handle client-side mounting
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const getAuthToken = () => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem("fiorell_auth_token");
+  };
 
   useEffect(() => {
-    loadSubscription();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (mounted) {
+      loadSubscription();
+    }
+  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadSubscription = async () => {
+    if (!mounted) return;
+    
     try {
+      const token = getAuthToken();
+      if (!token) return;
+
       const response = await fetch("/api/subscription/manage", {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -65,21 +83,22 @@ function SubscriptionManagePage() {
   };
 
   const handleCancelSubscription = async () => {
-    if (!subscription || actionLoading) return;
+    if (!subscription || actionLoading || !mounted) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to cancel your subscription? You&apos;ll still have access until the end of your current billing period."
+      "Are you sure you want to cancel your subscription? You'll still have access until the end of your current billing period."
     );
 
     if (!confirmed) return;
 
     try {
       setActionLoading("cancel");
+      const token = getAuthToken();
 
       const response = await fetch("/api/subscription/manage", {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -105,16 +124,17 @@ function SubscriptionManagePage() {
   };
 
   const handleResumeSubscription = async () => {
-    if (!subscription || actionLoading) return;
+    if (!subscription || actionLoading || !mounted) return;
 
     try {
       setActionLoading("resume");
+      const token = getAuthToken();
 
       const response = await fetch("/api/subscription/manage", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ action: "resume" }),
       });
@@ -164,7 +184,7 @@ function SubscriptionManagePage() {
     }
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

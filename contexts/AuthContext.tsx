@@ -7,6 +7,7 @@ import React, {
   useState,
   ReactNode,
 } from "react";
+import { Shield } from "lucide-react";
 import { authAPI, userAPI } from "@/lib/api";
 import { useNotification } from "./NotificationContext";
 
@@ -322,14 +323,23 @@ export const withAuth = <P extends object>(
 ) => {
   return function AuthenticatedComponent(props: P) {
     const { isAuthenticated, isLoading } = useAuth();
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-      if (!isLoading && !isAuthenticated) {
-        window.location.href = "/login";
-      }
-    }, [isAuthenticated, isLoading]);
+      setMounted(true);
+    }, []);
 
-    if (isLoading) {
+    useEffect(() => {
+      if (mounted && !isLoading && !isAuthenticated) {
+        // Use Next.js router instead of window.location for better SSR compatibility
+        if (typeof window !== 'undefined') {
+          window.location.href = "/login";
+        }
+      }
+    }, [isAuthenticated, isLoading, mounted]);
+
+    // Don't render anything during SSR or before mounting
+    if (!mounted || isLoading) {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
@@ -339,6 +349,61 @@ export const withAuth = <P extends object>(
 
     if (!isAuthenticated) {
       return null;
+    }
+
+    return <Component {...props} />;
+  };
+};
+
+// Higher-order component specifically for admin routes
+export const withAdminAuth = <P extends object>(
+  Component: React.ComponentType<P>
+) => {
+  return function AdminComponent(props: P) {
+    const { user, isAuthenticated, isLoading } = useAuth();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+      setMounted(true);
+    }, []);
+
+    useEffect(() => {
+      if (mounted && !isLoading) {
+        if (!isAuthenticated) {
+          if (typeof window !== 'undefined') {
+            window.location.href = "/login";
+          }
+        } else if (user && !user.isAdmin) {
+          if (typeof window !== 'undefined') {
+            window.location.href = "/dashboard";
+          }
+        }
+      }
+    }, [isAuthenticated, isLoading, mounted, user]);
+
+    // Don't render anything during SSR or before mounting
+    if (!mounted || isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+        </div>
+      );
+    }
+
+    if (!isAuthenticated || !user || !user.isAdmin) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <Shield className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h1 className="text-xl font-semibold text-gray-900 mb-2">
+              Access Denied
+            </h1>
+            <p className="text-gray-600">
+              You don&apos;t have permission to access the admin dashboard.
+            </p>
+          </div>
+        </div>
+      );
     }
 
     return <Component {...props} />;

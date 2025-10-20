@@ -81,9 +81,20 @@ export default function SubscriptionPage() {
   const [currentStep, setCurrentStep] = useState<PaymentStep>("method_selection");
   const [cryptoPaymentData, setCryptoPaymentData] = useState<CryptoPaymentData | null>(null);
   const [showTraditionalOptions, setShowTraditionalOptions] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
   const { showNotification } = useNotification();
   const { user: currentUser } = useAuth();
+
+  // Handle client-side mounting
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const getAuthToken = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem("fiorell_auth_token");
+  }, []);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -101,10 +112,15 @@ export default function SubscriptionPage() {
   }, [showNotification]);
 
   const fetchUserSubscription = async () => {
+    if (!mounted) return;
+    
     try {
+      const token = getAuthToken();
+      if (!token) return;
+
       const response = await fetch("/api/subscription", {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (response.ok) {
@@ -117,11 +133,13 @@ export default function SubscriptionPage() {
   };
 
   useEffect(() => {
-    fetchPlans();
-    if (currentUser) {
-      fetchUserSubscription();
+    if (mounted) {
+      fetchPlans();
+      if (currentUser) {
+        fetchUserSubscription();
+      }
     }
-  }, [currentUser, fetchPlans]);
+  }, [currentUser, fetchPlans, mounted]);
 
   const handleCryptoPaymentSelect = async (paymentData: {
     cryptocurrency: string;
@@ -130,17 +148,20 @@ export default function SubscriptionPage() {
     amountCrypto: number;
     amountUSD: number;
   }) => {
+    if (!mounted) return;
+    
     console.log("handleCryptoPaymentSelect called with:", paymentData);
 
     try {
       setProcessingPlan("crypto_" + paymentData.planType);
       console.log("Making API call to /api/crypto/payment");
+      const token = getAuthToken();
 
       const response = await fetch("/api/crypto/payment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           cryptocurrency: paymentData.cryptocurrency,
@@ -174,6 +195,8 @@ export default function SubscriptionPage() {
   };
 
   const handleTraditionalCheckout = async (planId: string) => {
+    if (!mounted) return;
+    
     if (!currentUser) {
       showNotification("Please sign in to upgrade to premium", "error");
       window.location.href = `/login?redirect=${encodeURIComponent("/subscription")}`;
@@ -182,12 +205,13 @@ export default function SubscriptionPage() {
 
     try {
       setProcessingPlan(planId);
+      const token = getAuthToken();
 
       const response = await fetch("/api/subscription/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ planId }),
       });
@@ -227,7 +251,7 @@ export default function SubscriptionPage() {
     setCryptoPaymentData(null);
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-pink-600" />

@@ -20,6 +20,7 @@ import {
   Users,
   Sparkles,
   Info,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -253,21 +254,80 @@ function ProfilePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Photo Modal */}
       {showPhotoModal && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 z-[9999] flex items-center justify-center"
+          onClick={() => setShowPhotoModal(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' || e.key === 'Tab') {
+              setShowPhotoModal(false);
+            }
+          }}
+          tabIndex={0}
+        >
+          {/* Close button with X icon - more prominent */}
           <button
-            onClick={() => setShowPhotoModal(false)}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowPhotoModal(false);
+            }}
+            className="absolute top-6 right-6 text-white hover:text-red-400 transition-colors z-[10000] bg-black bg-opacity-80 hover:bg-opacity-100 rounded-full p-3 border-2 border-white hover:border-red-400"
+            title="Close (Press Esc or Tab)"
           >
-            <ArrowLeft className="h-6 w-6 transform rotate-90" />
+            <X className="h-8 w-8" />
           </button>
-          <Image
-            src={profile.photos[currentPhotoIndex].url}
-            alt={`${profile.firstName}'s photo ${currentPhotoIndex + 1}`}
-            width={800}
-            height={800}
-            className="max-h-screen max-w-full object-contain"
-            priority
-          />
+          
+          {/* Navigation arrows for multiple photos */}
+          {profile?.photos && profile.photos.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevPhoto();
+                }}
+                className="absolute left-6 top-1/2 transform -translate-y-1/2 text-white hover:text-blue-400 transition-colors z-[10000] bg-black bg-opacity-60 hover:bg-opacity-80 rounded-full p-3"
+                title="Previous photo"
+              >
+                <ArrowLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextPhoto();
+                }}
+                className="absolute right-6 top-1/2 transform -translate-y-1/2 text-white hover:text-blue-400 transition-colors z-[10000] bg-black bg-opacity-60 hover:bg-opacity-80 rounded-full p-3"
+                title="Next photo"
+              >
+                <ArrowLeft className="h-6 w-6 transform rotate-180" />
+              </button>
+            </>
+          )}
+          
+          {/* Image container - click won't close modal */}
+          <div 
+            className="relative max-w-4xl max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={profile.photos[currentPhotoIndex].url}
+              alt={`${profile.firstName}'s photo ${currentPhotoIndex + 1}`}
+              width={800}
+              height={800}
+              className="max-h-screen max-w-full object-contain"
+              priority
+            />
+          </div>
+          
+          {/* Photo counter */}
+          {profile?.photos && profile.photos.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-80 px-4 py-2 rounded-full text-sm font-medium">
+              {currentPhotoIndex + 1} / {profile.photos.length}
+            </div>
+          )}
+          
+          {/* Instructions */}
+          <div className="absolute bottom-6 right-6 text-white text-sm bg-black bg-opacity-60 px-3 py-1 rounded">
+            Click outside or press Esc/Tab to close
+          </div>
         </div>
       )}
 

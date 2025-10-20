@@ -15,7 +15,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
-import { useAuth, withAuth } from "@/contexts/AuthContext";
+import { useAuth, withAdminAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
 interface AdminStats {
@@ -64,8 +64,18 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const loadStats = useCallback(async (isRefresh = false) => {
+    // Don't load stats during SSR or before component is mounted
+    if (!mounted || typeof window === "undefined") {
+      return;
+    }
+
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -132,31 +142,19 @@ function AdminDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [mounted]);
 
   useEffect(() => {
-    // Redirect if not admin
-    if (user && !user.isAdmin) {
-      router.push("/dashboard");
-      return;
+    // Load admin stats only after component is mounted and user is verified
+    if (mounted && user && user.isAdmin) {
+      loadStats();
     }
+  }, [user, loadStats, mounted]);
 
-    // Load admin stats
-    loadStats();
-  }, [user, router, loadStats]);
-
-  if (!user || !user.isAdmin) {
+  if (!mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            Access Denied
-          </h1>
-          <p className="text-gray-600">
-            You don&apos;t have permission to access the admin dashboard.
-          </p>
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
       </div>
     );
   }
@@ -182,7 +180,7 @@ function AdminDashboard() {
                   Admin Dashboard
                 </h1>
                 <p className="text-sm text-gray-600">
-                  Welcome back, {user.firstName}
+                  Welcome back, {user?.firstName}
                 </p>
               </div>
             </div>
@@ -567,4 +565,4 @@ function AdminDashboard() {
   );
 }
 
-export default withAuth(AdminDashboard);
+export default withAdminAuth(AdminDashboard);

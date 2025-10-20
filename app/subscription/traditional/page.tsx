@@ -41,6 +41,17 @@ export default function TraditionalSubscriptionPage() {
   const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Handle client-side mounting
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const getAuthToken = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem("fiorell_auth_token");
+  }, []);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -58,10 +69,15 @@ export default function TraditionalSubscriptionPage() {
   }, [showNotification]);
 
   const fetchUserSubscription = async () => {
+    if (!mounted) return;
+    
     try {
+      const token = getAuthToken();
+      if (!token) return;
+
       const response = await fetch("/api/subscription", {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (response.ok) {
@@ -74,13 +90,17 @@ export default function TraditionalSubscriptionPage() {
   };
 
   useEffect(() => {
-    fetchPlans();
-    if (currentUser) {
-      fetchUserSubscription();
+    if (mounted) {
+      fetchPlans();
+      if (currentUser) {
+        fetchUserSubscription();
+      }
     }
-  }, [currentUser, fetchPlans]);
+  }, [currentUser, fetchPlans, mounted]);
 
   const handleUpgrade = async (planId: string) => {
+    if (!mounted) return;
+    
     if (!currentUser) {
       showNotification("Please sign in to upgrade to premium", "error");
       window.location.href = `/login?redirect=${encodeURIComponent("/subscription/traditional")}`;
@@ -89,12 +109,13 @@ export default function TraditionalSubscriptionPage() {
 
     try {
       setProcessingPlan(planId);
+      const token = getAuthToken();
 
       const response = await fetch("/api/subscription/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("fiorell_auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ planId }),
       });
@@ -117,7 +138,8 @@ export default function TraditionalSubscriptionPage() {
     }
   };
 
-  if (loading) {
+  // Show loading state until mounted
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
