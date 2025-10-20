@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -15,8 +15,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
-import { useAuth, withAdminAuth } from "@/contexts/AuthContext";
-import ErrorBoundary from "@/components/ErrorBoundary";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AdminStats {
   users: {
@@ -58,22 +57,6 @@ interface AdminStats {
 }
 
 function AdminDashboard() {
-  return (
-    <ErrorBoundary>
-      <Suspense
-        fallback={
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
-          </div>
-        }
-      >
-        <AdminDashboardContent />
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
-
-function AdminDashboardContent() {
   const { user } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -590,4 +573,54 @@ function AdminDashboardContent() {
   );
 }
 
-export default withAdminAuth(AdminDashboard);
+// Simple admin wrapper - check admin status in component instead of HOC
+function AdminProtectedDashboard() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Redirect non-authenticated users
+  useEffect(() => {
+    if (mounted && !isLoading && !isAuthenticated) {
+      if (typeof window !== 'undefined') {
+        window.location.href = "/login";
+      }
+    }
+  }, [isAuthenticated, isLoading, mounted]);
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (mounted && !isLoading && isAuthenticated && user && !user.isAdmin) {
+      if (typeof window !== 'undefined') {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [isAuthenticated, isLoading, mounted, user]);
+
+  if (!mounted || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user?.isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Shield className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-600">You don&apos;t have admin permissions.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <AdminDashboard />;
+}
+
+export default AdminProtectedDashboard;
