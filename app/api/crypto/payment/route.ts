@@ -6,6 +6,7 @@ import CryptoWallet from "@/models/CryptoWallet";
 import { getCryptoService } from "@/lib/cryptoService";
 import { v4 as uuidv4 } from "uuid";
 import QRCode from "qrcode";
+import mongoose from "mongoose";
 
 // Create a new crypto payment
 export async function POST(request: NextRequest) {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     const amountUSD = planPricing[planType]?.[planDuration] || 9.99;
     const amountCrypto = await cryptoService.convertUSDToCrypto(amountUSD, cryptocurrency);
     
-    // Generate payment address
+    // Get static payment address (same address for all payments)
     const paymentAddress = await cryptoService.generateAddress(cryptocurrency);
     
     // Create payment record
@@ -105,20 +106,35 @@ export async function POST(request: NextRequest) {
     payment.paymentUrl = paymentUrl;
     await payment.save();
     
-    // Create or update wallet record
-    await CryptoWallet.findOneAndUpdate(
-      { userId, address: paymentAddress, cryptocurrency },
-      {
-        userId,
-        address: paymentAddress,
-        cryptocurrency,
-        network: process.env.CRYPTO_NETWORK || "testnet",
-        addressType: "receiving",
-        isActive: true,
-        isWatchOnly: true,
-      },
-      { upsert: true, new: true }
-    );
+    // Optional: Create or update a single wallet record for this static address
+    // Since you're using static addresses, we don't need per-user wallet records
+    try {
+      await CryptoWallet.findOneAndUpdate(
+        { address: paymentAddress, cryptocurrency },
+        {
+          $setOnInsert: {
+            userId: new mongoose.Types.ObjectId(userId), // Set only on first insert
+            address: paymentAddress,
+            cryptocurrency,
+            network: process.env.CRYPTO_NETWORK || "mainnet",
+            addressType: "receiving",
+            isActive: true,
+            isWatchOnly: true,
+            label: `Static ${cryptocurrency.toUpperCase()} address`,
+            createdAt: new Date(),
+          },
+          $set: {
+            lastUsedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          $inc: { usageCount: 1 }
+        },
+        { upsert: true, new: true }
+      );
+    } catch (walletError) {
+      // Log wallet error but don't fail the payment creation
+      console.warn("Wallet record update failed (non-critical):", walletError);
+    }
     
     // Start monitoring the address (in a real implementation)
     // cryptoService.monitorAddress(paymentAddress, cryptocurrency, amountCrypto, handlePaymentReceived);

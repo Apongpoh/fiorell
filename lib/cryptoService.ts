@@ -156,64 +156,41 @@ export class CryptoService {
 
   /**
    * Generate a new receiving address
+   * NOTE: This uses static addresses from environment variables
+   * instead of generating new ones dynamically
    */
   async generateAddress(crypto: "bitcoin" | "monero"): Promise<string> {
     if (crypto === "bitcoin") {
-      return this.generateBitcoinAddress();
+      return this.getStaticBitcoinAddress();
     } else {
-      return this.generateMoneroAddress();
+      return this.getStaticMoneroAddress();
     }
   }
 
   /**
-   * Generate Bitcoin address
+   * Get static Bitcoin address from environment variables
    */
-  private async generateBitcoinAddress(): Promise<string> {
-    try {
-      // For production, you would use a proper Bitcoin library like bitcoinjs-lib
-      // or connect to your Bitcoin node/wallet
-      
-      // Example using a simple approach (replace with actual implementation)
-      const response = await this.bitcoinRPC("getnewaddress", ["payment", "bech32"]);
-      return response.result as string;
-    } catch (error) {
-      console.error("Error generating Bitcoin address:", error);
-      
-      // Use environment variable or fallback to hardcoded address
-      const cakeWalletBtcAddress = process.env.CAKE_WALLET_BTC_ADDRESS || "YOUR_CAKE_WALLET_BITCOIN_ADDRESS_HERE";
-      
-      if (cakeWalletBtcAddress === "YOUR_CAKE_WALLET_BITCOIN_ADDRESS_HERE") {
-        console.warn("⚠️  Please set your Cake Wallet Bitcoin address in CAKE_WALLET_BTC_ADDRESS environment variable or update the code directly");
-      }
-      
-      return cakeWalletBtcAddress;
+  private getStaticBitcoinAddress(): string {
+    const cakeWalletBtcAddress = process.env.CAKE_WALLET_BTC_ADDRESS;
+    
+    if (!cakeWalletBtcAddress) {
+      throw new Error("CAKE_WALLET_BTC_ADDRESS environment variable is required");
     }
+    
+    return cakeWalletBtcAddress;
   }
 
   /**
-   * Generate Monero address
+   * Get static Monero address from environment variables
    */
-  private async generateMoneroAddress(): Promise<string> {
-    try {
-      // Connect to Monero wallet RPC
-      const response = await this.moneroWalletRPC("create_address", {
-        account_index: 0,
-        label: `Payment-${Date.now()}`,
-      });
-      
-      return (response.result as { address: string }).address;
-    } catch (error) {
-      console.error("Error generating Monero address:", error);
-      
-      // Use environment variable or fallback to hardcoded address
-      const cakeWalletXmrAddress = process.env.CAKE_WALLET_XMR_ADDRESS || "YOUR_CAKE_WALLET_MONERO_ADDRESS_HERE";
-      
-      if (cakeWalletXmrAddress === "YOUR_CAKE_WALLET_MONERO_ADDRESS_HERE") {
-        console.warn("⚠️  Please set your Cake Wallet Monero address in CAKE_WALLET_XMR_ADDRESS environment variable or update the code directly");
-      }
-      
-      return cakeWalletXmrAddress;
+  private getStaticMoneroAddress(): string {
+    const cakeWalletXmrAddress = process.env.CAKE_WALLET_XMR_ADDRESS;
+    
+    if (!cakeWalletXmrAddress) {
+      throw new Error("CAKE_WALLET_XMR_ADDRESS environment variable is required");
     }
+    
+    return cakeWalletXmrAddress;
   }
 
   /**

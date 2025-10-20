@@ -25,6 +25,7 @@ export interface ICryptoWallet extends Document {
   usageCount: number; // How many times this address has been used
   totalReceived: number; // Total amount received
   totalSent: number; // Total amount sent
+  lastUsedAt?: Date; // When this address was last used
   
   // Security
   isWatchOnly: boolean; // True if we only watch this address
@@ -121,6 +122,9 @@ const CryptoWalletSchema = new Schema<ICryptoWallet>(
       default: 0,
       min: 0,
     },
+    lastUsedAt: {
+      type: Date,
+    },
     
     // Security
     isWatchOnly: {
@@ -157,7 +161,7 @@ const CryptoWalletSchema = new Schema<ICryptoWallet>(
 // Compound indexes
 CryptoWalletSchema.index({ userId: 1, cryptocurrency: 1 });
 CryptoWalletSchema.index({ cryptocurrency: 1, network: 1 });
-CryptoWalletSchema.index({ address: 1, cryptocurrency: 1 }, { unique: true });
+CryptoWalletSchema.index({ address: 1, cryptocurrency: 1 }); // Removed unique constraint for static addresses
 CryptoWalletSchema.index({ isActive: 1, usageCount: 1 });
 
 // Virtual for display name
