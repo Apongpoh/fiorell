@@ -88,7 +88,7 @@ function TraditionalSubscriptionContent() {
     }
   }, [showNotification]);
 
-  const fetchUserSubscription = async () => {
+  const fetchUserSubscription = useCallback(async () => {
     if (!mounted) return;
     
     try {
@@ -107,7 +107,7 @@ function TraditionalSubscriptionContent() {
     } catch (error) {
       console.error("Error fetching subscription:", error);
     }
-  };
+  }, [mounted, getAuthToken]);
 
   useEffect(() => {
     if (mounted) {
@@ -116,7 +116,7 @@ function TraditionalSubscriptionContent() {
         fetchUserSubscription();
       }
     }
-  }, [currentUser, fetchPlans, mounted]);
+  }, [currentUser, fetchPlans, mounted, fetchUserSubscription]);
 
   const handleUpgrade = async (planId: string) => {
     if (!mounted) return;

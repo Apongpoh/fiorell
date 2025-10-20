@@ -111,7 +111,7 @@ export default function SubscriptionPage() {
     }
   }, [showNotification]);
 
-  const fetchUserSubscription = async () => {
+  const fetchUserSubscription = useCallback(async () => {
     if (!mounted) return;
     
     try {
@@ -130,7 +130,7 @@ export default function SubscriptionPage() {
     } catch (error) {
       console.error("Error fetching subscription:", error);
     }
-  };
+  }, [mounted, getAuthToken]);
 
   useEffect(() => {
     if (mounted) {
@@ -139,7 +139,7 @@ export default function SubscriptionPage() {
         fetchUserSubscription();
       }
     }
-  }, [currentUser, fetchPlans, mounted]);
+  }, [currentUser, fetchPlans, mounted, fetchUserSubscription]);
 
   const handleCryptoPaymentSelect = async (paymentData: {
     cryptocurrency: string;

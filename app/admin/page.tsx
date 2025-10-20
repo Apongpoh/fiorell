@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth, withAdminAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 interface AdminStats {
@@ -76,7 +75,6 @@ function AdminDashboard() {
 
 function AdminDashboardContent() {
   const { user } = useAuth();
-  const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
