@@ -55,15 +55,24 @@ export default function TraditionalSubscriptionPage() {
 
   const fetchPlans = useCallback(async () => {
     try {
+      console.log("Fetching subscription plans...");
       const response = await fetch("/api/subscription/plans");
       if (response.ok) {
         const data = await response.json();
-        setPlans(data.plans);
+        console.log("Plans loaded:", data.plans?.length || 0);
+        setPlans(data.plans || []);
+      } else {
+        console.error("Failed to fetch plans:", response.status);
+        // Set empty plans array to allow rendering
+        setPlans([]);
       }
     } catch (error) {
       console.error("Error fetching plans:", error);
       showNotification("Failed to load subscription plans", "error");
+      // Set empty plans to prevent infinite loading
+      setPlans([]);
     } finally {
+      console.log("Setting loading to false");
       setLoading(false);
     }
   }, [showNotification]);
@@ -97,6 +106,20 @@ export default function TraditionalSubscriptionPage() {
       }
     }
   }, [currentUser, fetchPlans, mounted, fetchUserSubscription]);
+
+  // Add a timeout to prevent infinite loading on Vercel
+  useEffect(() => {
+    if (mounted) {
+      const timeout = setTimeout(() => {
+        if (loading) {
+          console.warn("Force ending loading state after timeout - ensuring plans render");
+          setLoading(false);
+        }
+      }, 8000); // 8 second timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [mounted, loading]);
 
   const handleUpgrade = async (planId: string) => {
     if (!mounted) return;
@@ -171,7 +194,26 @@ export default function TraditionalSubscriptionPage() {
 
         {/* Plans */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          {plans.map((plan, index) => (
+          {plans.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <Crown className="h-12 w-12 text-pink-600 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Subscription Plans Loading...
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  We're preparing the best subscription options for you.
+                </p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-pink-600 text-white px-6 py-2 rounded-lg hover:bg-pink-700 transition-colors"
+                >
+                  Refresh Page
+                </button>
+              </div>
+            </div>
+          ) : (
+            plans.map((plan, index) => (
             <motion.div
               key={plan.id}
               initial={{ opacity: 0, y: 20 }}
@@ -257,7 +299,7 @@ export default function TraditionalSubscriptionPage() {
                 </button>
               </div>
             </motion.div>
-          ))}
+          )))}
         </div>
       </div>
     </div>
