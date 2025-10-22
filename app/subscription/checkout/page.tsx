@@ -323,8 +323,6 @@ function PlaceholderCheckout() {
         body: JSON.stringify(paymentData),
       }) as { paymentId: string; sessionId: string };
 
-      console.log("Payment information saved:", result);
-
       // Simulate payment processing delay, then show failure
       setTimeout(() => {
         setStep("failed");

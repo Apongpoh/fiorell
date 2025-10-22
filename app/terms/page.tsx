@@ -379,7 +379,7 @@ export default function TermsPage() {
             </Link>
             <div className="mt-4">
               <Link
-                href="/privacy"
+                href="/privacy-policy"
                 className="text-sm text-gray-500 hover:text-pink-600 transition-colors"
               >
                 Privacy Policy
