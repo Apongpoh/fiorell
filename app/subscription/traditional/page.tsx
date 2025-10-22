@@ -202,7 +202,7 @@ export default function TraditionalSubscriptionPage() {
                   Subscription Plans Loading...
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  We're preparing the best subscription options for you.
+                  We&apos;re preparing the best subscription options for you.
                 </p>
                 <button 
                   onClick={() => window.location.reload()}
