@@ -58,7 +58,7 @@ function PlaceholderCheckout() {
     expiryMonth: "12",
     expiryYear: "2025",
     cvc: "123",
-    cardholderName: "Your Name"
+    cardholderName: "Card Name"
   });
 
   // Format card number as user types
@@ -663,7 +663,7 @@ function PlaceholderCheckout() {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="4242 4242 4242 4242"
+                    placeholder="0000 0000 0000 0000"
                     className={`w-full px-4 py-3 pr-20 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent ${
                       validationErrors.cardNumber ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
@@ -778,7 +778,7 @@ function PlaceholderCheckout() {
                 </label>
                 <input
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Card name as it appears on card"
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent ${
                     validationErrors.cardholderName ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
