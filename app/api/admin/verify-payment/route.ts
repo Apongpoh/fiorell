@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user is admin
     const adminUser = await User.findById(payload.userId);
-    if (!adminUser || adminUser.role !== "admin") {
+    if (!adminUser || adminUser.isAdmin !== true) {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }

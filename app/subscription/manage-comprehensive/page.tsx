@@ -91,6 +91,7 @@ export default function ComprehensiveSubscriptionManage() {
   const [showRetryModal, setShowRetryModal] = useState(false);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentHistory | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const { user } = useAuth();
   const { showNotification } = useNotification();
@@ -149,11 +150,13 @@ export default function ComprehensiveSubscriptionManage() {
   const handleCancelTraditionalSubscription = async () => {
     if (!subscriptionData?.traditionalSubscription || actionLoading) return;
 
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel your subscription? You'll still have access until the end of your current billing period."
-    );
+    // Remove window.confirm, show modal instead
+    setShowCancelModal(true);
+  };
 
-    if (!confirmed) return;
+  // New function to confirm cancel from modal
+  const confirmCancelTraditionalSubscription = async () => {
+    if (!subscriptionData?.traditionalSubscription || actionLoading) return;
 
     try {
       setActionLoading("cancel");
@@ -179,6 +182,7 @@ export default function ComprehensiveSubscriptionManage() {
       );
     } finally {
       setActionLoading(null);
+      setShowCancelModal(false);
     }
   };
 
@@ -767,6 +771,47 @@ export default function ComprehensiveSubscriptionManage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Cancel Subscription Modal */}
+        {showCancelModal && (
+          <div className="fixed inset-0 bg-white/30 backdrop-blur flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+              <div className="flex items-center mb-4">
+                <Trash2 className="w-6 h-6 text-red-500 mr-2" />
+                <h3 className="text-lg font-bold text-gray-900">Cancel Subscription</h3>
+              </div>
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to cancel your subscription? You'll still have access until the end of your current billing period.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  onClick={() => setShowCancelModal(false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700"
+                  disabled={actionLoading === "cancel"}
+                >
+                  No, Keep Subscription
+                </Button>
+                <Button
+                  onClick={confirmCancelTraditionalSubscription}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={actionLoading === "cancel"}
+                >
+                  {actionLoading === "cancel" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Cancelling...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Yes, Cancel
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Retry Modal */}
         {showRetryModal && selectedPayment && (
