@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Crown, Bitcoin } from "lucide-react";
+import { Heart, Crown, Bitcoin, Search } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,6 +40,21 @@ export default function Navbar({ showAuthButtons = true }: NavbarProps) {
               <Bitcoin className="w-4 h-4" />
               <span className="font-semibold">Crypto Premium</span>
               <Crown className="w-4 h-4" />
+            </Link>
+          </motion.div>
+
+          {/* Payment Tracking Link */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="hidden lg:block"
+          >
+            <Link
+              href="/payment-tracking"
+              className="flex items-center space-x-2 px-3 py-2 text-gray-700 hover:text-blue-600 transition-colors"
+            >
+              <Search className="w-4 h-4" />
+              <span className="text-sm">Track Payment</span>
             </Link>
           </motion.div>
 

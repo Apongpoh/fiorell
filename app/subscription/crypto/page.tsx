@@ -43,8 +43,11 @@ interface UserSubscription {
 
 interface CryptoPaymentData {
   paymentId: string;
+  paymentReference?: string; // NEW: Payment reference for tracking
   cryptocurrency: string;
   amount: number;
+  amountSat?: number; // NEW: Amount in satoshis for Bitcoin
+  expectedAmountSat?: number; // NEW: Expected amount for verification
   paymentAddress: string;
   qrCode?: string;
   expiresAt: string;

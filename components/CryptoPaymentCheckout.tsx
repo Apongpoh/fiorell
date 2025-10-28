@@ -2,12 +2,16 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Card } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import PaymentProofSubmission from "@/components/PaymentProofSubmission";
 
 interface CryptoPaymentCheckoutProps {
   paymentData: {
     paymentId: string;
+    paymentReference?: string; // NEW: Payment reference for tracking
     cryptocurrency: string;
     amount: number;
+    amountSat?: number; // NEW: Amount in satoshis for Bitcoin
+    expectedAmountSat?: number; // NEW: Expected amount for verification
     paymentAddress: string;
     qrCode?: string;
     expiresAt: string;
@@ -23,14 +27,13 @@ export default function CryptoPaymentCheckout({
   onPaymentConfirmed,
   onCancel,
 }: CryptoPaymentCheckoutProps) {
-  const [paymentStatus, setPaymentStatus] = useState<string>("pending");
+  const [paymentStatus, setPaymentStatus] = useState<"pending" | "user_confirmed" | "admin_verifying" | "confirmed" | "failed" | "expired">("pending");
   const [timeRemaining, setTimeRemaining] = useState<string>("");
-  const [confirmations, setConfirmations] = useState<number>(0);
-  const [requiredConfirmations] = useState<number>(
-    paymentData.cryptocurrency === "bitcoin" ? 1 : 10
-  );
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
+  const [copiedReference, setCopiedReference] = useState(false);
+  const [showProofSubmission, setShowProofSubmission] = useState(false);
+  const [paymentMade, setPaymentMade] = useState(false);
   
   useEffect(() => {
     // Update countdown timer
@@ -58,14 +61,21 @@ export default function CryptoPaymentCheckout({
   }, [paymentData.expiresAt]);
   
   useEffect(() => {
-    // Poll for payment status
+    // Poll for payment status using the new API
     const checkPaymentStatus = async () => {
+      if (!paymentData.paymentReference) return;
+      
       try {
-        const response = await fetch(`/api/crypto/webhook?paymentId=${paymentData.paymentId}`);
+        const token = localStorage.getItem("fiorell_auth_token");
+        const response = await fetch(`/api/crypto/confirm-payment?reference=${paymentData.paymentReference}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
         if (response.ok) {
           const data = await response.json();
           setPaymentStatus(data.payment.status);
-          setConfirmations(data.payment.confirmations || 0);
           
           if (data.payment.status === "confirmed") {
             onPaymentConfirmed();
@@ -76,20 +86,23 @@ export default function CryptoPaymentCheckout({
       }
     };
     
-    const statusInterval = setInterval(checkPaymentStatus, 15000); // Check every 15 seconds
+    const statusInterval = setInterval(checkPaymentStatus, 30000); // Check every 30 seconds
     
     return () => clearInterval(statusInterval);
-  }, [paymentData.paymentId, onPaymentConfirmed]);
+  }, [paymentData.paymentReference, onPaymentConfirmed]);
   
-  const copyToClipboard = async (text: string, type: "address" | "amount") => {
+  const copyToClipboard = async (text: string, type: "address" | "amount" | "reference") => {
     try {
       await navigator.clipboard.writeText(text);
       if (type === "address") {
         setCopiedAddress(true);
         setTimeout(() => setCopiedAddress(false), 2000);
-      } else {
+      } else if (type === "amount") {
         setCopiedAmount(true);
         setTimeout(() => setCopiedAmount(false), 2000);
+      } else if (type === "reference") {
+        setCopiedReference(true);
+        setTimeout(() => setCopiedReference(false), 2000);
       }
     } catch (error) {
       console.error("Failed to copy:", error);
@@ -100,7 +113,9 @@ export default function CryptoPaymentCheckout({
     switch (status) {
       case "pending":
         return "text-yellow-600";
-      case "received":
+      case "user_confirmed":
+        return "text-blue-600";
+      case "admin_verifying":
         return "text-blue-600";
       case "confirmed":
         return "text-green-600";
@@ -115,15 +130,19 @@ export default function CryptoPaymentCheckout({
   const getStatusMessage = (status: string) => {
     switch (status) {
       case "pending":
-        return "Waiting for payment...";
-      case "received":
-        return `Payment received! Waiting for ${requiredConfirmations} confirmation${requiredConfirmations > 1 ? "s" : ""}...`;
+        return paymentMade 
+          ? "Waiting for you to submit payment proof..." 
+          : "Send payment and then submit proof below...";
+      case "user_confirmed":
+        return "Payment proof submitted! Admin reviewing within 24 hours...";
+      case "admin_verifying":
+        return "Admin is verifying your payment proof...";
       case "confirmed":
         return "Payment confirmed! Subscription activated.";
       case "expired":
         return "Payment expired. Please try again.";
       case "failed":
-        return "Payment failed. Please try again.";
+        return "Payment verification failed. Please contact support.";
       default:
         return "Processing...";
     }
@@ -133,15 +152,30 @@ export default function CryptoPaymentCheckout({
     return paymentData.cryptocurrency === "bitcoin" ? "BTC" : "XMR";
   };
   
-  const generatePaymentURI = () => {
-    if (paymentData.cryptocurrency === "bitcoin") {
-      // Bitcoin URI format: bitcoin:address?amount=btc_amount&label=description
-      return `bitcoin:${paymentData.paymentAddress}?amount=${paymentData.amount}&label=Fiorell%20Premium%20Subscription`;
-    } else {
-      // Monero URI format: monero:address?tx_amount=xmr_amount&tx_description=description
-      return `monero:${paymentData.paymentAddress}?tx_amount=${paymentData.amount}&tx_description=Fiorell%20Premium%20Subscription`;
-    }
-  };
+  // Show proof submission component if user chooses to submit proof
+  if (showProofSubmission && paymentData.paymentReference) {
+    return (
+      <PaymentProofSubmission
+        paymentData={{
+          paymentId: paymentData.paymentId,
+          paymentReference: paymentData.paymentReference,
+          cryptocurrency: paymentData.cryptocurrency,
+          amount: paymentData.amount,
+          amountSat: paymentData.amountSat,
+          expectedAmountSat: paymentData.expectedAmountSat,
+          paymentAddress: paymentData.paymentAddress,
+          planType: paymentData.planType,
+          amountUSD: paymentData.amountUSD,
+        }}
+        onProofSubmitted={() => {
+          setShowProofSubmission(false);
+          setPaymentStatus("user_confirmed");
+          onPaymentConfirmed();
+        }}
+        onBack={() => setShowProofSubmission(false)}
+      />
+    );
+  }
   
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -153,6 +187,13 @@ export default function CryptoPaymentCheckout({
           <p className="text-gray-600">
             {paymentData.planType === "premium" ? "Premium" : "Premium Plus"} Subscription
           </p>
+          {paymentData.paymentReference && (
+            <div className="mt-2 p-2 bg-blue-100 rounded-lg">
+              <span className="text-sm text-blue-800">
+                Payment Reference: <strong>{paymentData.paymentReference}</strong>
+              </span>
+            </div>
+          )}
         </div>
         
         {/* Payment Status */}
@@ -160,11 +201,6 @@ export default function CryptoPaymentCheckout({
           <div className={`text-lg font-semibold ${getStatusColor(paymentStatus)}`}>
             {getStatusMessage(paymentStatus)}
           </div>
-          {paymentStatus === "received" && (
-            <div className="text-sm text-gray-600 mt-1">
-              Confirmations: {confirmations}/{requiredConfirmations}
-            </div>
-          )}
           <div className="text-sm text-gray-500 mt-2">
             Payment expires in: <span className="font-mono text-red-600">{timeRemaining}</span>
           </div>
@@ -198,6 +234,32 @@ export default function CryptoPaymentCheckout({
           </p>
         </div>
         
+        {/* Payment Reference */}
+        {paymentData.paymentReference && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Reference (for tracking):
+            </label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={paymentData.paymentReference}
+                readOnly
+                className="flex-1 p-3 border border-gray-300 rounded-lg bg-blue-50 font-mono text-center font-bold"
+              />
+              <Button
+                onClick={() => copyToClipboard(paymentData.paymentReference!, "reference")}
+                className="px-4 py-3 bg-blue-200 hover:bg-blue-300 text-blue-700 rounded-lg"
+              >
+                {copiedReference ? "Copied!" : "Copy"}
+              </Button>
+            </div>
+            <p className="text-xs text-blue-600 mt-1">
+              Keep this reference for tracking your payment
+            </p>
+          </div>
+        )}
+
         {/* Payment Details */}
         <div className="space-y-4 mb-6">
           <div>
@@ -243,13 +305,14 @@ export default function CryptoPaymentCheckout({
         
         {/* Payment Instructions */}
         <div className="bg-blue-50 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold text-blue-900 mb-2">Payment Instructions:</h3>
+          <h3 className="font-semibold text-blue-900 mb-2">New Payment Process:</h3>
           <ol className="list-decimal list-inside text-sm text-blue-800 space-y-1">
             <li>Copy the exact amount and address above</li>
-            <li>Open your {paymentData.cryptocurrency} wallet</li>
+            <li>Copy and save your payment reference: <strong>{paymentData.paymentReference}</strong></li>
             <li>Send the exact amount to the provided address</li>
-            <li>Wait for blockchain confirmations</li>
-            <li>Your subscription will be activated automatically</li>
+            <li>After sending, click &quot;I&apos;ve Made the Payment&quot; below</li>
+            <li>Submit your transaction hash for verification</li>
+            <li>Admin will verify and activate your subscription within 24 hours</li>
           </ol>
         </div>
         
@@ -258,38 +321,72 @@ export default function CryptoPaymentCheckout({
           <div className="flex items-start space-x-2">
             <span className="text-yellow-600 text-xl">⚠️</span>
             <div className="text-sm text-yellow-800">
-              <strong>Important:</strong> Send the exact amount shown above. Sending a different 
-              amount may result in payment delays or loss of funds. This address is unique to 
-              your order and expires in {timeRemaining}.
+              <strong>Important:</strong> Send the exact amount shown above to the address. 
+              After sending, you&apos;ll need to submit proof of payment (transaction hash) for verification. 
+              Keep your payment reference <strong>{paymentData.paymentReference}</strong> for tracking.
             </div>
           </div>
         </div>
         
         {/* Action Buttons */}
-        <div className="flex space-x-4">
-          <Button
-            onClick={() => {
-              const uri = generatePaymentURI();
-              console.log('Opening payment URI:', uri);
-              
-              // Try to open wallet app
-              const opened = window.open(uri, "_blank");
-              
-              // If the window didn't open or closed immediately, show instructions
-              setTimeout(() => {
-                if (!opened || opened.closed) {
-                  alert(`If your ${paymentData.cryptocurrency} wallet didn't open automatically:\n\n1. Copy the address and amount shown above\n2. Open your wallet app manually\n3. Create a new transaction with the copied details\n\nPayment URI: ${uri}`);
-                }
-              }, 500);
-            }}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg"
-            disabled={paymentStatus === "expired"}
-          >
-            Open Wallet
-          </Button>
+        <div className="space-y-4">
+          {/* Primary action based on payment status */}
+          {paymentStatus === "pending" && !paymentMade && (
+            <Button
+              onClick={() => setPaymentMade(true)}
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg"
+            >
+              I&apos;ve Made the Payment
+            </Button>
+          )}
+
+          {(paymentMade || paymentStatus === "pending") && paymentMade && (
+            <Button
+              onClick={() => setShowProofSubmission(true)}
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg"
+            >
+              Submit Payment Proof
+            </Button>
+          )}
+
+          {paymentStatus === "user_confirmed" && (
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <p className="text-blue-800 font-medium">
+                Payment proof submitted! We&apos;ll verify within 24 hours.
+              </p>
+            </div>
+          )}
+
+          {(paymentStatus === "admin_verifying" || paymentStatus === "confirmed") && (
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <p className="text-green-800 font-medium">
+                {paymentStatus === "confirmed" 
+                  ? "Payment confirmed! Your subscription is now active." 
+                  : "Admin is verifying your payment..."}
+              </p>
+            </div>
+          )}
+
+          {paymentStatus === "expired" && (
+            <div className="text-center p-4 bg-red-50 rounded-lg">
+              <p className="text-red-800 font-medium">
+                Payment has expired. Please start a new payment.
+              </p>
+            </div>
+          )}
+
+          {paymentStatus === "failed" && (
+            <div className="text-center p-4 bg-red-50 rounded-lg">
+              <p className="text-red-800 font-medium">
+                Payment verification failed. Please contact support or try again.
+              </p>
+            </div>
+          )}
+
+          {/* Cancel button */}
           <Button
             onClick={onCancel}
-            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-lg"
+            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-lg"
           >
             Cancel Payment
           </Button>

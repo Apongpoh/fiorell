@@ -33,13 +33,19 @@ export function middleware(request: NextRequest) {
   }
 
   // Protect authenticated app routes
-  const protectedPaths = [/^\/matches(\/.*)?$/, /^\/chat(\/.*)?$/];
+  const protectedPaths = [/^\/matches(\/.*)?$/, /^\/chat(\/.*)?$/, /^\/dashboard$/, /^\/profile(\/.*)?$/, /^\/settings(\/.*)?$/];
   const isProtected = protectedPaths.some((re) =>
     re.test(request.nextUrl.pathname)
   );
   if (isProtected) {
-    const tokenCookie = request.cookies.get("auth_token");
-    if (!tokenCookie || !tokenCookie.value) {
+    // Check for token in Authorization header (which frontend should send)
+    const authHeader = request.headers.get("authorization");
+    const hasToken = authHeader && authHeader.startsWith("Bearer ");
+    
+    // Also check for token in cookie as fallback
+    const tokenCookie = request.cookies.get("fiorell_auth_token") || request.cookies.get("auth_token");
+    
+    if (!hasToken && (!tokenCookie || !tokenCookie.value)) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", request.nextUrl.pathname);
       return NextResponse.redirect(loginUrl);
@@ -51,5 +57,5 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   // Run middleware on API routes (for CORS) and selected app routes (for auth)
-  matcher: ["/api/:path*", "/matches/:path*", "/chat/:path*"],
+  matcher: ["/api/:path*", "/matches/:path*", "/chat/:path*", "/dashboard", "/profile/:path*", "/settings/:path*"],
 };

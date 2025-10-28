@@ -59,7 +59,7 @@ interface User {
     verifiedAt?: string;
   };
   subscription: {
-    type: "free" | "premium" | "plus";
+    type: "free" | "premium" | "premium_plus";
     expiresAt?: string;
   };
   stats: {

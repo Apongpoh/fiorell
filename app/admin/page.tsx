@@ -13,6 +13,7 @@ import {
   UserCheck,
   AlertTriangle,
   ArrowRight,
+  Bitcoin,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -310,6 +311,31 @@ function AdminDashboard() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link href="/admin/verify-payments">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-pink-200 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Bitcoin className="h-6 w-6 text-orange-500" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        Payment Verification
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Verify cryptocurrency payment proofs
+                      </p>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-400" />
+                </div>
+                <div className="mt-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  NEW
+                </div>
+              </motion.div>
+            </Link>
+
             <Link href="/admin/support">
               <motion.div
                 whileHover={{ scale: 1.02 }}

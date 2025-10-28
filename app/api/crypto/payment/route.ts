@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import CryptoPayment from "@/models/CryptoPayment";
 import CryptoWallet from "@/models/CryptoWallet";
 import { getCryptoService } from "@/lib/cryptoService";
+import { activateSubscription } from "@/lib/subscriptionActivation";
 import { v4 as uuidv4 } from "uuid";
 import QRCode from "qrcode";
 import mongoose from "mongoose";
@@ -21,6 +22,8 @@ export async function POST(request: NextRequest) {
       planType,
       planDuration,
       isRecurring = false,
+      paymentType = "new", // NEW: "new", "retry", "renewal", "upgrade"
+      previousPaymentId, // NEW: For retry/renewal scenarios
     } = body;
     
     // Validate input
@@ -44,6 +47,43 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Validate payment type
+    if (!["new", "retry", "renewal", "upgrade"].includes(paymentType)) {
+      return NextResponse.json(
+        { error: "Invalid payment type" },
+        { status: 400 }
+      );
+    }
+
+    // For retry/renewal scenarios, validate previous payment exists
+    if ((paymentType === "retry" || paymentType === "renewal") && !previousPaymentId) {
+      return NextResponse.json(
+        { error: "Previous payment ID required for retry/renewal" },
+        { status: 400 }
+      );
+    }
+
+    // Check for existing pending payments (avoid duplicates)
+    const existingPendingPayment = await CryptoPayment.findOne({
+      userId,
+      status: { $in: ["pending", "user_confirmed", "admin_verifying"] },
+      cryptocurrency,
+      planType,
+      planDuration,
+    });
+
+    if (existingPendingPayment && paymentType === "new") {
+      return NextResponse.json({
+        error: "You already have a pending payment for this plan",
+        existingPayment: {
+          paymentId: existingPendingPayment.paymentId,
+          paymentReference: existingPendingPayment.paymentReference,
+          status: existingPendingPayment.status,
+          expiresAt: existingPendingPayment.expiresAt,
+        },
+      }, { status: 409 });
+    }
     
     // Get pricing
     const cryptoService = getCryptoService();
@@ -63,17 +103,62 @@ export async function POST(request: NextRequest) {
     const amountUSD = planPricing[planType]?.[planDuration] || 9.99;
     const amountCrypto = await cryptoService.convertUSDToCrypto(amountUSD, cryptocurrency);
     
+    // Convert to satoshis for Bitcoin to avoid floating point issues
+    const amountSat = cryptocurrency === "bitcoin" ? Math.round(amountCrypto * 100000000) : undefined;
+    
     // Get static payment address (same address for all payments)
     const paymentAddress = await cryptoService.generateAddress(cryptocurrency);
+    
+    // Generate unique payment reference for tracking
+    const generatePaymentReference = (): string => {
+      const timestamp = Date.now().toString(36);
+      const random = Math.random().toString(36).substring(2, 8);
+      return `PAY_${timestamp}_${random}`.toUpperCase();
+    };
+    
+    const paymentReference = generatePaymentReference();
+
+    // Handle previous payment if this is a retry or renewal
+    let previousPayment = null;
+    if (previousPaymentId) {
+      previousPayment = await CryptoPayment.findOne({
+        paymentId: previousPaymentId,
+        userId,
+      });
+
+      if (!previousPayment) {
+        return NextResponse.json(
+          { error: "Previous payment not found" },
+          { status: 404 }
+        );
+      }
+
+      // For retry: mark previous payment as expired if it's still pending
+      if (paymentType === "retry" && ["pending", "user_confirmed", "admin_verifying"].includes(previousPayment.status)) {
+        previousPayment.status = "expired";
+        await previousPayment.save();
+      }
+
+      // For renewal: ensure previous payment was successful
+      if (paymentType === "renewal" && previousPayment.status !== "confirmed") {
+        return NextResponse.json(
+          { error: "Cannot renew: previous payment was not confirmed" },
+          { status: 400 }
+        );
+      }
+    }
     
     // Create payment record
     const payment = new CryptoPayment({
       userId,
       paymentId: uuidv4(),
+      paymentReference, // NEW: Unique reference for tracking
       cryptocurrency,
       network: process.env.CRYPTO_NETWORK || "testnet",
       amount: amountCrypto,
+      amountSat, // NEW: Amount in satoshis for Bitcoin
       amountUSD,
+      expectedAmountSat: amountSat, // NEW: Expected amount for verification
       toAddress: paymentAddress,
       planType,
       planDuration,
@@ -82,6 +167,13 @@ export async function POST(request: NextRequest) {
       confirmations: 0,
       requiredConfirmations: cryptocurrency === "bitcoin" ? 1 : 10, // Bitcoin needs 1, Monero needs 10
       expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour expiry
+      metadata: {
+        paymentType, // NEW: Track the type of payment
+        previousPaymentId: previousPaymentId || null, // NEW: Link to previous payment if applicable
+        createdReason: paymentType === "retry" ? "Payment retry" : 
+                      paymentType === "renewal" ? "Subscription renewal" :
+                      paymentType === "upgrade" ? "Plan upgrade" : "New payment",
+      },
     });
     
     await payment.save();
@@ -142,15 +234,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       payment: {
         paymentId: payment.paymentId,
+        paymentReference: payment.paymentReference, // NEW: Include reference for user tracking
         cryptocurrency,
         amount: amountCrypto,
+        amountSat, // NEW: Include satoshi amount for Bitcoin
         amountUSD,
+        expectedAmountSat: amountSat, // NEW: Expected amount for user verification
         paymentAddress: paymentAddress,
         paymentUrl,
         qrCode: qrCodeData,
         status: payment.status,
         expiresAt: payment.expiresAt,
         requiredConfirmations: payment.requiredConfirmations,
+        paymentType, // NEW: Include payment type in response
+        previousPaymentId: previousPaymentId || null, // NEW: Reference to previous payment
       },
     });
     
@@ -217,8 +314,18 @@ export async function GET(request: NextRequest) {
       payment.confirmedAt = new Date();
       await payment.save();
       
-      // Here you would activate the subscription
-      // await activateSubscription(userId, payment);
+      // Activate the subscription
+      const activationResult = await activateSubscription({
+        userId: userId,
+        planType: payment.planType,
+        planDuration: payment.planDuration,
+        cryptocurrency: payment.cryptocurrency,
+        isRecurring: payment.isRecurring
+      });
+
+      if (!activationResult.success) {
+        console.error("Failed to activate subscription:", activationResult.message);
+      }
     }
     
     return NextResponse.json({

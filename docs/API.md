@@ -4,7 +4,24 @@
 
 Complete API reference for Fiorell's dating platform, including authentication, user management, matching, messaging, subscriptions, and admin endpoints.
 
-## 🔐 Authentication
+## � Payment Reference System
+
+Fiorell uses a conditional payment reference generation system that creates new payment references only when appropriate:
+
+### Payment Reference Logic
+- **New Payments**: Always generate fresh payment reference (PAY_ABC123_XYZ789)
+- **Retry Payments**: Generate new payment reference linked to original failed/expired payment
+- **Renewal Payments**: Generate new payment reference for subscription extension
+- **Upgrade Payments**: Generate new payment reference for plan changes
+- **Status Checks**: Use existing payment reference (no new reference created)
+
+### Payment Types
+- `new`: First-time subscription payment
+- `retry`: Retry of failed/expired payment (creates new reference)
+- `renewal`: Subscription renewal (creates new reference)  
+- `upgrade`: Plan upgrade (creates new reference)
+
+## �🔐 Authentication
 
 ### Base URL
 ```

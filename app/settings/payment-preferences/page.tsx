@@ -18,6 +18,7 @@ import { useNotification } from "@/contexts/NotificationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import SubscriptionWidget from "@/components/SubscriptionWidget";
 import Link from "next/link";
 
 interface PaymentPreferences {
@@ -329,6 +330,9 @@ export default function PaymentPreferencesPage() {
             </p>
           )}
         </div>
+
+        {/* Current Subscription */}
+        <SubscriptionWidget />
 
         {/* Info */}
         <Card className="mt-8 p-6 bg-yellow-50 border-yellow-200">

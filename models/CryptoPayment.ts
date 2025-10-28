@@ -4,6 +4,7 @@ export interface ICryptoPayment extends Document {
   userId: mongoose.Types.ObjectId;
   subscriptionId?: mongoose.Types.ObjectId;
   paymentId: string; // Unique payment identifier
+  paymentReference: string; // NEW: Unique reference for static address tracking
   
   // Crypto details
   cryptocurrency: "bitcoin" | "monero";
@@ -13,6 +14,7 @@ export interface ICryptoPayment extends Document {
   amount: number; // Amount in cryptocurrency (BTC/XMR)
   amountSat?: number; // For Bitcoin - amount in satoshis
   amountUSD: number; // USD equivalent at time of payment
+  expectedAmountSat?: number; // NEW: Exact expected amount in satoshis
   
   // Wallet addresses
   fromAddress?: string; // Sender's address
@@ -23,9 +25,28 @@ export interface ICryptoPayment extends Document {
   confirmations: number;
   requiredConfirmations: number;
   
-  // Payment status
-  status: "pending" | "confirming" | "confirmed" | "failed" | "expired";
+  // Payment status and verification
+  status: "pending" | "user_confirmed" | "admin_verifying" | "confirmed" | "failed" | "expired";
   paymentUrl?: string; // QR code or payment URL
+  
+  // NEW: User payment proof submission
+  userProof?: {
+    transactionHash: string;
+    fromAddress?: string;
+    amount: number;
+    submittedAt: Date;
+    screenshot?: string; // Optional proof screenshot
+    notes?: string; // User notes
+  };
+  
+  // NEW: Admin verification
+  adminVerification?: {
+    verifiedBy: mongoose.Types.ObjectId; // Admin user ID
+    verifiedAt: Date;
+    status: "approved" | "rejected";
+    notes?: string; // Admin notes
+    blockchainVerified: boolean; // Confirmed on blockchain
+  };
   
   // Subscription details
   planType: "premium" | "premium_plus";
@@ -35,6 +56,8 @@ export interface ICryptoPayment extends Document {
   // Timing
   expiresAt: Date; // When payment expires if not completed
   confirmedAt?: Date; // When payment was confirmed
+  userConfirmedAt?: Date; // NEW: When user submitted proof
+  adminVerifiedAt?: Date; // NEW: When admin verified
   createdAt: Date;
   updatedAt: Date;
   
@@ -44,6 +67,12 @@ export interface ICryptoPayment extends Document {
   
   // Metadata
   metadata?: Record<string, unknown>;
+}
+
+// Interface for static methods
+interface ICryptoPaymentModel extends mongoose.Model<ICryptoPayment> {
+  generatePaymentReference(): string;
+  findByReference(reference: string): Promise<ICryptoPayment | null>;
 }
 
 const CryptoPaymentSchema = new Schema<ICryptoPayment>(
@@ -64,6 +93,11 @@ const CryptoPaymentSchema = new Schema<ICryptoPayment>(
       required: true,
       unique: true,
       index: true,
+    },
+    paymentReference: {
+      type: String,
+      required: true,
+      unique: true,
     },
     
     // Crypto details
@@ -93,6 +127,10 @@ const CryptoPaymentSchema = new Schema<ICryptoPayment>(
     amountUSD: {
       type: Number,
       required: true,
+      min: 0,
+    },
+    expectedAmountSat: {
+      type: Number,
       min: 0,
     },
     
@@ -126,13 +164,35 @@ const CryptoPaymentSchema = new Schema<ICryptoPayment>(
     // Payment status
     status: {
       type: String,
-      enum: ["pending", "confirming", "confirmed", "failed", "expired"],
+      enum: ["pending", "user_confirmed", "admin_verifying", "confirmed", "failed", "expired"],
       default: "pending",
       index: true,
     },
     paymentUrl: {
       type: String,
       trim: true,
+    },
+    
+    // User payment proof submission
+    userProof: {
+      transactionHash: { type: String },
+      fromAddress: { type: String },
+      amount: { type: Number },
+      submittedAt: { type: Date },
+      screenshot: { type: String },
+      notes: { type: String }
+    },
+    
+    // Admin verification
+    adminVerification: {
+      verifiedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      verifiedAt: { type: Date },
+      status: { 
+        type: String, 
+        enum: ["approved", "rejected"] 
+      },
+      notes: { type: String },
+      blockchainVerified: { type: Boolean, default: false }
     },
     
     // Subscription details
@@ -157,6 +217,14 @@ const CryptoPaymentSchema = new Schema<ICryptoPayment>(
       required: true,
     },
     confirmedAt: {
+      type: Date,
+      index: true,
+    },
+    userConfirmedAt: {
+      type: Date,
+      index: true,
+    },
+    adminVerifiedAt: {
       type: Date,
       index: true,
     },
@@ -186,14 +254,19 @@ CryptoPaymentSchema.index({ cryptocurrency: 1, status: 1 });
 CryptoPaymentSchema.index({ txHash: 1 }, { sparse: true });
 CryptoPaymentSchema.index({ expiresAt: 1 });
 CryptoPaymentSchema.index({ createdAt: -1 });
+CryptoPaymentSchema.index({ "userProof.transactionHash": 1 }, { sparse: true });
+CryptoPaymentSchema.index({ "adminVerification.status": 1 }, { sparse: true });
+CryptoPaymentSchema.index({ "adminVerification.verifiedBy": 1 }, { sparse: true });
 
 // Virtual for payment status display
 CryptoPaymentSchema.virtual("statusDisplay").get(function () {
   switch (this.status) {
     case "pending":
       return "Awaiting Payment";
-    case "confirming":
-      return `Confirming (${this.confirmations}/${this.requiredConfirmations})`;
+    case "user_confirmed":
+      return "User Confirmed - Pending Verification";
+    case "admin_verifying":
+      return "Under Admin Review";
     case "confirmed":
       return "Payment Confirmed";
     case "failed":
@@ -215,5 +288,60 @@ CryptoPaymentSchema.methods.isComplete = function (): boolean {
   return this.status === "confirmed";
 };
 
+// Method to submit user payment proof
+CryptoPaymentSchema.methods.submitUserProof = function (proof: {
+  transactionHash: string;
+  fromAddress?: string;
+  amount: number;
+  screenshot?: string;
+  notes?: string;
+}) {
+  this.userProof = {
+    ...proof,
+    submittedAt: new Date()
+  };
+  this.status = "user_confirmed";
+  this.userConfirmedAt = new Date();
+  return this.save();
+};
+
+// Method to update admin verification
+CryptoPaymentSchema.methods.setAdminVerification = function (
+  adminId: string,
+  status: "approved" | "rejected",
+  notes?: string,
+  blockchainVerified = false
+) {
+  this.adminVerification = {
+    verifiedBy: new mongoose.Types.ObjectId(adminId),
+    verifiedAt: new Date(),
+    status,
+    notes,
+    blockchainVerified
+  };
+  
+  if (status === "approved") {
+    this.status = "confirmed";
+    this.confirmedAt = new Date();
+  } else {
+    this.status = "failed";
+  }
+  
+  this.adminVerifiedAt = new Date();
+  return this.save();
+};
+
+// Static method to generate unique payment reference
+CryptoPaymentSchema.statics.generatePaymentReference = function (): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `PAY_${timestamp}_${random}`.toUpperCase();
+};
+
+// Static method to find payment by reference
+CryptoPaymentSchema.statics.findByReference = function (reference: string) {
+  return this.findOne({ paymentReference: reference });
+};
+
 export default mongoose.models.CryptoPayment ||
-  mongoose.model<ICryptoPayment>("CryptoPayment", CryptoPaymentSchema);
+  mongoose.model<ICryptoPayment, ICryptoPaymentModel>("CryptoPayment", CryptoPaymentSchema);

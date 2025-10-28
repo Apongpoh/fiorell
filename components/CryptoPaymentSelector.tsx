@@ -18,30 +18,51 @@ interface PricingData {
   monero: number;
 }
 
+interface Plan {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  interval: "month" | "year";
+  features: string[];
+  popular?: boolean;
+  savings?: {
+    savingsAmount: number;
+    savingsPercentage: number;
+  };
+  monthlyEquivalentPrice?: number;
+}
+
 export default function CryptoPaymentSelector({
   onPlanSelect,
   loading = false,
 }: CryptoPaymentSelectorProps) {
   const [selectedCrypto, setSelectedCrypto] = useState<"bitcoin" | "monero">("bitcoin");
-  const [selectedPlan, setSelectedPlan] = useState<"premium" | "premium_plus">("premium");
-  const [selectedBilling, setSelectedBilling] = useState<"monthly" | "annual">("monthly");
+  const [selectedPlan, setSelectedPlan] = useState<string>("premium_monthly");
   const [cryptoPrices, setCryptoPrices] = useState<PricingData | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(true);
-  
-  const planPricing = {
-    premium: {
-      monthly: 9.99,
-      annual: 99.99,
-    },
-    premium_plus: {
-      monthly: 19.99,
-      annual: 199.99,
-    },
-  };
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   
   useEffect(() => {
     fetchCryptoPrices();
+    fetchPlans();
   }, []);
+  
+  const fetchPlans = async () => {
+    try {
+      const response = await fetch("/api/subscription/plans");
+      if (response.ok) {
+        const data = await response.json();
+        setPlans(data.plans);
+      }
+    } catch (error) {
+      console.error("Failed to fetch plans:", error);
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
   
   const fetchCryptoPrices = async () => {
     try {
@@ -57,10 +78,17 @@ export default function CryptoPaymentSelector({
     }
   };
   
+  const getSelectedPlan = () => {
+    return plans.find(plan => plan.id === selectedPlan);
+  };
+  
   const calculateCryptoAmount = () => {
     if (!cryptoPrices) return 0;
     
-    const usdAmount = planPricing[selectedPlan][selectedBilling];
+    const plan = getSelectedPlan();
+    if (!plan) return 0;
+    
+    const usdAmount = plan.price;
     const cryptoPrice = cryptoPrices[selectedCrypto];
     
     return usdAmount / cryptoPrice;
@@ -70,19 +98,25 @@ export default function CryptoPaymentSelector({
     console.log("handleSubscribe called");
     console.log("selectedCrypto:", selectedCrypto);
     console.log("selectedPlan:", selectedPlan);
-    console.log("selectedBilling:", selectedBilling);
     console.log("cryptoPrices:", cryptoPrices);
     
-    const usdAmount = planPricing[selectedPlan][selectedBilling];
+    const plan = getSelectedPlan();
+    if (!plan) return;
+    
+    const usdAmount = plan.price;
     const cryptoAmount = calculateCryptoAmount();
     
     console.log("usdAmount:", usdAmount);
     console.log("cryptoAmount:", cryptoAmount);
     
+    // Convert plan ID to format expected by backend
+    const planType = selectedPlan.includes("premium_plus") ? "premium_plus" : "premium";
+    const planDuration = selectedPlan.includes("annual") ? "1_year" : "1_month";
+    
     onPlanSelect({
       cryptocurrency: selectedCrypto,
-      planType: selectedPlan,
-      billingCycle: selectedBilling,
+      planType: planType,
+      billingCycle: planDuration,
       amountCrypto: cryptoAmount,
       amountUSD: usdAmount,
     });
@@ -150,134 +184,108 @@ export default function CryptoPaymentSelector({
       {/* Plan Selection */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">2. Choose Your Plan</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => setSelectedPlan("premium")}
-            className={`p-6 border rounded-lg transition-colors ${
-              selectedPlan === "premium"
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-300 hover:border-gray-400"
-            }`}
-          >
-            <div className="text-xl font-bold text-blue-600 mb-2">Premium</div>
-            <div className="text-gray-600 mb-4">
-              Essential features for dating success
-            </div>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• Unlimited likes</li>
-              <li>• See who liked you</li>
-              <li>• Advanced filters</li>
-              <li>• Priority support</li>
-            </ul>
-          </button>
-          
-          <button
-            onClick={() => setSelectedPlan("premium_plus")}
-            className={`p-6 border rounded-lg transition-colors ${
-              selectedPlan === "premium_plus"
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-300 hover:border-gray-400"
-            }`}
-          >
-            <div className="text-xl font-bold text-purple-600 mb-2">Premium Plus</div>
-            <div className="text-gray-600 mb-4">
-              Maximum privacy and exclusive features
-            </div>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• Everything in Premium</li>
-              <li>• Disappearing messages</li>
-              <li>• Enhanced privacy mode</li>
-              <li>• Exclusive events access</li>
-            </ul>
-          </button>
-        </div>
-      </Card>
-      
-      {/* Billing Cycle Selection */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">3. Select Billing Cycle</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => setSelectedBilling("monthly")}
-            className={`p-4 border rounded-lg transition-colors ${
-              selectedBilling === "monthly"
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-300 hover:border-gray-400"
-            }`}
-          >
-            <div className="font-semibold">Monthly</div>
-            <div className="text-2xl font-bold text-gray-900">
-              ${planPricing[selectedPlan].monthly}
-            </div>
-            <div className="text-sm text-gray-600">per month</div>
-          </button>
-          
-          <button
-            onClick={() => setSelectedBilling("annual")}
-            className={`p-4 border rounded-lg transition-colors relative ${
-              selectedBilling === "annual"
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-300 hover:border-gray-400"
-            }`}
-          >
-            <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-              Save 17%
-            </div>
-            <div className="font-semibold">Annual</div>
-            <div className="text-2xl font-bold text-gray-900">
-              ${planPricing[selectedPlan].annual}
-            </div>
-            <div className="text-sm text-gray-600">per year</div>
-          </button>
-        </div>
+        {loadingPlans ? (
+          <div className="text-center py-8">Loading plans...</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {plans.map((plan) => (
+              <button
+                key={plan.id}
+                onClick={() => setSelectedPlan(plan.id)}
+                className={`p-6 border rounded-lg transition-colors text-left ${
+                  selectedPlan === plan.id
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-300 hover:border-gray-400"
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className={`text-xl font-bold ${
+                    plan.name.includes("Plus") ? "text-purple-600" : "text-blue-600"
+                  }`}>
+                    {plan.name}
+                  </div>
+                  {plan.popular && (
+                    <div className="bg-pink-500 text-white text-xs px-2 py-1 rounded-full">
+                      Popular
+                    </div>
+                  )}
+                </div>
+                <div className="text-gray-600 mb-2">{plan.description}</div>
+                <div className="mb-4">
+                  <span className="text-2xl font-bold text-gray-900">
+                    ${plan.price}
+                  </span>
+                  <span className="text-gray-600">/{plan.interval}</span>
+                  {plan.savings && (
+                    <div className="text-green-600 text-sm font-medium">
+                      Save ${plan.savings.savingsAmount} ({plan.savings.savingsPercentage}% off)
+                    </div>
+                  )}
+                </div>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  {plan.features.slice(0, 4).map((feature, index) => (
+                    <li key={index}>• {feature}</li>
+                  ))}
+                  {plan.features.length > 4 && (
+                    <li className="text-gray-500">+ {plan.features.length - 4} more features</li>
+                  )}
+                </ul>
+              </button>
+            ))}
+          </div>
+        )}
       </Card>
       
       {/* Payment Summary */}
       <Card className="p-6 bg-gray-50">
         <h3 className="text-lg font-semibold mb-4">Payment Summary</h3>
-        <div className="space-y-3">
-          <div className="flex justify-between">
-            <span>Plan:</span>
-            <span className="font-semibold">
-              {selectedPlan === "premium" ? "Premium" : "Premium Plus"} ({selectedBilling})
-            </span>
+        {loadingPlans ? (
+          <div className="text-center py-4">Loading...</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-between">
+              <span>Plan:</span>
+              <span className="font-semibold">
+                {getSelectedPlan()?.name} ({getSelectedPlan()?.interval})
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Cryptocurrency:</span>
+              <span className="font-semibold">
+                {selectedCrypto === "bitcoin" ? "Bitcoin (BTC)" : "Monero (XMR)"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Amount (USD):</span>
+              <span className="font-semibold">
+                ${getSelectedPlan()?.price}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Amount ({getCryptoSymbol(selectedCrypto)}):</span>
+              <span className="font-semibold">
+                {loadingPrices || !cryptoPrices
+                  ? "Calculating..."
+                  : `${calculateCryptoAmount().toFixed(8)} ${getCryptoSymbol(selectedCrypto)}`
+                }
+              </span>
+            </div>
+            <hr className="my-4" />
+            <div className="flex justify-between text-lg font-bold">
+              <span>Total:</span>
+              <span>
+                {loadingPrices || !cryptoPrices
+                  ? "Calculating..."
+                  : `${calculateCryptoAmount().toFixed(8)} ${getCryptoSymbol(selectedCrypto)}`
+                }
+              </span>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span>Cryptocurrency:</span>
-            <span className="font-semibold">
-              {selectedCrypto === "bitcoin" ? "Bitcoin (BTC)" : "Monero (XMR)"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span>Amount (USD):</span>
-            <span className="font-semibold">
-              ${planPricing[selectedPlan][selectedBilling]}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span>Amount ({getCryptoSymbol(selectedCrypto)}):</span>
-            <span className="font-semibold">
-              {loadingPrices || !cryptoPrices
-                ? "Calculating..."
-                : `${calculateCryptoAmount().toFixed(8)} ${getCryptoSymbol(selectedCrypto)}`
-              }
-            </span>
-          </div>
-          <hr className="my-4" />
-          <div className="flex justify-between text-lg font-bold">
-            <span>Total:</span>
-            <span>
-              {loadingPrices || !cryptoPrices
-                ? "Calculating..."
-                : `${calculateCryptoAmount().toFixed(8)} ${getCryptoSymbol(selectedCrypto)}`
-              }
-            </span>
-          </div>
-        </div>
+        )}
         
         <Button
           onClick={handleSubscribe}
-          disabled={loading || loadingPrices || !cryptoPrices}
+          disabled={loading || loadingPrices || !cryptoPrices || loadingPlans}
           className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold"
         >
           {loading ? "Processing..." : "Continue to Payment"}

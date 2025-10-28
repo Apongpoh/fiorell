@@ -1183,7 +1183,7 @@ function ProfilePage() {
                 </Link>
               ) : (
                 <Link
-                  href="/subscription/manage"
+                  href="/subscription/manage-comprehensive"
                   className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-all cursor-pointer"
                 >
                   Manage
