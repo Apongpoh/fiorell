@@ -781,7 +781,7 @@ export default function ComprehensiveSubscriptionManage() {
                 <h3 className="text-lg font-bold text-gray-900">Cancel Subscription</h3>
               </div>
               <p className="text-gray-700 mb-6">
-                Are you sure you want to cancel your subscription? You'll still have access until the end of your current billing period.
+                Are you sure you want to cancel your subscription? You&apos;ll still have access until the end of your current billing period.
               </p>
               <div className="flex justify-end space-x-3">
                 <Button
