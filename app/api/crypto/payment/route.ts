@@ -20,32 +20,27 @@ export async function POST(request: NextRequest) {
     const {
       cryptocurrency,
       planType,
-      planDuration,
+      planDuration: rawPlanDuration, // changed: read raw
       isRecurring = false,
-      paymentType = "new", // NEW: "new", "retry", "renewal", "upgrade"
-      previousPaymentId, // NEW: For retry/renewal scenarios
+      paymentType = "new",
+      previousPaymentId,
     } = body;
-    
+
+    // changed: normalize legacy values to expected ones
+    const planDuration =
+      rawPlanDuration === "1_month" ? "monthly" :
+      rawPlanDuration === "1_year" ? "annual" :
+      rawPlanDuration;
+
     // Validate input
     if (!["bitcoin", "monero"].includes(cryptocurrency)) {
-      return NextResponse.json(
-        { error: "Invalid cryptocurrency" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid cryptocurrency" }, { status: 400 });
     }
-    
     if (!["premium", "premium_plus"].includes(planType)) {
-      return NextResponse.json(
-        { error: "Invalid plan type" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid plan type" }, { status: 400 });
     }
-    
-    if (!["monthly", "annual"].includes(planDuration)) {
-      return NextResponse.json(
-        { error: "Invalid plan duration" },
-        { status: 400 }
-      );
+    if (!["monthly", "annual"].includes(planDuration)) { // changed: validate normalized
+      return NextResponse.json({ error: "Invalid plan duration" }, { status: 400 });
     }
 
     // Validate payment type
@@ -152,24 +147,24 @@ export async function POST(request: NextRequest) {
     const payment = new CryptoPayment({
       userId,
       paymentId: uuidv4(),
-      paymentReference, // NEW: Unique reference for tracking
+      paymentReference,
       cryptocurrency,
       network: process.env.CRYPTO_NETWORK || "testnet",
       amount: amountCrypto,
-      amountSat, // NEW: Amount in satoshis for Bitcoin
+      amountSat,
       amountUSD,
-      expectedAmountSat: amountSat, // NEW: Expected amount for verification
+      expectedAmountSat: amountSat,
       toAddress: paymentAddress,
       planType,
-      planDuration,
+      planDuration, // changed: use normalized value
       isRecurring,
       status: "pending",
       confirmations: 0,
-      requiredConfirmations: cryptocurrency === "bitcoin" ? 1 : 10, // Bitcoin needs 1, Monero needs 10
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour expiry
+      requiredConfirmations: cryptocurrency === "bitcoin" ? 1 : 10,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       metadata: {
-        paymentType, // NEW: Track the type of payment
-        previousPaymentId: previousPaymentId || null, // NEW: Link to previous payment if applicable
+        paymentType,
+        previousPaymentId: previousPaymentId || null,
         createdReason: paymentType === "retry" ? "Payment retry" : 
                       paymentType === "renewal" ? "Subscription renewal" :
                       paymentType === "upgrade" ? "Plan upgrade" : "New payment",

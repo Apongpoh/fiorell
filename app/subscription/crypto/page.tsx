@@ -157,8 +157,13 @@ export default function SubscriptionPage() {
 
     try {
       setProcessingPlan("crypto_" + paymentData.planType);
-      console.log("Making API call to /api/crypto/payment");
       const token = getAuthToken();
+
+      // changed: normalize to backend-expected values
+      const normalizedPlanDuration =
+        paymentData.billingCycle === "1_year" ? "annual" :
+        paymentData.billingCycle === "1_month" ? "monthly" :
+        paymentData.billingCycle;
 
       const response = await fetch("/api/crypto/payment", {
         method: "POST",
@@ -169,7 +174,7 @@ export default function SubscriptionPage() {
         body: JSON.stringify({
           cryptocurrency: paymentData.cryptocurrency,
           planType: paymentData.planType,
-          planDuration: paymentData.billingCycle,
+          planDuration: normalizedPlanDuration, // changed
           isRecurring: true,
         }),
       });

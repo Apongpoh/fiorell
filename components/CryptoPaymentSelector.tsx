@@ -6,7 +6,7 @@ interface CryptoPaymentSelectorProps {
   onPlanSelect: (plan: {
     cryptocurrency: string;
     planType: string;
-    billingCycle: string;
+    billingCycle: "monthly" | "annual"; // changed: enforce expected values
     amountCrypto: number;
     amountUSD: number;
   }) => void;
@@ -95,10 +95,6 @@ export default function CryptoPaymentSelector({
   };
   
   const handleSubscribe = () => {
-    console.log("handleSubscribe called");
-    console.log("selectedCrypto:", selectedCrypto);
-    console.log("selectedPlan:", selectedPlan);
-    console.log("cryptoPrices:", cryptoPrices);
     
     const plan = getSelectedPlan();
     if (!plan) return;
@@ -106,17 +102,14 @@ export default function CryptoPaymentSelector({
     const usdAmount = plan.price;
     const cryptoAmount = calculateCryptoAmount();
     
-    console.log("usdAmount:", usdAmount);
-    console.log("cryptoAmount:", cryptoAmount);
-    
     // Convert plan ID to format expected by backend
     const planType = selectedPlan.includes("premium_plus") ? "premium_plus" : "premium";
-    const planDuration = selectedPlan.includes("annual") ? "1_year" : "1_month";
+    const planDuration: "monthly" | "annual" = selectedPlan.includes("annual") ? "annual" : "monthly"; // changed
     
     onPlanSelect({
       cryptocurrency: selectedCrypto,
       planType: planType,
-      billingCycle: planDuration,
+      billingCycle: planDuration, // changed
       amountCrypto: cryptoAmount,
       amountUSD: usdAmount,
     });
