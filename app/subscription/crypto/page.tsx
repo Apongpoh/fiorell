@@ -18,7 +18,7 @@ import CryptoPaymentSelector from "@/components/CryptoPaymentSelector";
 import CryptoPaymentCheckout from "@/components/CryptoPaymentCheckout";
 import Button from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-
+console.log("")
 interface Plan {
   id: string;
   name: string;
@@ -179,11 +179,8 @@ export default function SubscriptionPage() {
         }),
       });
 
-      console.log("API response status:", response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log("Payment data received:", data);
         setCryptoPaymentData(data.payment);
         setCurrentStep("crypto_checkout");
       } else {

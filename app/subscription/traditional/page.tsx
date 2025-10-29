@@ -33,7 +33,7 @@ interface UserSubscription {
   expiresAt: string | null;
   features: string[];
 }
-
+console.log("")
 export default function TraditionalSubscriptionPage() {
   const { showNotification } = useNotification();
   const { user: currentUser } = useAuth();
@@ -55,11 +55,9 @@ export default function TraditionalSubscriptionPage() {
 
   const fetchPlans = useCallback(async () => {
     try {
-      console.log("Fetching subscription plans...");
       const response = await fetch("/api/subscription/plans");
       if (response.ok) {
         const data = await response.json();
-        console.log("Plans loaded:", data.plans?.length || 0);
         setPlans(data.plans || []);
       } else {
         console.error("Failed to fetch plans:", response.status);
@@ -72,7 +70,6 @@ export default function TraditionalSubscriptionPage() {
       // Set empty plans to prevent infinite loading
       setPlans([]);
     } finally {
-      console.log("Setting loading to false");
       setLoading(false);
     }
   }, [showNotification]);
