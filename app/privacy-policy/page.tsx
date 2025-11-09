@@ -383,7 +383,7 @@ export default function PrivacyPolicyPage() {
                   href="mailto:privacy@fiorell.app"
                   className="text-pink-600 hover:underline"
                 >
-                  privacy@fiorell.app
+                  privacy@fiorell.com
                 </a>
                 .
               </p>

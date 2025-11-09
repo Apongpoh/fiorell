@@ -298,7 +298,7 @@ export default function CommunityGuidelinesPage() {
                   href="mailto:support@fiorell.app"
                   className="text-pink-600 hover:underline"
                 >
-                  support@fiorell.app
+                  support@fiorell.com
                 </a>
                 .
               </p>
