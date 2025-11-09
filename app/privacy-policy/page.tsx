@@ -380,7 +380,7 @@ export default function PrivacyPolicyPage() {
               <p className="text-gray-600 leading-relaxed mb-4">
                 Questions or requests? Email us at{" "}
                 <a
-                  href="mailto:privacy@fiorell.app"
+                  href="mailto:privacy@fiorell.com"
                   className="text-pink-600 hover:underline"
                 >
                   privacy@fiorell.com

@@ -295,7 +295,7 @@ export default function CommunityGuidelinesPage() {
               <p className="text-gray-600 leading-relaxed">
                 Questions or concerns about these Guidelines? Email{" "}
                 <a
-                  href="mailto:support@fiorell.app"
+                  href="mailto:support@fiorell.com"
                   className="text-pink-600 hover:underline"
                 >
                   support@fiorell.com

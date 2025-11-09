@@ -354,7 +354,7 @@ export default function TermsPage() {
               <p className="text-gray-600 leading-relaxed mb-4">
                 Have questions about these Terms? Contact us at{" "}
                 <a
-                  href="mailto:support@fiorell.app"
+                  href="mailto:support@fiorell.com"
                   className="text-pink-600 hover:underline"
                 >
                   support@fiorell.com
