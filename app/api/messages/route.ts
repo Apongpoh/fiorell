@@ -6,7 +6,7 @@ import { verifyAuth } from "@/lib/auth";
 import Block from "@/models/Block";
 import { checkRateLimit } from "@/lib/rateLimit";
 import logger from "@/lib/logger";
-import { publishMessage } from "@/app/api/messages/subscribe/route";
+import { publishMessage } from "@/lib/pubsub";
 
 // Very small profanity placeholder list (extend or replace with dedicated service)
 const BANNED_WORDS = [

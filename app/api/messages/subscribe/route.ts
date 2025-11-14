@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "@/lib/logger";
+import { addListener, removeListener } from "@/lib/pubsub";
 
 // --- In-memory pub/sub ---
-type MessageListener = (msg: any) => void;
-const matchListeners: Record<string, Set<MessageListener>> = {};
+// type MessageListener = (msg: ChatMessage) => void;
+// const matchListeners: Record<string, Set<MessageListener>> = {};
 
 // Call this from your message POST handler after saving a new message
-export function publishMessage(matchId: string, message: any) {
-  const listeners = matchListeners[matchId];
-  if (listeners) {
-    for (const listener of listeners) {
-      try {
-        listener(message);
-      } catch {}
-    }
-  }
-}
+// export function publishMessage(matchId: string, message: ChatMessage) {
+//   const listeners = matchListeners[matchId];
+//   if (listeners) {
+//     for (const listener of listeners) {
+//       try {
+//         listener(message);
+//       } catch {}
+//     }
+//   }
+// }
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,19 +45,15 @@ export async function GET(request: NextRequest) {
             `data: ${JSON.stringify({ type: "connected" })}\n\n`
           );
 
-          // Listener for new messages
-          const listener: MessageListener = (msg) => {
+          const listener = (msg: unknown) => {
             controller.enqueue(`data: ${JSON.stringify(msg)}\n\n`);
           };
 
-          // Register listener
-          if (!matchListeners[matchId]) matchListeners[matchId] = new Set();
-          matchListeners[matchId].add(listener);
+          addListener(matchId!, listener);
 
           // Cleanup on disconnect
           return () => {
-            matchListeners[matchId]?.delete(listener);
-            if (matchListeners[matchId]?.size === 0) delete matchListeners[matchId];
+            removeListener(matchId!, listener);
           };
         },
       },

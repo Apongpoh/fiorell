@@ -271,7 +271,7 @@ function ChatPage() {
                 return;
               }
             }
-          } catch (err) {
+          } catch {
             // fallback: add as-is
           }
         }
