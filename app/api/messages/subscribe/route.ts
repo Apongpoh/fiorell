@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "@/lib/logger";
 
+// --- In-memory pub/sub ---
+type MessageListener = (msg: any) => void;
+const matchListeners: Record<string, Set<MessageListener>> = {};
+
+// Call this from your message POST handler after saving a new message
+export function publishMessage(matchId: string, message: any) {
+  const listeners = matchListeners[matchId];
+  if (listeners) {
+    for (const listener of listeners) {
+      try {
+        listener(message);
+      } catch {}
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -20,23 +36,32 @@ export async function GET(request: NextRequest) {
     }
 
     // Set up server-sent events
-    const stream = new ReadableStream({
-      start(controller) {
-        // Send initial connection message
-        controller.enqueue(
-          `data: ${JSON.stringify({ type: "connected" })}\n\n`
-        );
+    const stream = new ReadableStream(
+      {
+        start(controller) {
+          // Send initial connection message
+          controller.enqueue(
+            `data: ${JSON.stringify({ type: "connected" })}\n\n`
+          );
 
-        // Handle new messages
-        // You would implement your message queue or pub/sub system here
-        // For example, using Redis pub/sub or a similar solution
+          // Listener for new messages
+          const listener: MessageListener = (msg) => {
+            controller.enqueue(`data: ${JSON.stringify(msg)}\n\n`);
+          };
 
-        // Example cleanup
-        return () => {
-          // Clean up subscriptions
-        };
+          // Register listener
+          if (!matchListeners[matchId]) matchListeners[matchId] = new Set();
+          matchListeners[matchId].add(listener);
+
+          // Cleanup on disconnect
+          return () => {
+            matchListeners[matchId]?.delete(listener);
+            if (matchListeners[matchId]?.size === 0) delete matchListeners[matchId];
+          };
+        },
       },
-    });
+      { highWaterMark: 1 } // Ensure low-latency delivery
+    );
 
     return new Response(stream, {
       headers: {

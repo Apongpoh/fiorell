@@ -67,13 +67,13 @@ interface MatchData {
 }
 
 const formatMessageTime = (timestamp: string | null) => {
-  if (!timestamp) return "Just now";
+  if (!timestamp) return "";
   try {
     const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return "Just now";
+    if (isNaN(date.getTime())) return "";
     return `${formatDistanceToNow(date)} ago`;
   } catch {
-    return "Just now";
+    return "";
   }
 };
 
@@ -240,7 +240,6 @@ function ChatPage() {
     if (id) {
       loadMessages();
 
-      // Set up EventSource for real-time updates with auth token
       const token = localStorage.getItem("fiorell_auth_token");
       const eventSource = new EventSource(
         `/api/messages/subscribe?matchId=${id}&token=${token}`
@@ -248,13 +247,44 @@ function ChatPage() {
 
       eventSource.onmessage = async (event) => {
         const message = JSON.parse(event.data);
+        console.log("EventSource received message:", message); // debug log
 
-        // Add message without any auto-scroll
+        // Check for missing content or createdAt
+        if (!message.content || !message.createdAt) {
+          try {
+            // Fetch full message from backend
+            const resp = await fetch(`/api/messages/${message.id}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data && data.message) {
+                setMessages((prev) => {
+                  if (prev.some((m) => m.id === data.message.id)) return prev;
+                  return [...prev, data.message];
+                });
+                setTimeout(() => {
+                  messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+                return;
+              }
+            }
+          } catch (err) {
+            // fallback: add as-is
+          }
+        }
+
         setMessages((prev) => {
-          const updated = [...prev, message];
-          // No automatic scrolling
-          return updated;
+          // Only add if not already present (by id)
+          if (prev.some((m) => m.id === message.id)) return [...prev];
+          // Force state update by returning a new array
+          return [...prev, message];
         });
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
       };
 
       return () => {
@@ -387,6 +417,7 @@ function ChatPage() {
         method: "POST",
         body: JSON.stringify(messagePayload),
       });
+
       interface ServerMessageShape {
         _id?: string;
         content?: string;
@@ -513,11 +544,15 @@ function ChatPage() {
         newMsg = enriched;
       }
       setMessages((prev) => {
-        const updated = [...prev, newMsg as Message];
-        // No automatic scrolling when sending messages
-        return updated;
+        // Only add if not already present (by id)
+        if (prev.some((m) => m.id === (newMsg as Message).id)) return prev;
+        return [...prev, newMsg as Message];
       });
       setNewMessage("");
+      // Scroll to bottom after sending a message
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch (error: unknown) {
       let errorMessage = "Failed to send message.";
       if (
@@ -1633,7 +1668,7 @@ function ChatPage() {
                             ? message.error
                               ? "Failed"
                               : "Uploading..."
-                            : formatMessageTime(message.createdAt)}
+                            : formatMessageTime(message.createdAt) || "Just now"}
                         </span>
                         {message.disappearsAt && (
                           <div className="flex items-center gap-1">

@@ -6,6 +6,7 @@ import { verifyAuth } from "@/lib/auth";
 import Block from "@/models/Block";
 import { checkRateLimit } from "@/lib/rateLimit";
 import logger from "@/lib/logger";
+import { publishMessage } from "@/app/api/messages/subscribe/route";
 
 // Very small profanity placeholder list (extend or replace with dedicated service)
 const BANNED_WORDS = [
@@ -470,6 +471,23 @@ export async function POST(request: NextRequest) {
       iv: message.iv,
       keyId: message.keyId,
     };
+
+    // Notify SSE subscribers
+    publishMessage(matchId, {
+      id: message._id,
+      content: message.content,
+      type: message.type,
+      media: message.media,
+      sender: {
+        id: message.sender._id,
+        firstName: message.sender.firstName,
+        isCurrentUser: true,
+      },
+      readStatus: message.readStatus,
+      createdAt: message.createdAt,
+      disappearingDuration: message.disappearingDuration,
+      disappearsAt: message.disappearsAt,
+    });
 
     return NextResponse.json(
       {
