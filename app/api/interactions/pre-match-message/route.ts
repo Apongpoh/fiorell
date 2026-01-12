@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Pre-match message error:", error);
+    console.error("Error in pre-match message route:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

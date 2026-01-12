@@ -925,6 +925,24 @@ function DashboardPage() {
               {/* Dropdown Menu */}
               {showMoreMenu && (
                 <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                  {/* Profile Button for touch devices */}
+                  <button
+                    onClick={() => {
+                      router.push("/profile");
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center">
+                      <span className="text-white font-semibold text-sm">
+                        {(currentUser?.firstName ?? user?.firstName ?? "U").charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Profile</p>
+                      <p className="text-sm text-gray-500">View and edit your profile</p>
+                    </div>
+                  </button>
                   {/* Profile Boost */}
                   <button
                     onClick={() => {
@@ -1040,18 +1058,7 @@ function DashboardPage() {
               )}
             </div>
 
-            {/* Profile Avatar - Always visible */}
-            <button
-              onClick={() => router.push("/profile")}
-              className="w-8 h-8 bg-pink-500 cursor-pointer rounded-full flex items-center justify-center hover:bg-pink-600 transition-colors"
-              title="Profile"
-            >
-              <span className="text-white font-semibold text-sm">
-                {(currentUser?.firstName ?? user?.firstName ?? "U")
-                  .charAt(0)
-                  .toUpperCase()}
-              </span>
-            </button>
+            {/* ...existing code... */}
           </div>
         </div>
       </header>
@@ -1661,17 +1668,7 @@ function DashboardPage() {
                         <Star className="h-4 w-4 text-white fill-current" />
                       </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/profile/${currentProfile.id}`);
-                      }}
-                      className="bg-white/70 backdrop-blur-sm hover:bg-white text-gray-800 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 shadow-sm transition-colors"
-                    >
-                      <Info className="h-3 w-3" /> Profile
-                    </button>
-                  </div>
+                  </div> 
 
                   {/* Profile Info Overlay */}
                   <div className="absolute bottom-4 left-4 right-4 text-white pointer-events-none">
@@ -1697,6 +1694,20 @@ function DashboardPage() {
 
                 {/* Profile Details */}
                 <div className="p-4 h-1/4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm text-gray-600"></div>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/profile/${currentProfile.id}`)}
+                      className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-800 shadow-sm hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2 transition-colors flex items-center gap-1"
+                      aria-label={`View ${currentProfile.firstName}'s profile`}
+                      tabIndex={0}
+                      title="View full profile details"
+                    >
+                      <Info className="h-4 w-4 text-pink-500" aria-hidden="true" />
+                      <span>View Profile</span>
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {currentProfile.interests.map((interest, index) => (
                       <span

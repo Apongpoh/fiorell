@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IInteraction extends Document {
   userId: string;
   targetUserId: string;
-  action: "like" | "pass" | "super_like";
+  action: "like" | "pass" | "super_like" | "pre_match_message";
   createdAt: Date;
   isMatch: boolean; // Set to true when a mutual like/super_like occurs
 }
@@ -14,7 +14,7 @@ const InteractionSchema: Schema = new Schema(
     targetUserId: { type: String, required: true, index: true },
     action: {
       type: String,
-      enum: ["like", "pass", "super_like"],
+      enum: ["like", "pass", "super_like", "pre_match_message"],
       required: true,
     },
     createdAt: { type: Date, default: Date.now },
