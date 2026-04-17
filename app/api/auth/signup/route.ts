@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
-import { generateToken } from "@/lib/auth";
 import { z } from "zod";
 import SignupAttempt from "@/models/SignupAttempt";
 import EmailVerification from "@/models/EmailVerification";
 import { sendVerificationEmail } from "@/lib/sendVerificationEmail";
+import { logger } from "@/lib/logger";
 // Use the native fetch API available in Next.js
 
 // Define signup validation schema
@@ -264,15 +264,21 @@ export async function POST(_request: NextRequest) {
       code: verificationCode,
       verified: false,
     });
-    await sendVerificationEmail(savedUser.email, verificationCode);
+    try {
+      await sendVerificationEmail(savedUser.email, verificationCode);
+    } catch (emailError) {
+      logger.error("Signup created but verification email failed", {
+        action: "signup_verification_email_failed",
+        metadata: {
+          userId: savedUser._id.toString(),
+          email: savedUser.email,
+          error:
+            emailError instanceof Error ? emailError.message : String(emailError),
+        },
+      });
+    }
 
-    // Generate JWT token
-    const token = generateToken({
-      userId: savedUser._id.toString(),
-      email: savedUser.email,
-    });
-
-    const response = NextResponse.json(
+    return NextResponse.json(
       {
         message:
           "Welcome to Fiorell! Please check your email to verify your account.",
@@ -292,7 +298,6 @@ export async function POST(_request: NextRequest) {
           isActive: savedUser.isActive,
           createdAt: savedUser.createdAt,
         },
-        token,
       },
       {
         status: 201,
@@ -304,17 +309,6 @@ export async function POST(_request: NextRequest) {
         },
       }
     );
-    // Set HttpOnly auth cookie for middleware protection on app routes
-    response.cookies.set({
-      name: "auth_token",
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
-    return response;
   } catch (error) {
     // Handle validation errors specifically
     if (error instanceof Error && error.message.includes("validation failed")) {

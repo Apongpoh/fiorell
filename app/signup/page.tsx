@@ -16,7 +16,16 @@ const signupSchema = z
     firstName: z.string().min(2, "First name must be at least 2 characters"),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(
+        /[^A-Za-z0-9]/,
+        "Password must contain at least one special character"
+      ),
     confirmPassword: z.string(),
     dateOfBirth: z.string().min(1, "Please enter your date of birth"),
     gender: z.string().min(1, "Please select your gender"),
@@ -38,7 +47,10 @@ const signupSchema = z
         },
         { message: "Please enter as City, Country (e.g., Accra, Ghana)" }
       ),
-    interests: z.array(z.string()).min(3, "Please select at least 3 interests"),
+    interests: z
+      .array(z.string())
+      .min(3, "Please select at least 3 interests")
+      .max(10, "Please choose no more than 10 interests"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -55,6 +67,7 @@ export default function SignupPage() {
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showAllInterests, setShowAllInterests] = useState(false);
   const INTERESTS_COLLAPSED_COUNT = 12;
+  const MAX_INTERESTS = 10;
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const { signup, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -117,6 +130,9 @@ export default function SignupPage() {
     if (currentInterests.includes(interest)) {
       newInterests = currentInterests.filter((i) => i !== interest);
     } else {
+      if (currentInterests.length >= MAX_INTERESTS) {
+        return;
+      }
       newInterests = [...currentInterests, interest];
     }
 
@@ -391,7 +407,7 @@ export default function SignupPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Interests{" "}
-                  <span className="text-gray-500">(Select at least 3)</span>
+                  <span className="text-gray-500">(Select 3 to 10)</span>
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
                   {(showAllInterests
@@ -399,14 +415,19 @@ export default function SignupPage() {
                     : availableInterests.slice(0, INTERESTS_COLLAPSED_COUNT)
                   ).map((interest) => {
                     const isSelected = selectedInterests.includes(interest);
+                    const isDisabled =
+                      !isSelected && selectedInterests.length >= MAX_INTERESTS;
                     return (
                       <button
                         key={interest}
                         type="button"
                         onClick={() => toggleInterest(interest)}
+                        disabled={isDisabled}
                         className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${
                           isSelected
                             ? "bg-pink-500 text-white"
+                            : isDisabled
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
@@ -430,7 +451,7 @@ export default function SignupPage() {
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mb-2">
-                  Selected: {selectedInterests.length} interests
+                  Selected: {selectedInterests.length} of {MAX_INTERESTS} interests
                 </p>
                 {errors.interests && (
                   <p className="text-red-500 text-sm mt-1">

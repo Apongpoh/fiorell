@@ -84,6 +84,7 @@ interface SignupData {
   dateOfBirth: string;
   gender: string;
   location: string;
+  interests: string[];
 }
 
 interface LoginResponse {

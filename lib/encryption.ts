@@ -1,15 +1,26 @@
 import crypto from "crypto";
 
 // Key management: In production, use a secure key store (e.g., AWS KMS, HashiCorp Vault, or similar)
-// For now, keys are loaded from environment variables
-const ENCRYPTION_KEY = process.env.MESSAGE_ENCRYPTION_KEY || "";
-const IV_LENGTH = 12; // AES-GCM recommended IV length
+// For now, keys are loaded from environment variables.
+const getEncryptionKey = (): Buffer => {
+  const key = process.env.MESSAGE_ENCRYPTION_KEY || "";
+  const base64Key = Buffer.from(key, "base64");
 
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+  if (base64Key.length === 32) {
+    return base64Key;
+  }
+
+  if (Buffer.byteLength(key, "utf8") === 32) {
+    return Buffer.from(key, "utf8");
+  }
+
   throw new Error(
-    "MESSAGE_ENCRYPTION_KEY must be set to a 32-byte base64 string"
+    "MESSAGE_ENCRYPTION_KEY must be a base64-encoded 32-byte key"
   );
-}
+};
+
+const ENCRYPTION_KEY = getEncryptionKey();
+const IV_LENGTH = 12; // AES-GCM recommended IV length
 
 export function encryptMessage(plainText: string): {
   encryptedContent: string;
@@ -17,8 +28,7 @@ export function encryptMessage(plainText: string): {
   keyId: string;
 } {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const key = Buffer.from(ENCRYPTION_KEY, "base64");
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const cipher = crypto.createCipheriv("aes-256-gcm", ENCRYPTION_KEY, iv);
   const encrypted = Buffer.concat([
     cipher.update(plainText, "utf8"),
     cipher.final(),
@@ -32,12 +42,11 @@ export function encryptMessage(plainText: string): {
 }
 
 export function decryptMessage(encryptedContent: string, iv: string): string {
-  const key = Buffer.from(ENCRYPTION_KEY, "base64");
   const ivBuf = Buffer.from(iv, "base64");
   const data = Buffer.from(encryptedContent, "base64");
   const tag = data.slice(data.length - 16);
   const encrypted = data.slice(0, data.length - 16);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, ivBuf);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", ENCRYPTION_KEY, ivBuf);
   decipher.setAuthTag(tag);
   const decrypted = Buffer.concat([
     decipher.update(encrypted),

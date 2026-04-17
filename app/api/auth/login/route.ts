@@ -4,6 +4,12 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email address").toLowerCase(),
+  password: z.string().min(1, "Password is required"),
+});
 
 // CORS preflight handler (no request body needed)
 export async function OPTIONS() {
@@ -27,12 +33,29 @@ export async function POST(request: NextRequest) {
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       "unknown";
 
-    // Rate limiting: max 5 login attempts per IP+email per 15 minutes
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || "Invalid login details" },
+        {
+          status: 400,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    }
+
+    const { email, password } = parsed.data;
+
+    // Rate limiting: max 5 failed login attempts per IP+email per 15 minutes
     const LoginAttempt = (await import("@/models/LoginAttempt")).default;
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
     const recentAttempts = await LoginAttempt.countDocuments({
       ip,
-      email: body.email?.toLowerCase(),
+      email,
       createdAt: { $gte: fifteenMinutesAgo },
     });
     if (recentAttempts >= 5) {
@@ -48,31 +71,13 @@ export async function POST(request: NextRequest) {
         }
       );
     }
-    // Log this attempt
-    await LoginAttempt.create({ ip, email: body.email?.toLowerCase() });
 
-    const { email, password } = body;
-
-    // Basic validation
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
-        {
-          status: 400,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          },
-        }
-      );
-    }
+    const recordFailedAttempt = () => LoginAttempt.create({ ip, email });
 
     // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password"
-    );
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
+      await recordFailedAttempt();
       logger.security("Login attempt - user not found", {
         action: "login_user_not_found",
         metadata: { email },
@@ -93,6 +98,7 @@ export async function POST(request: NextRequest) {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
+      await recordFailedAttempt();
       return NextResponse.json(
         { error: "Incorrect password" },
         {
@@ -153,6 +159,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user has 2FA enabled
     if (user.twoFA?.enabled) {
+      await LoginAttempt.deleteMany({ ip, email });
       // If 2FA is enabled, don't generate full token yet
       // Return a temporary response indicating 2FA is required
       return NextResponse.json(
@@ -176,6 +183,7 @@ export async function POST(request: NextRequest) {
     // Update last seen
     user.lastSeen = new Date();
     await user.save();
+    await LoginAttempt.deleteMany({ ip, email });
 
     // Generate JWT token
     const token = generateToken({

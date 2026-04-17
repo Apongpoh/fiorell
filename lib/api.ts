@@ -22,6 +22,25 @@ const removeAuthToken = (): void => {
   localStorage.removeItem("fiorell_auth_token");
 };
 
+type ApiErrorBody = {
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+};
+
+export class ApiError extends Error {
+  status: number;
+  response: ApiErrorBody;
+
+  constructor(message: string, status: number, response: ApiErrorBody) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.response = response;
+    Object.assign(this, response);
+  }
+}
+
 // Generic API request function
 export const apiRequest = async (
   endpoint: string,
@@ -49,16 +68,17 @@ export const apiRequest = async (
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = (await response.json().catch(() => ({}))) as ApiErrorBody;
       if (response.status === 401) {
         // Unauthorized - remove invalid token
         removeAuthToken();
-        throw errorData.error
-          ? new Error(errorData.error)
-          : new Error("Unauthorized");
       }
-      throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
+      throw new ApiError(
+        errorData.error ||
+          errorData.message ||
+          `HTTP error! status: ${response.status}`,
+        response.status,
+        errorData
       );
     }
 
@@ -80,6 +100,7 @@ export const authAPI = {
     dateOfBirth: string;
     gender: string;
     location: string;
+    interests: string[];
   }) => {
     const response = await apiRequest("/auth/signup", {
       method: "POST",
