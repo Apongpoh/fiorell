@@ -114,6 +114,23 @@ export async function GET(request: NextRequest) {
       status: "matched",
       isActive: true,
     }).populate("user1 user2", "_id firstName photos lastSeen");
+    if (!match) {
+      return NextResponse.json(
+        {
+          error:
+            "Match not found or you are not authorized to view these messages",
+        },
+        { status: 404 }
+      );
+    }
+
+    if (!match.user1 || !match.user2) {
+      return NextResponse.json(
+        { error: "Match data is incomplete" },
+        { status: 500 }
+      );
+    }
+
     // Block checks: if either party has blocked the other, prevent message access
     const otherUserId =
       match.user1._id.toString() === userId
@@ -130,23 +147,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "Messaging is disabled due to a block between users" },
         { status: 403 }
-      );
-    }
-
-    if (!match?.user1 || !match?.user2) {
-      return NextResponse.json(
-        { error: "Match data is incomplete" },
-        { status: 500 }
-      );
-    }
-
-    if (!match) {
-      return NextResponse.json(
-        {
-          error:
-            "Match not found or you are not authorized to view these messages",
-        },
-        { status: 404 }
       );
     }
 
@@ -337,6 +337,13 @@ export async function POST(request: NextRequest) {
       status: "matched",
       isActive: true,
     });
+    if (!match) {
+      return NextResponse.json(
+        { error: "Match not found or you are not authorized to send messages" },
+        { status: 404 }
+      );
+    }
+
     // Block checks before sending messages
     const otherUserId =
       match.user1.toString() === userId
@@ -353,13 +360,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Messaging is disabled due to a block between users" },
         { status: 403 }
-      );
-    }
-
-    if (!match) {
-      return NextResponse.json(
-        { error: "Match not found or you are not authorized to send messages" },
-        { status: 404 }
       );
     }
 

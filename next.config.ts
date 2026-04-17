@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+const awsBucketName =
+  process.env.AWS_S3_BUCKET_NAME ||
+  process.env.AWS_BUCKET_NAME ||
+  "fiorellawsbuckets";
+const awsRegion = process.env.AWS_REGION || "eu-north-1";
+
 const nextConfig: NextConfig = {
   images: {
     // Allow rendering SVGs in Next/Image (used by /api/placeholder/profile)
@@ -10,7 +16,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "fiorellawsbuckets.s3.eu-north-1.amazonaws.com",
+        hostname: `${awsBucketName}.s3.${awsRegion}.amazonaws.com`,
         pathname: "/**",
       },
     ],

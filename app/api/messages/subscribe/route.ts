@@ -1,22 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "@/lib/logger";
 import { addListener, removeListener } from "@/lib/pubsub";
-
-// --- In-memory pub/sub ---
-// type MessageListener = (msg: ChatMessage) => void;
-// const matchListeners: Record<string, Set<MessageListener>> = {};
-
-// Call this from your message POST handler after saving a new message
-// export function publishMessage(matchId: string, message: ChatMessage) {
-//   const listeners = matchListeners[matchId];
-//   if (listeners) {
-//     for (const listener of listeners) {
-//       try {
-//         listener(message);
-//       } catch {}
-//     }
-//   }
-// }
+import { verifyToken } from "@/lib/auth";
+import connectToDatabase from "@/lib/mongodb";
+import Match from "@/models/Match";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +20,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "Match ID is required" },
         { status: 400 }
+      );
+    }
+
+    if (!matchId.match(/^[0-9a-fA-F]{24}$/)) {
+      return NextResponse.json(
+        { error: "Invalid match ID format" },
+        { status: 400 }
+      );
+    }
+
+    const { userId } = verifyToken(token);
+
+    await connectToDatabase();
+
+    const match = await Match.findOne({
+      _id: matchId,
+      $or: [{ user1: userId }, { user2: userId }],
+      status: "matched",
+      isActive: true,
+    }).select("_id");
+
+    if (!match) {
+      return NextResponse.json(
+        { error: "Match not found or unauthorized" },
+        { status: 404 }
       );
     }
 

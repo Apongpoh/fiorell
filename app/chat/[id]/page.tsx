@@ -177,9 +177,11 @@ function ChatPage() {
   useEffect(() => {
     // Removed unused retryTimeout
 
-    const loadMessages = async (): Promise<void> => {
+    const loadMessages = async (showSpinner = false): Promise<void> => {
       try {
-        setLoading(true);
+        if (showSpinner) {
+          setLoading(true);
+        }
         const data = await apiRequest(`/messages?matchId=${id}`);
         if (
           !data ||
@@ -222,73 +224,90 @@ function ChatPage() {
           });
         }
       } catch (error: unknown) {
-        let errorMessage = "Failed to load messages. Please try again.";
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "message" in error &&
-          typeof (error as { message: unknown }).message === "string"
-        ) {
-          errorMessage = (error as { message: string }).message;
+        if (showSpinner) {
+          let errorMessage = "Failed to load messages. Please try again.";
+          if (
+            typeof error === "object" &&
+            error !== null &&
+            "message" in error &&
+            typeof (error as { message: unknown }).message === "string"
+          ) {
+            errorMessage = (error as { message: string }).message;
+          }
+          setError(errorMessage);
         }
-        setError(errorMessage);
       } finally {
-        setLoading(false);
+        if (showSpinner) {
+          setLoading(false);
+        }
       }
     };
 
     if (id) {
-      loadMessages();
+      loadMessages(true);
+      const pollInterval = setInterval(() => {
+        loadMessages(false);
+      }, 5000);
 
       const token = localStorage.getItem("fiorell_auth_token");
-      const eventSource = new EventSource(
-        `/api/messages/subscribe?matchId=${id}&token=${token}`
-      );
+      let eventSource: EventSource | null = null;
 
-      eventSource.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
-        console.log("EventSource received message:", message); // debug log
+      if (token) {
+        eventSource = new EventSource(
+          `/api/messages/subscribe?matchId=${id}&token=${token}`
+        );
 
-        // Check for missing content or createdAt
-        if (!message.content || !message.createdAt) {
-          try {
-            // Fetch full message from backend
-            const resp = await fetch(`/api/messages/${message.id}`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            if (resp.ok) {
-              const data = await resp.json();
-              if (data && data.message) {
-                setMessages((prev) => {
-                  if (prev.some((m) => m.id === data.message.id)) return prev;
-                  return [...prev, data.message];
-                });
-                setTimeout(() => {
-                  messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-                }, 100);
-                return;
+        eventSource.onmessage = async (event) => {
+          const message = JSON.parse(event.data);
+
+          // Check for missing content or createdAt
+          if (!message.content || !message.createdAt) {
+            try {
+              // Fetch full message from backend
+              const resp = await fetch(`/api/messages/${message.id}`, {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data && data.message) {
+                  setMessages((prev) => {
+                    if (prev.some((m) => m.id === data.message.id)) return prev;
+                    return [...prev, data.message];
+                  });
+                  setTimeout(() => {
+                    messagesEndRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                    });
+                  }, 100);
+                  return;
+                }
               }
+            } catch {
+              // fallback: add as-is
             }
-          } catch {
-            // fallback: add as-is
           }
-        }
 
-        setMessages((prev) => {
-          // Only add if not already present (by id)
-          if (prev.some((m) => m.id === message.id)) return [...prev];
-          // Force state update by returning a new array
-          return [...prev, message];
-        });
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-      };
+          setMessages((prev) => {
+            // Only add if not already present (by id)
+            if (prev.some((m) => m.id === message.id)) return [...prev];
+            // Force state update by returning a new array
+            return [...prev, message];
+          });
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+        };
+
+        eventSource.onerror = () => {
+          eventSource?.close();
+        };
+      }
 
       return () => {
-        eventSource.close();
+        clearInterval(pollInterval);
+        eventSource?.close();
       };
     }
   }, [id, retryCount, decryptMessages, debouncedScrollToBottom]);

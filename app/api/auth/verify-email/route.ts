@@ -16,11 +16,9 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
 
-    // Find the verification record
     const verification = await EmailVerification.findOne({
       code,
       email: email.toLowerCase(),
-      verified: false,
     });
 
     if (!verification) {
@@ -28,6 +26,12 @@ export async function POST(request: NextRequest) {
         { error: "Invalid or expired verification code" },
         { status: 400 }
       );
+    }
+
+    if (verification.verified) {
+      return NextResponse.json({
+        message: "Email verified successfully! You can now sign in.",
+      });
     }
 
     // Check if verification is expired (24 hours)
@@ -111,10 +115,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  // Redirect to frontend success page
   return NextResponse.redirect(
-    `${
-      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    }/verify-email?code=${code}&email=${verification.email}`
+    `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login?verified=true`
   );
 }

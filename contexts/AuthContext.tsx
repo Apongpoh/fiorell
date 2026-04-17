@@ -155,6 +155,23 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const isSuspensionError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const maybeError = error as {
+    accountSuspended?: unknown;
+    message?: unknown;
+  };
+
+  return (
+    maybeError.accountSuspended === true ||
+    (typeof maybeError.message === "string" &&
+      maybeError.message.includes("suspended"))
+  );
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -177,11 +194,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ) {
             setUser((userData as { user: User }).user);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Failed to load user:", error);
           
           // Check if it's a suspension error
-          if (error?.accountSuspended || error?.message?.includes("suspended")) {
+          if (isSuspensionError(error)) {
             showNotification("Your account has been suspended. Please contact support for assistance.", "error");
           }
           
@@ -192,7 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     loadUser();
-  }, []);
+  }, [showNotification]);
 
   const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
     setIsLoading(true);

@@ -1,11 +1,15 @@
 import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
 
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is required");
-}
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is required");
+  }
+
+  return secret;
+};
 
 export interface TokenPayload {
   userId: string;
@@ -18,7 +22,7 @@ export interface TokenPayload {
 export const generateToken = (
   payload: Omit<TokenPayload, "iat" | "exp">
 ): string => {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: "7d", // Token expires in 7 days
   });
 };
@@ -26,7 +30,7 @@ export const generateToken = (
 // Verify JWT token
 export const verifyToken = (token: string): TokenPayload => {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, getJwtSecret()) as TokenPayload;
   } catch {
     throw new Error("Invalid or expired token");
   }
@@ -64,7 +68,7 @@ export const verifyAuth = (request: NextRequest): TokenPayload => {
 export const generateRefreshToken = (
   payload: Omit<TokenPayload, "iat" | "exp">
 ): string => {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: "30d", // Refresh token expires in 30 days
   });
 };

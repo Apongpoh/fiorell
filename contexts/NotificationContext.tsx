@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import { AnimatePresence } from "framer-motion";
 import { Notification } from "@/components/ui/Notification";
 
@@ -32,17 +38,20 @@ export const NotificationProvider = ({
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const showNotification = (message: string, type: "success" | "error") => {
-    const id = Math.random().toString(36).substr(2, 9);
-    setNotifications((prev) => [...prev, { id, message, type }]);
+  const showNotification = useCallback(
+    (message: string, type: "success" | "error") => {
+      const id = Math.random().toString(36).substr(2, 9);
+      setNotifications((prev) => [...prev, { id, message, type }]);
 
-    // Auto remove notification after 5 seconds
-    setTimeout(() => {
-      setNotifications((prev) =>
-        prev.filter((notification) => notification.id !== id)
-      );
-    }, 5000);
-  };
+      // Auto remove notification after 5 seconds
+      setTimeout(() => {
+        setNotifications((prev) =>
+          prev.filter((notification) => notification.id !== id)
+        );
+      }, 5000);
+    },
+    []
+  );
 
   const removeNotification = (id: string) => {
     setNotifications((prev) =>
@@ -50,8 +59,10 @@ export const NotificationProvider = ({
     );
   };
 
+  const value = useMemo(() => ({ showNotification }), [showNotification]);
+
   return (
-    <NotificationContext.Provider value={{ showNotification }}>
+    <NotificationContext.Provider value={value}>
       {children}
       <div className="fixed top-4 right-4 z-50 space-y-2 min-w-[320px]">
         <AnimatePresence>

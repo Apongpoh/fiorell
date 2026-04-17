@@ -1,26 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import User from "@/models/User";
 import connectToMongoDB from "@/lib/mongodb";
 import logger from "@/lib/logger";
+import { verifyAuth } from "@/lib/auth";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const isAuthError = (error: unknown): boolean =>
+  error instanceof Error &&
+  (error.message === "Authentication token is required" ||
+    error.message === "Invalid or expired token");
 
 // Subscribe to push notifications
 export async function POST(request: NextRequest) {
   try {
     await connectToMongoDB();
 
-    // Get token from Authorization header
-    const authHeader = request.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify JWT token
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const { userId } = verifyAuth(request);
 
     // Parse request body
     const { subscription } = await request.json();
@@ -34,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Add subscription to user's push subscriptions
     const user = await User.findByIdAndUpdate(
-      decoded.userId,
+      userId,
       {
         $addToSet: {
           pushSubscriptions: {
@@ -62,7 +56,7 @@ export async function POST(request: NextRequest) {
         error: error instanceof Error ? error.message : String(error),
       },
     });
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (isAuthError(error)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     return NextResponse.json(
@@ -77,16 +71,7 @@ export async function DELETE(request: NextRequest) {
   try {
     await connectToMongoDB();
 
-    // Get token from Authorization header
-    const authHeader = request.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify JWT token
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const { userId } = verifyAuth(request);
 
     // Parse request body
     const { endpoint } = await request.json();
@@ -100,7 +85,7 @@ export async function DELETE(request: NextRequest) {
 
     // Remove subscription from user's push subscriptions
     const user = await User.findByIdAndUpdate(
-      decoded.userId,
+      userId,
       {
         $pull: {
           pushSubscriptions: { endpoint },
@@ -123,7 +108,7 @@ export async function DELETE(request: NextRequest) {
         error: error instanceof Error ? error.message : String(error),
       },
     });
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (isAuthError(error)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     return NextResponse.json(

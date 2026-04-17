@@ -41,7 +41,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a retry payment request to the main payment API
-    const retryPaymentResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/crypto/payment`, {
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXTAUTH_URL ||
+      "http://localhost:3000";
+    const retryPaymentResponse = await fetch(`${appUrl}/api/crypto/payment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

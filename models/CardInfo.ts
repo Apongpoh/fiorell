@@ -42,7 +42,7 @@ export interface ICardInfo extends Document {
   // Metadata
   userAgent?: string;
   ipAddress?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 const CardInfoSchema: Schema = new Schema(

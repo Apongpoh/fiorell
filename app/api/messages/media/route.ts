@@ -7,10 +7,8 @@ import Match from "@/models/Match";
 import Message from "@/models/Message";
 import { verifyAuth } from "@/lib/auth";
 import logger from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rateLimit";
 
-// Basic per-match media throttle & duplicate detection
-const recentMedia: Map<string, { size: number; mime: string; ts: number }> =
-  new Map();
 const MEDIA_RATE_WINDOW_MS = 5000; // at most one media every 5s per user per match
 const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
@@ -86,32 +84,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Rate limiting & duplicate guard
-    const throttleKey = `${userId}:${matchId}`;
-    const now = Date.now();
-    const last = recentMedia.get(throttleKey);
-    if (last) {
-      if (now - last.ts < MEDIA_RATE_WINDOW_MS) {
-        return NextResponse.json(
-          {
-            error:
-              "You are sending media too quickly. Please wait a few seconds.",
-          },
-          { status: 429 }
-        );
-      }
-      if (
-        last.size === fileSize &&
-        last.mime === fileType &&
-        now - last.ts < 60_000
-      ) {
+    const duplicateWindow = Math.floor(Date.now() / 60_000);
+    const rateLimitResult = await checkRateLimit({
+      resourceType: "media_upload",
+      userId,
+      resourceId: matchId,
+      windowMs: MEDIA_RATE_WINDOW_MS,
+      maxAttempts: 1,
+      contentHash: `${duplicateWindow}:${fileSize}:${fileType}`,
+    });
+
+    if (!rateLimitResult.allowed) {
+      if (rateLimitResult.isDuplicate) {
         return NextResponse.json(
           { error: "Duplicate media upload detected" },
           { status: 409 }
         );
       }
+
+      return NextResponse.json(
+        {
+          error:
+            "You are sending media too quickly. Please wait a few seconds.",
+          resetTime: rateLimitResult.resetTime,
+        },
+        { status: 429 }
+      );
     }
-    recentMedia.set(throttleKey, { size: fileSize, mime: fileType, ts: now });
 
     // (Optional) basic heuristic dimension check for images (skip for videos)
     // Could parse via sharp if added, but keep lightweight for now.

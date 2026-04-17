@@ -1,12 +1,16 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.DATABASE_URL!;
+const getMongoUri = (): string => {
+  const uri = process.env.DATABASE_URL || process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  throw new Error(
-    "Please define the DATABASE_URL environment variable inside .env"
-  );
-}
+  if (!uri) {
+    throw new Error(
+      "Please define DATABASE_URL or MONGODB_URI in the environment"
+    );
+  }
+
+  return uri;
+};
 
 /**
  * Global is used here to maintain a cached connection across hot reloads
@@ -42,9 +46,11 @@ async function connectToDatabase() {
       bufferCommands: false,
     };
 
-    mongooseCache.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
+    mongooseCache.promise = mongoose
+      .connect(getMongoUri(), opts)
+      .then((mongoose) => {
+        return mongoose;
+      });
   }
 
   try {
